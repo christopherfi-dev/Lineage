@@ -9,6 +9,10 @@
 
 Every step below either moves toward that sentence or it is out of scope.
 
+## The feel
+
+LINEAGE should feel like a quiet nature documentary. It is set at golden hour and painted in soft gouache like a field-guide illustration. The world is alive, calm and a little mysterious. Something small is always happening, so the screen is never frozen, but nothing ever shouts. The child's animals are the brightest, most detailed thing on screen; everything else is the world they live in.
+
 ---
 
 ## Decisions that are closed
@@ -73,15 +77,31 @@ Every step below either moves toward that sentence or it is out of scope.
    - The clue compares the trait's high end with its low end (decision 14).
 19. **The clue's "then" stays at the story's start** (2026-09-23; tested and reverted). Measuring "then" from the first choice point (generation 4) for the stories that reach it, and from generation 0 for the rest, lets traits other than webbing appear in the clue. The rule was to keep it only if the clue then pointed the way the engine rewards at least as often as before (215 of 270). It pointed that way in 149 of 270, so it was reverted.
    *With "then" at generation 4, on the 270 stories: both sides on 228, the one-line fallback on 42. By trait: webbing 104, curved claws 47, long back legs 43, strong tail 19, thick fur 9, big eyes 6. Points the rewarded way, by trait: webbing 55 of 104, back legs 33 of 43, claws 36 of 47, tail 14 of 19, fur 6 of 9, eyes 5 of 6; the fallback lines count as not pointing. 24 stories ended before generation 4 and kept generation 0. The webbed family in the high leaves: 26 of 30 (28 of 30 with "then" at the start).*
-20. **Traits are described against the start** (2026-09-23). The ending's traits panel and the creature card describe each meaningful trait against the generation-0 world average, with the reveal's GAP (0.12): "Tail: Stronger than at the start", "Eyes: About the same as at the start". A trait at least GAP above the average is higher, at least GAP below it lower, and anything between is "About the same as at the start". The three neutral traits keep their plain words ("Coat: medium"). On the ending, a dot marks each trait that is different from the start (the legend says so). The reveal and the panel now use the same levels, so a reveal never names a trait the panel calls the same.
+20. **Traits are described against the start** (2026-09-23; for cards, replaced by decision 22 the same day). The ending's traits panel and the creature card describe each meaningful trait against the generation-0 world average, with the reveal's GAP (0.12): "Tail: Stronger than at the start", "Eyes: About the same as at the start". A trait at least GAP above the average is higher, at least GAP below it lower, and anything between is "About the same as at the start". The three neutral traits keep their plain words ("Coat: medium"). On the ending, a dot marks each trait that is different from the start (the legend says so). The reveal and the panel now use the same levels, so a reveal never names a trait the panel calls the same.
    *On the 270 stories: 0 of the 213 reveals has a signature trait the panel does not call higher. "About the same as at the start" is the most common word for fur (195), tail (192) and body (213). Because the two webbed founding families raise the starting average for webbing (0.27), 31 endings read "Feet: Less webbing than at the start" (17 of 136 in the high leaves, 14 of 48 on the open ground, 0 at the water's edge).*
 21. **The creature card** (Step 3, 2026-09-23).
-   - **The drawing** (`game/src/creature.js`): one animal drawn large from its real body genome as layered 2D parts. Every trait changes something visible: webbing is pink skin between the toes on bigger, wider feet; curved claws, their length and curve; thick fur, a fluffier outline; long back legs, back-leg length; strong tail, tail thickness; big eyes, eye size; sleek body, round to streamlined; coat shade, dark to light; ear tips, rounded to pointed; tail tip, a coloured band. Values are continuous, so siblings look related but not identical. The animal's id seeds small touches, so the same animal always looks the same. A paper grain, a grain on the creature, soft edges and a wash in the habitat's colour make it read as a field-guide painting. This is a first style; Steps 4–5 may restyle it.
-   - **The card:** once the story has begun, tapping any animal opens its card (the first tap still picks the family). It shows which group the animal is in ("In your family", "The ones with a darker coat" with the Theirs/Yours counts, or "Not in your family"), the drawing, where it lives ("Lives at the water's edge."), its ten traits in the decision-20 words, and, when it has one, the trait that is new in it: "New at birth: a stronger tail, not from its parents." That trait glows on the drawing and in the list. Every line has a speaker. Families have no names in the game, so the first line names the group instead of a family name.
+   - **The drawing** (`game/src/creature.js`): one animal drawn large from its real body genome as layered 2D parts. Every trait changes something visible: webbing is pink skin between the toes on bigger, wider feet; curved claws, their length and curve; thick fur, a fluffier outline; long back legs, back-leg length; strong tail, tail thickness; big eyes, eye size; sleek body, round to streamlined; coat shade, dark to light; ear tips, rounded to pointed; tail tip, a coloured band. Values are continuous, so siblings look related but not identical. The animal's id seeds small touches, so the same animal always looks the same. A paper grain, a grain on the creature, soft edges and a wash in the habitat's colour make it read as a field-guide painting. This is a first style; Step 4 (look design) and Step 5 (beauty pass) restyle it.
+   - **The card:** once the story has begun, tapping any animal opens its card (the first tap still picks the family). It shows which group the animal is in ("In your family", "The ones with a darker coat" with the Theirs/Yours counts, or "Not in your family"), the drawing, where it lives ("Lives at the water's edge."), its ten traits in kid language (plain words since decision 22; at first the decision-20 words), and, when it has one, the trait that is new in it: "New at birth: a stronger tail, not from its parents." That trait glows on the drawing and in the list. Every line has a speaker. Families have no names in the game, so the first line names the group instead of a family name.
    - **"New":** the engine's body-mutation record at birth for that animal, when it changed the trait by at least APART (0.12). At most one trait per animal, as in the engine. Founders have none.
-   - **Behaviour:** it opens and closes in about 0.15 seconds (×, a tap on empty ground, or Escape). The world keeps running behind it. While a card is open during a choice, the 20-second timer waits, with no cap. If the animal passes away while its card is open, the card stays and says "This one has passed away." A ring marks the animal on the map.
+   - **Behaviour:** it opens and closes in about 0.15 seconds (×, a tap on empty ground, or Escape). The world keeps running behind it. While a card is open during a choice, the 20-second timer waits, with no cap; where the card sits then is decision 23. If the animal passes away while its card is open, the card stays and says "This one has passed away." A ring marks the animal on the map.
    - **Options and ending:** each choice option is drawn the same way, with a ring on the part the choice is about. Small parts (webbing, claws, ear tips, tail tip) also get a close-up in a corner, drawn again at a larger scale. The ending shows "Here's what your animals look like now." (or "looked like" when they died out): the group's average body in its main habitat, with the reveal right under it.
    *Time to draw one card, in headless Chromium at iPad size (1180 × 820 and 820 × 1180, 2× pixels), five taps: median 12–13 ms from tap to card, 11–12 ms of it the drawing. The first card of a session takes about 33 ms (it makes the paper grain once). With the CPU slowed 4×: median 65 ms, first card 148 ms. Map frame times were the same with the card open and closed, because the card is drawn once, when it opens. 97.7% of the 63,103 mutations at birth in 30 worlds change a trait by at least 0.12. About 1 living animal in 5 (19.4%) has a new trait, so five taps usually find one.*
+22. **Cards describe the animal in plain words** (2026-09-23; for cards, this replaces decision 20). A creature card says what the animal has, not how it compares with the start: "Lots of webbing between the toes", "Long back legs", "A dark coat". Each trait has three words, split at thirds of the engine's 0–1 range like the story's variation words:
+   - webbing: hardly any / some / lots of webbing between the toes;
+   - claws: straight / slightly curved / curved;
+   - fur: thin / medium / thick;
+   - back legs: short / medium / long;
+   - tail: weak / medium / strong;
+   - eyes: small / medium / big;
+   - body: chunky / medium / sleek;
+   - coat: dark / medium / light;
+   - ear tips: round / slightly pointy / pointy;
+   - tail tip: plain / a faint mark / a bright mark.
+
+   "New at birth: …" stays; it is the comparison with the animal's parents. The ending keeps "than at the start", so it matches the reveal (decision 20).
+23. **A card never covers a choice option** (2026-09-23). Outside a choice, the card sits at the right-hand side of the map, as before. While the choice panel is up, the card sits in the room above it, the side away from the panel, in a wide layout: the drawing on the left, the words on the right and the traits in two columns. It never reaches the panel, in landscape or portrait. The panel is the bottom sheet in both, so the card cannot be one during a choice. If the room is too small for the card, it scrolls. A card that is open when a choice point arrives moves up the same way, and goes back when the choice ends. The timer still waits while a card is open, with no cap.
+24. **The close-ups on choice options stay** (2026-09-23): webbing, claws, ear tips and tail tip, as in decision 21.
+25. **The prediction journal has no backend** (2026-09-23). Questions and options are generated inside the game from the story's real state, using a written table of question types. Each type has one reasonable answer and two or three common Grade 3 misconceptions as options. No network calls; no student data leaves the device. This replaces the room-based API endpoint in the old Step 4 (now Step 6).
 
 ## What the engine already gives you (do not rebuild these)
 
@@ -138,29 +158,40 @@ Every step below either moves toward that sentence or it is out of scope.
 
 **Do not:** build the collection screen, silhouettes, or mythical forms.
 
-### Step 4 — The prediction journal (tappable, no typing)
+### Step 4 — Look design (Claude Design, not Claude Code)
 
-**Goal:** One prediction before a time-skip, one reflection after.
+Marc takes screenshots of the live build to Claude Design and gets mockups of six moments at the quality he wants: (1) arrival from morning mist into the canopy; (2) a generation as one day, dawn to night; (3) a variation appearing (a soft ring of light, a short caption); (4) a group growing (warm) or shrinking (quieter, cooler, never scary); (5) the last one and the ending, with the reveal; (6) the creature card at full quality. The result is committed to design/v2/.
 
-- Frontend: a clean field-guide panel that shows a question and 3–4 tappable options, records the tap, and later shows the prediction next to what happened. No text field.
-- Backend: a small endpoint on the existing room-based API that receives lineage state (zone, traits, population trend) and returns a question plus options generated by Claude, one plausible-correct and two or three common kid misconceptions.
-- Journal entries are labelled as fictional simulation history.
+Done when: Marc looks at the six moments and thinks "yes, that."
 
-**Done when:** a prediction made before a 10-generation skip is shown back beside the real outcome, and the options were specific to that lineage, not generic.
+### Step 5 — Beauty pass (Claude Code)
 
-**Do not:** add download/export, teacher view, or persistence beyond the session.
+Bring the live game up to design/v2/.
 
-### Step 5 — Three kids, ten minutes (not a Claude Code step)
+- World: painted terrain with depth, the dawn-to-night generation cycle, moving water, swaying leaves, a few ambient insects and birds that belong to no group.
+- Animals: simple walk and idle motion; babies stay near their mother briefly after birth.
+- Moments: arrival, variation bloom, grow/shrink mood and the ending as mocked in design/v2/.
+- Naming: when a child starts a story, they pick a name for their family from three tappable options generated from its habitat and traits (e.g. "the Mossfoot family"); the name is used everywhere afterwards.
+- Sound: a soft ambient bed per habitat and a small chime for a variation. Sound starts on the first tap, with a mute button.
+- Performance: smooth on the class iPads; if effects cost smoothness, reduce the effects.
 
-Put it on an iPad in front of three students. Watch. Do not explain anything. Note where they tap, what they ignore, and whether they want to keep going. Their behavior decides what Step 6 is.
+Done when: a colleague says "oh, that's lovely" within ten seconds, and it runs smoothly on a class iPad.
+
+### Step 6 — The prediction journal (no typing, no backend)
+
+Before a fast-forward, one prediction; afterwards, the prediction shown beside what really happened. Questions come from the story's real state via a written table (see closed decisions). Tappable options only, read aloud. Entries are labelled as fictional simulation history.
+
+Done when: a prediction made before a fast-forward is shown beside the real outcome, and the options were specific to that story.
+
+### Step 7 — Three kids, ten minutes
+
+Marc puts it on an iPad in front of three students without explaining anything and watches. Their behaviour decides what comes next.
 
 ---
 
 ## Explicitly NOT in this scope
 
-Collection screen and silhouettes · mythical recombinations · teacher view · persistence / offline · journal export · sound · additional zones or traits · accessibility pass · performance hardening beyond "runs smoothly on the class iPads" · any further M1 audit, provenance, or acceptance tooling · Blender or any 3D pipeline.
-
-These belong to later milestones. Do not pull one in because it looks easy.
+Collection screen and silhouettes · mythical recombinations · teacher view · persistence / offline storage · journal export · additional habitats or traits · any further M1 audit, provenance or acceptance tooling · Blender or any 3D pipeline.
 
 ---
 

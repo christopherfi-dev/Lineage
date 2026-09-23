@@ -18,7 +18,7 @@ import {
   Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
 } from "./story.js";
 import { isGoodSeed, goodSeed } from "./seeds.js";
-import { averageOf, changedTraits, comparedRows } from "./variations.js";
+import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
 import {
   START_LINE, followLine, groupLines, TIMES_UP, optionLine, passedLines, chosenLines,
@@ -31,6 +31,8 @@ import { speakerButton, isSpeaking } from "./speech.js";
 const LOG_MS = 3800;
 /** How long the creature card takes to close (its CSS transition). */
 const CARD_CLOSE_MS = 150;
+/** During a choice, the gap kept between the card and the choice panel. */
+const CARD_GAP = 12;
 /** How long a chosen animal stays highlighted before the fast-forward. */
 const PICKED_MS = 1200;
 /** How long "Time's up!" shows before the fast-forward. */
@@ -124,7 +126,7 @@ export class Game {
     this.camTween = null;
     this.logQueue = [];
     this.logTimer = 0;
-    /** @type {null|{id:number, gone:boolean}} the animal whose creature card is open */
+    /** @type {null|CardState} the animal whose creature card is open */
     this.card = null;
     this.last = performance.now();
 
@@ -266,6 +268,7 @@ export class Game {
     }
     requestAnimationFrame(() => this.choiceEl.classList.add("open"));
     this.choice = { left: CHOICE_SECONDS * 1000, paused: 0, picked: null };
+    this.placeCard(); // an open card moves above the choice panel
     this.centerOnGroup(0.3);
   }
 
@@ -304,6 +307,7 @@ export class Game {
   /** Your group becomes every animal with the chosen variation; then the world fast-forwards. */
   followChoice(option, byChance) {
     this.choice = null;
+    this.placeCard(); // an open card goes back to the side
     this.choiceEl.classList.remove("open");
     this.choiceHideT = setTimeout(() => { if (!this.choice) this.choiceEl.hidden = true; }, 450);
     this.story.choose(option, byChance);
@@ -441,44 +445,65 @@ export class Game {
     if (!s.running) this.barEl.style.width = "0%";
   }
 
-  /* ================= the creature card (Step 3, scope decision 21) ================= */
+  /* ================= the creature card (Step 3, scope decisions 21-23) ================= */
   /**
    * Any animal can be looked at up close: its drawing from its real genome, its
-   * habitat, its traits against the start, and the trait that is new in it.
-   * Only choice points change whom you follow. The world keeps running behind it.
+   * habitat, its traits in plain words, and the trait that is new in it. Only
+   * choice points change whom you follow. The world keeps running behind it.
    */
   showCard(id) {
     const ind = this.bridge.get(id);
     if (!ind) return;
     const t0 = performance.now(), doc = this.doc;
-    const zone = this.bridge.zoneOf(id), fresh = this.card?.id !== id, newTrait = this.bridge.newTraitOf(id);
-    this.card = { id, gone: false };
+    const fresh = this.card?.id !== id;
+    if (fresh) {
+      const zone = this.bridge.zoneOf(id), newTrait = this.bridge.newTraitOf(id);
+      /** @type {CardState} */
+      this.card = { id, gone: false, genome: ind.bodyGenome, zone, glow: newTrait ? [newTrait.trait] : [], size: "" };
+      this.cardEl.classList.remove("gone");
+      this.cardWhere.set(livesLine(zone));
+      this.cardNewEl.hidden = !newTrait;
+      if (newTrait) this.cardNew.set(newAtBirthLine(newTrait.trait, newTrait.up));
+      // What the animal has, in plain words (scope decision 22); the trait new at birth glows.
+      this.cardTraitsEl.replaceChildren(...plainRows(ind.bodyGenome).map((r) => {
+        const row = Object.assign(doc.createElement("div"), { className: r.trait === newTrait?.trait ? "row new" : "row" });
+        row.append(Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }),
+          speakerButton(doc, () => `${r.value}.`));
+        return row;
+      }));
+    }
     this.herd.selected = id;
-    this.cardEl.classList.remove("gone");
-    this.cardWhere.set(livesLine(zone));
-    this.cardNewEl.hidden = !newTrait;
-    if (newTrait) this.cardNew.set(newAtBirthLine(newTrait.trait, newTrait.up));
-    // Every trait in kid language, against the whole world at the start; the new one glows.
-    this.cardTraitsEl.replaceChildren(...comparedRows(ind.bodyGenome, this.story.startWorld, GAP).map((r) => {
-      const row = Object.assign(doc.createElement("div"), { className: r.trait === newTrait?.trait ? "row new" : "row" });
-      const line = `${r.label}: ${r.value}.`;
-      row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
-        Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }), speakerButton(doc, () => line));
-      return row;
-    }));
     this.updateCard();
-    // Shown before drawing, so the drawing takes its size from the card.
     clearTimeout(this.cardHideT);
     this.cardEl.hidden = false;
-    if (fresh) {
-      const glow = newTrait ? [newTrait.trait] : [];
-      this.cardDrawMs = paintCreature(this.cardAnimalEl, ind.bodyGenome, { seed: id, habitat: zone, glow }).ms;
-    }
+    this.placeCard(); // lays the card out, then draws the animal at the size its box has
     void this.cardEl.offsetWidth; // the opening transition starts from the closed look
     this.cardEl.classList.add("open");
     this.cardMs = performance.now() - t0;
     console.info(`[lineage] card for animal ${id}: ${this.cardMs.toFixed(1)} ms` +
       (fresh ? ` (drawing ${this.cardDrawMs.toFixed(1)} ms)` : ""));
+  }
+
+  /**
+   * Where the card sits. Outside a choice, at the side of the map. While the
+   * choice panel is up, in the room above it, wide, so it never covers an option
+   * (scope decision 23). The animal is drawn again whenever its box changes size.
+   */
+  placeCard() {
+    const c = this.card;
+    if (!c) return;
+    const above = !!this.choice;
+    this.cardEl.classList.toggle("above", above);
+    if (above) {
+      const panelTop = this.stage.clientHeight - this.choiceEl.offsetHeight;
+      const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
+      this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
+    }
+    const cv = this.cardAnimalEl, size = `${cv.clientWidth}x${cv.clientHeight}`;
+    if (size !== c.size) {
+      c.size = size;
+      this.cardDrawMs = paintCreature(cv, c.genome, { seed: c.id, habitat: c.zone, glow: c.glow }).ms;
+    }
   }
 
   /** The card's first line and counts follow the story; if the animal passes away, the card says so. */
@@ -575,6 +600,7 @@ export class Game {
       this.cv.width = Math.floor(this.vw * this.DPR); this.cv.height = Math.floor(this.vh * this.DPR);
       this.ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0);
       this.clampCam();
+      this.placeCard();
     };
     addEventListener("resize", this.onResize);
     this.onResize();
@@ -729,6 +755,16 @@ export class Game {
     else this.showCard(a.id);
   }
 }
+
+/**
+ * @typedef {Object} CardState
+ * @property {number} id the animal on the card
+ * @property {boolean} gone it has passed away since the card opened
+ * @property {ArrayLike<number>} genome its body genome
+ * @property {number} zone its habitat (engine zone index)
+ * @property {string[]} glow the trait that is new in it, if any
+ * @property {string} size the drawing's box when it was last drawn, "WxH"
+ */
 
 /** The defining fixture, fetched once; null if it can't be read. */
 let fixture = null;

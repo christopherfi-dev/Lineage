@@ -99,15 +99,17 @@ That is about 80 seconds per choice and about 19 minutes per story.
    (`speechSynthesis`, `src/speech.js`), in a calm voice at rate 0.85. "20 → 31" is read as "from
    20 to 31". Child-facing lines stay under about 12 words. The 20-second choice timer stands
    still while anything is being read aloud.
-9. **The creature card** (Step 3, scope decision 21). Once the story has begun, tapping any
-   animal opens its card; the world keeps running behind it. It shows which group the animal is
-   in, its drawing, where it lives ("Lives at the water's edge."), its ten traits in the same
-   words as the ending, and, when it has one, the trait that is new in it: "New at birth: a
-   stronger tail, not from its parents." That trait glows on the drawing and in the list. "New"
-   is the engine's body-mutation record at birth, when it changed the trait by at least 0.12.
-   Every line has a speaker. The card closes with ×, a tap on empty ground, or Escape. While a
-   card is open during a choice, the choice timer waits. If the animal passes away while its card
-   is open, the card stays and says so. A ring marks the animal on the map.
+9. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
+   any animal opens its card; the world keeps running behind it. It shows which group the animal
+   is in, its drawing, where it lives ("Lives at the water's edge."), its ten traits in plain
+   words ("Lots of webbing between the toes", "Long back legs"), and, when it has one, the trait
+   that is new in it: "New at birth: a stronger tail, not from its parents." That trait glows on
+   the drawing and in the list. "New" is the engine's body-mutation record at birth, when it
+   changed the trait by at least 0.12. Every line has a speaker. The card closes with ×, a tap on
+   empty ground, or Escape. Outside a choice it sits at the side of the map. While the choice
+   panel is up it sits in the room above it, wide, so it never covers an option, and the choice
+   timer waits for as long as it is open. If the animal passes away while its card is open, the
+   card stays and says so. A ring marks the animal on the map.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.
