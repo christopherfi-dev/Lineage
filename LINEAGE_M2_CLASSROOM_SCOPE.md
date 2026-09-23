@@ -102,6 +102,11 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
 23. **A card never covers a choice option** (2026-09-23). Outside a choice, the card sits at the right-hand side of the map, as before. While the choice panel is up, the card sits in the room above it, the side away from the panel, in a wide layout: the drawing on the left, the words on the right and the traits in two columns. It never reaches the panel, in landscape or portrait. The panel is the bottom sheet in both, so the card cannot be one during a choice. If the room is too small for the card, it scrolls. A card that is open when a choice point arrives moves up the same way, and goes back when the choice ends. The timer still waits while a card is open, with no cap.
 24. **The close-ups on choice options stay** (2026-09-23): webbing, claws, ear tips and tail tip, as in decision 21.
 25. **The prediction journal has no backend** (2026-09-23). Questions and options are generated inside the game from the story's real state, using a written table of question types. Each type has one reasonable answer and two or three common Grade 3 misconceptions as options. No network calls; no student data leaves the device. This replaces the room-based API endpoint in the old Step 4 (now Step 6).
+26. **Confirmed by the architect** (2026-09-23): the wide card above the choice panel stays for now (decision 23), and "Hardly any webbing between the toes" stays (decision 22).
+27. **Moment shortcuts for the look design** (2026-09-23, preparing Step 4). `game/?moment=NAME` opens the game straight into one moment, in a real game state, and works with `?seed=` too. The moments are arrival, generation, variation, grow, shrink, choice, ending, extinct and card.
+   - A story that reaches the moment is found by observer runs on throwaway copies of the world. The game itself is then played forward to it: tap, watch, the same choices. The biology, the text and the game rules are unchanged.
+   - The links are on `game/moments.html`, which the game does not link to.
+   - Screenshots of every moment at iPad landscape and portrait are in `design/current/`, with a README listing each moment's link and the files that draw it.
 
 ## What the engine already gives you (do not rebuild these)
 

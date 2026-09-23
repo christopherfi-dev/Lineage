@@ -13,6 +13,7 @@ test("the game loads and the engine advances a generation", async () => {
 
   // Resolves every relative import the browser follows, including ../lineage-m1/src.
   await import("../src/main.js");
+  await import("../src/moments.js"); // loaded only with ?moment= (design shortcuts)
 
   const { Bridge } = await import("../src/bridge.js");
   const fixture = JSON.parse(readFileSync(join(GAME, "..", "lineage-m1", "fixtures", "defining_fixture_v1.json"), "utf8"));
