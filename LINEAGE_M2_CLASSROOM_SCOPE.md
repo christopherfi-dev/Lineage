@@ -108,3 +108,4 @@ These belong to later milestones. Do not pull one in because it looks easy.
 - Do not add tests for the game layer beyond a smoke test that it loads. The acceptance test is a human looking at it.
 - Do not write repair records, audit manifests, or status derivations. Write a five-line summary.
 - If a step is taking more than a day of work, stop and report what is blocking rather than expanding scope.
+- Never merge a pull request. Start each step on a new branch from main, and end it by opening a new pull request into main. Marc merges.
