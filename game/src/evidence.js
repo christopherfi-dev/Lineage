@@ -8,6 +8,9 @@
 import { TRAITS, MEANINGFUL_TRAIT_INDICES } from "./engine.js";
 import { levelOf } from "./variations.js";
 
+/** A clue whose count changed by fewer animals than this is weak: the next trait is tried. */
+export const MIN_CHANGE = 3;
+
 /**
  * How many animals have each word level of each trait, in each habitat.
  * @param {Array<{genome:ArrayLike<number>, zone:number}>} animals
@@ -39,7 +42,9 @@ const mean = (animals, t) => animals.reduce((sum, a) => sum + a.genome[t], 0) / 
  * is furthest from the rest of the world's, and it is counted at that trait's
  * far end in the group's direction ("webbed feet" for a group with more
  * webbing than the rest), in the other habitat where that count changed most
- * since the story began.
+ * since the story began. If that count changed by fewer than MIN_CHANGE
+ * animals, the next most distinctive trait that changed by MIN_CHANGE or more
+ * is used instead; if none did, the one that changed most.
  * @param {Array<{id:number, genome:ArrayLike<number>, zone:number}>} group
  * @param {Array<{id:number, genome:ArrayLike<number>, zone:number}>} living every animal alive now
  * @param {number[][][]} then census(...) when the story began
@@ -55,20 +60,21 @@ export function evidenceFor(group, living, then) {
     const mine = mean(group, t), theirs = rest.length ? mean(rest, t) : mine;
     return { t, level: mine > theirs ? 2 : 0, gap: Math.abs(mine - theirs) };
   }).sort((a, b) => b.gap - a.gap);
+  const change = (e) => Math.abs(e.now - e.then);
+  const lines = [];
   for (const { t, level } of ranked) {
     let best = null;
     for (const zone of [0, 1, 2]) {
       if (zone === home) continue;
       const a = then[t][level][zone], b = now[t][level][zone];
       if (a + b === 0) continue;
-      if (!best || Math.abs(b - a) > Math.abs(best.now - best.then) ||
-        (Math.abs(b - a) === Math.abs(best.now - best.then) && a + b > best.then + best.now)) {
-        best = { trait: TRAITS[t], level, zone, home, then: a, now: b };
-      }
+      const line = { trait: TRAITS[t], level, zone, home, then: a, now: b };
+      if (!best || change(line) > change(best) || (change(line) === change(best) && a + b > best.then + best.now)) best = line;
     }
-    if (best) return best;
+    if (best) lines.push(best);
   }
-  return null;
+  return lines.find((e) => change(e) >= MIN_CHANGE) ??
+    lines.reduce((top, e) => (change(e) > change(top) ? e : top), lines[0]) ?? null;
 }
 
 /**

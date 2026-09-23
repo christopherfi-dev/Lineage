@@ -37,7 +37,7 @@
     <div class="grab"></div>
     <div class="eyebrow" id="choice-count"></div>
     <h2>Which one will you follow?</h2>
-    <p id="choice-since"></p>
+    <div id="choice-since"></div>
     <div id="options"></div>
     <div class="timer"><i id="choice-bar"></i></div>
     <div id="choice-note"></div>
@@ -62,9 +62,12 @@
             <h3>A clue</h3>
             <p id="ending-evidence-line"></p>
           </div>
-          <!-- REAL-ANIMAL REVEAL PLACEHOLDER: a surviving group will be revealed here as the real animal it
-               most resembles, matched on the group's actual average traits (shown on the left), not on the choices. -->
-          <div id="reveal" hidden>Coming soon: the real animal your group most resembles, matched on its actual traits.</div>
+          <!-- The real-animal reveal (scope decision 10): a surviving group's actual average traits and main
+               habitat, matched in src/reveal.js by docs/LINEAGE_REAL_ANIMAL_REVEAL.md. Text for now; art comes later. -->
+          <div id="reveal" hidden>
+            <p id="reveal-line"></p>
+            <p id="reveal-why"></p>
+          </div>
           <h3 id="ending-choices-title">Your choices</h3>
           <ol id="ending-choices"></ol>
         </section>

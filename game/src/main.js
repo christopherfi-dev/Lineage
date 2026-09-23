@@ -20,9 +20,10 @@ import { isGoodSeed, goodSeed } from "./seeds.js";
 import { averageOf, changedTraits, traitRows, typicalOf } from "./variations.js";
 import {
   START_LINE, followLine, groupLines, otherLabel, notable, TIMES_UP, optionLine, passedLines, chosenLines,
-  skipDoneLines, compareLine, sinceLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap,
-  noChoices, neutralLines, evidenceLine,
+  skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
+  evidenceLine, countLine, YOURS, THEIRS, SINCE_TITLE, theOnesWith,
 } from "./narration.js";
+import { speakerButton } from "./speech.js";
 
 const LOG_MS = 3800;
 const LABEL_MS = 8000;
@@ -38,6 +39,8 @@ const FAST_PACE = 2.5;
 const HOME_MS = 400;
 /** In the defining world, seed 6 lets the webbed canopy family's decline play out over a few generations. */
 const DEFAULT_SEED = 6;
+/** Your group's colour, as on the map. */
+const MINE_COLOR = "#14657F";
 
 export class Game {
   /**
@@ -80,6 +83,16 @@ export class Game {
     this.endingEvidenceLineEl = $("ending-evidence-line");
     this.endingQuestionEl = $("ending-question");
     this.revealEl = $("reveal");
+    // Read-aloud: a small speaker beside every child-facing line (speech.js).
+    this.log = this.speakable(this.logEl);
+    this.speakable(/** @type {HTMLElement} */ (this.choiceEl.querySelector("h2")));
+    this.endingTitle = this.speakable(this.endingTitleEl);
+    this.endingTraitsTitle = this.speakable(this.endingTraitsTitleEl, () => this.traitsSpoken);
+    this.endingQuestion = this.speakable(this.endingQuestionEl);
+    this.endingEvidence = this.speakable(this.endingEvidenceLineEl);
+    this.revealLine = this.speakable($("reveal-line"));
+    this.revealWhy = this.speakable($("reveal-why"));
+    this.labelEl.append(speakerButton(doc, () => this.labelSpoken));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
@@ -190,29 +203,34 @@ export class Game {
     const s = this.story;
     this.closeLabel();
     this.choiceCountEl.textContent = `Choice ${s.points} of ${STORY_CHOICES}`;
-    // How the last choice turned out, against the ones not chosen. After a neutral
-    // trait, it also says that trait made no difference (scope decision 8).
+    // How the last choice turned out, against the ones not chosen, as counts (never
+    // percentages). After a neutral trait, it also says that trait made no difference.
     const last = s.choices[s.choices.length - 1];
-    const since = last ?
-      sinceLines(s.mine, s.others.map((o) => ({ group: o.option.group, now: o.members.size, then: o.sizeAtChoice })),
-        last.neutral ? last.group : null) : [];
-    this.choiceSinceEl.textContent = since.join(" ");
-    this.choiceNoteEl.textContent = "";
+    if (last) {
+      const rows = [this.mineRow(), ...s.others.map((o) => this.otherRow(o, theOnesWith(o.option.group)))];
+      const note = last.neutral ? neutralLines(last.group, s.mine).join(" ") : "";
+      const title = Object.assign(this.doc.createElement("div"), { className: "since-title", textContent: SINCE_TITLE });
+      title.append(speakerButton(this.doc, () => [SINCE_TITLE, ...rows.map((r) => `${countLine(r.label, r)}.`), note].join(" ")));
+      this.choiceSinceEl.replaceChildren(title, ...this.countRows(rows),
+        ...(note ? [Object.assign(this.doc.createElement("p"), { className: "note", textContent: note })] : []));
+    } else this.choiceSinceEl.replaceChildren();
+    this.choiceNoteEl.replaceChildren();
     this.choiceBarEl.style.width = "100%";
     // Shown in a random order, so the most common variation isn't always first. Each
     // keeps its colour on the map if it is not chosen.
     const shown = s.options.map((o) => ({ o, k: Math.random() })).sort((a, b) => a.k - b.k).map(({ o }) => o);
     this.optionEls = shown.map((o, k) => {
       o.color = GROUP_COLORS[k];
-      const el = this.doc.createElement("button");
-      el.type = "button";
+      const el = this.doc.createElement("div");
       el.className = "option";
       el.style.setProperty("--mark", o.color);
-      const words = this.doc.createElement("span");
+      const button = Object.assign(this.doc.createElement("button"), { type: "button", className: "pick" });
+      const words = Object.assign(this.doc.createElement("span"), { className: "words" });
       words.append(Object.assign(this.doc.createElement("i"), { className: "swatch" }), optionLine(o.words));
-      el.append(this.doc.createElement("canvas"), words);
-      el.addEventListener("click", () => this.pick(o, false, performance.now()));
-      return Object.assign(el, { option: o });
+      button.append(this.doc.createElement("canvas"), words);
+      button.addEventListener("click", () => this.pick(o, false, performance.now()));
+      el.append(button, speakerButton(this.doc, () => optionLine(o.words)));
+      return Object.assign(el, { option: o, button });
     });
     this.optionsEl.replaceChildren(...this.optionEls);
     clearTimeout(this.choiceHideT);
@@ -228,10 +246,10 @@ export class Game {
     if (!c || c.picked) return;
     Object.assign(c, { picked: option, byChance, goAt: now + (byChance ? TIMES_UP_MS : PICKED_MS) });
     for (const el of this.optionEls) {
-      el.disabled = true;
+      el.button.disabled = true;
       el.classList.add(el.option === option ? "picked" : "not-picked");
     }
-    if (byChance) this.choiceNoteEl.textContent = TIMES_UP;
+    if (byChance) this.choiceNoteEl.replaceChildren(TIMES_UP, speakerButton(this.doc, () => TIMES_UP));
   }
 
   /** While the world is paused: the countdown, then the random pick if time runs out. */
@@ -289,11 +307,13 @@ export class Game {
   /** Every ending is a reflection screen, not a game-over screen. */
   showEnding() {
     const s = this.story, doc = this.doc;
-    this.endingTitleEl.textContent = endingTitle(s.outcome, s.lasted, s.noun);
+    this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun));
     // The group's actual average body at the end (the last members alive), not a list of the choices.
-    this.endingTraitsTitleEl.textContent = `Your ${s.noun}'s traits`;
+    this.endingTraitsTitle.set(`Your ${s.noun}'s traits`);
     const genomes = (animals) => animals.map((a) => a.genome);
-    this.endingTraitsEl.replaceChildren(...traitRows(averageOf(genomes(s.lastAnimals)), averageOf(genomes(s.startAnimals))).map((r) => {
+    const rows = traitRows(averageOf(genomes(s.lastAnimals)), averageOf(genomes(s.startAnimals)));
+    this.traitsSpoken = rows.map((r) => `${r.label}: ${r.value}.`).join(" ");
+    this.endingTraitsEl.replaceChildren(...rows.map((r) => {
       const row = doc.createElement("div");
       row.className = r.changed ? "row changed" : "row";
       row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
@@ -303,24 +323,34 @@ export class Game {
     this.endingChoicesTitleEl.textContent = choicesHeading(s.choices.length);
     const items = s.choices.length ? s.choices.map((c) => {
       const li = Object.assign(doc.createElement("li"), { textContent: choiceRecap(c) });
-      // A neutral trait the child followed made no difference to who survived (scope decision 8).
+      let spoken = choiceRecap(c);
+      li.append(speakerButton(doc, () => spoken));
+      // A neutral trait the child followed made no difference to who survived (scope
+      // decision 8): said in words, with the group's size as counts and bars.
       if (c.neutral) {
-        const note = neutralLines(c.group, { now: c.sizeAtEnd, then: c.sizeAtChoice }).join(" ");
-        li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }));
+        const size = { then: c.sizeAtChoice, now: c.sizeAtEnd };
+        const note = neutralLines(c.group, size).join(" ");
+        const row = { label: YOURS, ...size, color: MINE_COLOR };
+        li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }), ...this.countRows([row]));
+        spoken = `${spoken}. ${note} ${countLine(row.label, row)}.`;
       }
       return li;
     }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome) })];
+    if (!s.choices.length) items[0].append(speakerButton(doc, () => noChoices(s.outcome)));
     this.endingChoicesEl.replaceChildren(...items);
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
     // One line of real evidence from the world, not the answer (evidence.js).
     this.endingEvidenceEl.hidden = !s.evidence;
-    if (s.evidence) this.endingEvidenceLineEl.textContent = evidenceLine(s.evidence);
-    this.endingQuestionEl.textContent = question(s.outcome, s.noun);
-    // REAL-ANIMAL REVEAL (placeholder): a surviving group will be revealed as the real
-    // animal it most resembles, matched on the group's actual average traits (the same
-    // averageOf(lastAnimals) shown above), not on the choices made.
-    this.revealEl.hidden = s.outcome !== "survived";
+    if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
+    this.endingQuestion.set(question(s.outcome, s.noun));
+    // The real-animal reveal (scope decision 10, docs/LINEAGE_REAL_ANIMAL_REVEAL.md): a surviving
+    // group's actual average traits and main habitat, never its choices. Text for now; art comes later.
+    this.revealEl.hidden = !s.reveal;
+    if (s.reveal) {
+      this.revealLine.set(s.reveal.animal.reveal);
+      this.revealWhy.set(s.reveal.animal.why.join(" "));
+    }
     this.endingEl.hidden = false;
     drawPortrait(this.endingAnimalEl, typicalOf(s.lastAnimals).genome);
   }
@@ -355,12 +385,9 @@ export class Game {
     this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
       (following ? `your ${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
-    this.othersEl.replaceChildren(...s.others.map((o) => {
-      const el = doc.createElement("span");
-      el.append(Object.assign(doc.createElement("i"), { className: "swatch" }), `${o.option.group} ${o.members.size}`);
-      el.style.setProperty("--mark", o.option.color);
-      return el;
-    }));
+    // Since the last choice, as counts with bars: yours and the groups not chosen.
+    this.othersEl.replaceChildren(...(s.others.length ?
+      this.countRows([this.mineRow(), ...s.others.map((o) => this.otherRow(o, o.option.group))]) : []));
     this.othersEl.hidden = !s.others.length;
     if (!s.running) this.barEl.style.width = "0%";
   }
@@ -376,13 +403,16 @@ export class Game {
       this.labelWhoEl.textContent = `In your ${s.noun}`;
       this.labelAboutEl.textContent = notable(ind.bodyGenome);
     } else if (theirs) {
-      // A group not chosen: how it did since the choice, against yours.
-      this.labelWhoEl.textContent = `The ones with ${theirs.option.group}`;
-      this.labelAboutEl.textContent = compareLine({ now: theirs.members.size, then: theirs.sizeAtChoice }, s.mine);
+      // A group not chosen: how it did since the choice, against yours, as counts with bars.
+      const rows = [this.otherRow(theirs, THEIRS), this.mineRow()];
+      this.labelWhoEl.textContent = theOnesWith(theirs.option.group);
+      this.labelAboutEl.replaceChildren(...this.countRows(rows));
+      this.labelSpoken = [`${this.labelWhoEl.textContent}.`, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ");
     } else {
       this.labelWhoEl.textContent = `Not in your ${s.noun}`;
       this.labelAboutEl.textContent = otherLabel(this.bridge.zoneOf(id), ind.bodyGenome);
     }
+    if (!theirs || this.herd.followed.has(id)) this.labelSpoken = `${this.labelWhoEl.textContent}. ${this.labelAboutEl.textContent}`;
     this.labelEl.classList.toggle("marked", !!theirs && !this.herd.followed.has(id));
     if (theirs) this.labelEl.style.setProperty("--mark", theirs.option.color);
     this.label = { id, until };
@@ -391,6 +421,44 @@ export class Game {
   closeLabel() {
     this.label = null;
     this.labelEl.hidden = true;
+  }
+
+  /* ================= counts, never percentages ================= */
+  mineRow() { return { label: YOURS, ...this.story.mine, color: MINE_COLOR }; }
+  otherRow(o, label) { return { label, then: o.sizeAtChoice, now: o.members.size, color: o.option.color }; }
+
+  /**
+   * Group sizes as counts beside two small bars, then and now, in each
+   * group's colour, on one scale for the rows shown together.
+   * @param {Array<{label:string, then:number, now:number, color:string}>} rows
+   */
+  countRows(rows) {
+    const doc = this.doc, top = Math.max(1, ...rows.flatMap((r) => [r.then, r.now]));
+    return rows.map((r) => {
+      const row = Object.assign(doc.createElement("div"), { className: "count" });
+      row.style.setProperty("--mark", r.color);
+      const bars = Object.assign(doc.createElement("span"), { className: "bars" });
+      for (const [v, when] of [[r.then, "then"], [r.now, "now"]]) {
+        const bar = Object.assign(doc.createElement("i"), { className: when });
+        bar.style.height = `${v ? Math.max(10, Math.round((100 * v) / top)) : 0}%`;
+        bars.append(bar);
+      }
+      row.append(bars, Object.assign(doc.createElement("span"), { textContent: countLine(r.label, r) }));
+      return row;
+    });
+  }
+
+  /**
+   * A line of child-facing text with a speaker beside it. Returns a handle
+   * whose set() changes the text and keeps the speaker.
+   * @param {HTMLElement} el
+   * @param {() => string} [read] what to read, when it is not the text itself
+   */
+  speakable(el, read) {
+    const text = Object.assign(this.doc.createElement("span"), { className: "text" });
+    text.append(...el.childNodes);
+    el.append(text, speakerButton(this.doc, read ?? (() => text.textContent)));
+    return { set: (t) => { text.textContent = t; } };
   }
   placeLabel(now) {
     if (!this.label) return;
@@ -406,7 +474,7 @@ export class Game {
   pumpLog(dt) {
     this.logTimer -= dt;
     if (this.logTimer <= 0 && this.logQueue.length) {
-      this.logEl.textContent = this.logQueue.shift();
+      this.log.set(this.logQueue.shift());
       this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
       this.logEl.style.animation = "lgIn .55s ease both";
       this.logTimer = LOG_MS;

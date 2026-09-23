@@ -22,8 +22,9 @@
  * Nothing here touches the biology. Following is observer state only.
  */
 
-import { APART, choiceOptions, formOf, isNeutral } from "./variations.js";
+import { APART, averageOf, choiceOptions, formOf, isNeutral } from "./variations.js";
 import { census, evidenceFor, mainZoneOf } from "./evidence.js";
+import { revealFor } from "./reveal.js";
 
 /** Real seconds per generation while watching. */
 export const GENERATION_SECONDS = 20;
@@ -87,6 +88,10 @@ export class Story {
     this.evidence = null;
     /** the habitat most of the group lived in at the end */
     this.mainZone = null;
+    /** the whole world's mean for each trait at the start (generation 0): the base for relative reveal levels */
+    this.startWorld = null;
+    /** @type {null|{animal: import("./reveal.js").RevealAnimal, matched:number, checked:number}} a surviving group's real animal */
+    this.reveal = null;
     /** @type {Map<number, {id:number, genome:ArrayLike<number>, zone:number}>} everyone in the group since it last formed */
     this.segment = new Map();
   }
@@ -105,7 +110,9 @@ export class Story {
     this.watched = 0;
     this.remember();
     this.startAnimals = this.lastAnimals;
-    this.startCensus = census(this.bridge.livingAnimals());
+    const world = this.bridge.livingAnimals();
+    this.startCensus = census(world);
+    this.startWorld = averageOf(world.map((a) => a.genome)).map((a) => a.mean);
     return follow;
   }
 
@@ -201,6 +208,10 @@ export class Story {
     this.endGeneration = generation;
     this.mainZone = mainZoneOf(this.lastAnimals);
     this.evidence = evidenceFor([...this.segment.values()], this.bridge.livingAnimals(), this.startCensus);
+    // Scope decision 10: from the group's actual average traits and main habitat, never its choices.
+    if (outcome === "survived") {
+      this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld);
+    }
     return "ended";
   }
 }
