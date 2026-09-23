@@ -18,6 +18,7 @@
     <div class="bar"><i id="genbar"></i></div>
     <div class="line" id="counts"></div>
     <div class="line small" id="zones"></div>
+    <div class="line small" id="others" hidden></div>
   </div>
 
   <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
@@ -36,6 +37,7 @@
     <div class="grab"></div>
     <div class="eyebrow" id="choice-count"></div>
     <h2>Which one will you follow?</h2>
+    <p id="choice-since"></p>
     <div id="options"></div>
     <div class="timer"><i id="choice-bar"></i></div>
     <div id="choice-note"></div>
@@ -49,16 +51,17 @@
       <div class="cols">
         <section>
           <canvas id="ending-animal"></canvas>
-          <h3>Your family's traits</h3>
+          <h3 id="ending-traits-title">Your group's traits</h3>
           <div id="ending-traits"></div>
           <div class="legend"><span class="dot"></span>changed during the story</div>
         </section>
         <section>
-          <h3>Your choices</h3>
+          <h3 id="ending-choices-title">Your choices</h3>
           <ol id="ending-choices"></ol>
           <p id="ending-question"></p>
-          <!-- REAL-ANIMAL REVEAL PLACEHOLDER: surviving families will be revealed here as the real animal they most resemble. -->
-          <div id="reveal" hidden>Coming soon: the real animal your family most resembles will appear here.</div>
+          <!-- REAL-ANIMAL REVEAL PLACEHOLDER: a surviving group will be revealed here as the real animal it
+               most resembles, matched on the group's actual average traits (shown on the left), not on the choices. -->
+          <div id="reveal" hidden>Coming soon: the real animal your group most resembles, matched on its actual traits.</div>
         </section>
       </div>
       <div class="buttons">

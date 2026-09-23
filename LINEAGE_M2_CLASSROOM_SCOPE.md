@@ -29,7 +29,7 @@ Every step below either moves toward that sentence or it is out of scope.
    - **Curated worlds:** the game uses only seeds where all three habitats still have living animals at generation 76, checked by running the engine ahead before the world is shown (an observer run; the biology is unchanged). "New world" picks only such seeds. 95 of the first 100 seeds qualify.
    - **Camera:** the group may spread across habitats. "Back to my group" goes to its largest cluster, and the home glow marks every member.
    - **Endings:** the story ends when no living animal fits the group, or after the last choice point. Every ending is a reflection screen, not a game-over screen: the group's actual average traits at the end, the choices made, one question, and "Try another family in this world" / "New world". Surviving groups will later be revealed as the real animal they most resemble, using the group's actual traits; there is no single correct line.
-   *Measured on 30 good seeds × 9 starting families with random choices: median story 19.3 minutes, 79% of stories reach 10 choices, median group after each choice 29–123, and a group's webbed members are gone from the high leaves 2 generations after the choice but still at the water's edge at the next choice in every seed.*
+   *Measured on 30 good seeds × 9 starting families with random choices, and checked again with the game's own story code: median story 19.3 minutes, 79% of stories reach 10 choices, and the median group after each choice is 27–123. A group's webbed members are gone from the high leaves 2 generations after the choice but still at the water's edge at the next choice in every seed.*
 
 ## What the engine already gives you (do not rebuild these)
 

@@ -7,8 +7,10 @@
  * engine's records (birth records, death events, mating events, body-mutation
  * events) and hands them to the canvas as plain events.
  *
- * "Your group" is a family — a mother line (families.js). Following is
- * observer state only and cannot change the biology.
+ * "Your group" starts as a family, a mother line (families.js). After the
+ * first choice it is every living animal that carries the chosen variation
+ * (scope decision 6). Following is observer state only and cannot change the
+ * biology.
  */
 
 import {
@@ -24,6 +26,7 @@ import {
   applyWebbingOverride,
 } from "./engine.js";
 import { Families } from "./families.js";
+import { carries } from "./variations.js";
 
 export class Bridge {
   /**
@@ -37,7 +40,7 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{roots:Array<number|string>, members:Set<number>}} */
+    /** @type {null|{roots?:Array<number|string>, variation?:import("./variations.js").Option, members:Set<number>}} */
     this.follow = null;
   }
 
@@ -92,16 +95,24 @@ export class Bridge {
     return this.follow;
   }
 
+  /** Follow a variation: every living animal, anywhere, that carries it. */
+  followVariation(v) {
+    this.follow = { variation: v, members: this.carriersOf(v) };
+    return this.follow;
+  }
+
+  /** Every living animal that carries this variation. Bodies never change after birth. */
+  carriersOf(v) {
+    return new Set(this.living.filter((i) => carries(i.bodyGenome, v)).map((i) => i.id));
+  }
+
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
 
-  /** Your family's living members with their body genomes. */
+  /** Your group's living members with their body genomes. */
   followedAnimals() {
     return this.followedIds().map((id) => ({ id, genome: this.byId.get(id).bodyGenome }));
   }
-
-  /** Size of the family a tap on this animal would follow. */
-  familySizeOf(id) { return this.families.members(this.families.ancestor(id), this.livingIds()).size; }
 
   /* ================= one generation ================= */
 
@@ -139,17 +150,22 @@ export class Bridge {
       births,
       deaths,
       mutations,
-      family: this.updateFamily(births, deaths, mutations, g),
+      group: this.updateGroup(births, deaths, mutations, g),
       observerErrors: result.observerErrors,
     };
   }
 
-  updateFamily(births, deaths, mutations, g) {
+  updateGroup(births, deaths, mutations, g) {
     const f = this.follow;
     if (!f) return null;
     const before = f.members.size;
-    // A mother is always a survivor of this generation, so she is still a member here.
-    const born = births.filter((b) => f.members.has(b.parentAId)).map((b) => b.childId);
+    // A family grows through its mothers (a mother is always a survivor of this
+    // generation, so she is still a member here); a variation's group through
+    // every newborn that carries it.
+    const joins = f.variation ?
+      (b) => { const child = this.byId.get(b.childId); return !!child && carries(child.bodyGenome, f.variation); } :
+      (b) => f.members.has(b.parentAId);
+    const born = births.filter(joins).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
     for (const id of born) f.members.add(id);
     for (const id of gone) f.members.delete(id);
@@ -181,14 +197,14 @@ export class Bridge {
  * @property {Array<{childId:number, parentAId:number, parentBId:number}>} births engine birth records
  * @property {Array<{id:number, cause:string}>} deaths engine death events
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
- * @property {null|FamilyEvents} family what happened to your family (null when you have none)
+ * @property {null|GroupEvents} group what happened to your group (null when you have none)
  * @property {ReadonlyArray<Object>} observerErrors
  *
- * @typedef {Object} FamilyEvents
+ * @typedef {Object} GroupEvents
  * @property {number} count members alive now
  * @property {number} before members alive last generation
  * @property {number[]} born @property {number[]} gone
- * @property {Array<Object>} mutated this generation's mutations in your family
+ * @property {Array<Object>} mutated this generation's mutations in your group
  * @property {number[]} byZone members by engine zone
  * @property {boolean} lastCouldNotMate one member left, and she found no mate this generation
  */
