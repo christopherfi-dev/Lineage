@@ -61,7 +61,8 @@ export function groupLines(f, noun) {
   if (f.mutated.length === 1) {
     lines.push(`One of your babies was born with ${traitChange(f.mutated[0])}.`);
   } else if (f.mutated.length > 1) {
-    lines.push(`${capital(number(f.mutated.length))} of your babies were born with something new. One has ${traitChange(f.mutated[0])}.`);
+    lines.push(`${capital(number(f.mutated.length))} of your babies were born with something new.`);
+    lines.push(`One has ${traitChange(f.mutated[0])}.`);
   }
   return lines;
 }
@@ -79,7 +80,7 @@ export function passedLines(noun, skip) {
 
 /** Right after a choice: the group is now every animal with the chosen variation. */
 export function chosenLines(group, n, skip) {
-  return [`Now you follow every animal with ${group}: ${plural(n, "animal", "animals")}.`, fastForward(skip)];
+  return [`You now follow ${plural(n, "animal", "animals")} with ${group}.`, fastForward(skip)];
 }
 
 /**
@@ -93,26 +94,45 @@ export function skipDoneLines(skip, n, changed, noun) {
   return lines;
 }
 
-/** "grew 50%", "shrank 25%": a group's size now against its size at the choice. */
-export function growth({ now, then }) {
+/*
+ * Growth is never a percentage (scope decision 12): a child sees counts,
+ * "Yours: 20 → 31", beside two small bars for then and now.
+ */
+
+/** "Yours: 20 → 31" */
+export const countLine = (label, { then, now }) => `${label}: ${then} → ${now}`;
+
+export const YOURS = "Yours";
+export const THEIRS = "Theirs";
+export const SINCE_TITLE = "Since your last choice:";
+/** "The ones with a sleeker body" */
+export const theOnesWith = (group) => `The ones with ${group}`;
+
+/** "grew", "shrank": which way a group's size went, without the number. */
+function went({ now, then }) {
   if (now === 0) return "died out";
-  const pct = Math.round((100 * (now - then)) / Math.max(1, then));
-  return pct > 0 ? `grew ${pct}%` : pct < 0 ? `shrank ${-pct}%` : "stayed the same size";
+  return now > then ? "grew" : now < then ? "shrank" : "stayed the same size";
 }
 
-/** On a tapped animal of a group not chosen: "Their group grew 50%. Yours shrank 25%." */
-export const compareLine = (theirs, yours) => `Their group ${growth(theirs)}. Yours ${growth(yours)}.`;
+/**
+ * After following a neutral trait (scope decision 8): it made no difference to
+ * who survived. The choice card never says so; this comes afterwards.
+ * @param {string} group "a darker coat"
+ * @param {{now:number, then:number}} size the group's size since that choice
+ */
+export function neutralLines(group, size) {
+  return [`${capital(group)} didn't change who survived.`, `Your group ${went(size)} because of its other traits.`];
+}
 
 /**
- * At the next choice point: how the last choice turned out against the ones not chosen.
- * @param {{now:number, then:number}} yours
- * @param {Array<{group:string, now:number, then:number}>} others
+ * The ending's line of evidence: "Animals with webbed feet at the water's edge: 14 then, 22 now."
+ * A count of zero is "none". "No webbing" keeps the longest line near 12 words.
+ * @param {import("./evidence.js").Evidence} e
  */
-export function sinceLines(yours, others) {
-  return [
-    `Since your last choice, your group ${growth(yours)}.`,
-    ...others.map((o) => `The ones with ${o.group} ${growth(o)}.`),
-  ];
+export function evidenceLine(e) {
+  const what = e.trait === "toe_webbing" && e.level === 0 ? "no webbing" : hasWords(e.trait, e.level);
+  const n = (k) => (k === 0 ? "none" : String(k));
+  return `Animals with ${what} ${ZONE_AT[e.zone]}: ${n(e.then)} then, ${n(e.now)} now.`;
 }
 
 export const lastPassed = (noun) => `The last of your ${noun} has passed.`;

@@ -10,7 +10,7 @@
  * threshold, so any animal anywhere can be checked against it.
  */
 
-import { TRAITS } from "./engine.js";
+import { TRAITS, NEUTRAL_TRAIT_INDICES } from "./engine.js";
 
 /** How far from the group's median a member's trait must be to carry a variation. */
 export const APART = 0.12;
@@ -20,6 +20,13 @@ export const MIN_CARRIERS = 3;
 
 /** At most this many animals to choose from. */
 export const MAX_OPTIONS = 3;
+
+/**
+ * True for the engine's three neutral traits (coat shade, ear tips, tail tip):
+ * they have no effect on survival and cost nothing. They are offered like any
+ * other variation, and the choice card never says so (scope decision 8).
+ */
+export const isNeutral = (t) => NEUTRAL_TRAIT_INDICES.includes(t);
 
 /** Three levels for words: low, middle, high. */
 export const levelOf = (v) => (v < 1 / 3 ? 0 : v < 2 / 3 ? 1 : 2);
@@ -40,7 +47,7 @@ export const TRAIT_WORDS = {
 
 /** What an animal has at each level: [low, middle, high]. */
 const HAS = {
-  toe_webbing: ["toes with no webbing", "some webbing between the toes", "webbed feet"],
+  toe_webbing: ["no webbing between the toes", "some webbing between the toes", "webbed feet"],
   curved_claws: ["straight claws", "slightly curved claws", "curved claws"],
   dense_fur: ["thin fur", "medium fur", "thick fur"],
   long_hindlimbs: ["short back legs", "medium back legs", "long back legs"],

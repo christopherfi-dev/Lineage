@@ -9,7 +9,7 @@
 export { createInitialState } from "../../lineage-m1/src/core/individual.js";
 export { advanceGeneration, isExtinct } from "../../lineage-m1/src/core/simulation.js";
 export { currentModelConfig } from "../../lineage-m1/src/config/modelConfig.js";
-export { TRAITS, TRAIT_INDEX } from "../../lineage-m1/src/config/traits.js";
+export { TRAITS, TRAIT_INDEX, MEANINGFUL_TRAIT_INDICES, NEUTRAL_TRAIT_INDICES } from "../../lineage-m1/src/config/traits.js";
 export { currentZoneBinIndex, zoneBinCounts } from "../../lineage-m1/src/observer/currentZoneBins.js";
 export {
   assertFixtureConsistency,

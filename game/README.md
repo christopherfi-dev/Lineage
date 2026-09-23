@@ -48,25 +48,44 @@ That is about 80 seconds per choice and about 19 minutes per story.
 2. **Choice points.** After each watch the world pauses: "Which one will you follow?" Two or
    three animals are offered, each drawn from its real genome with one line naming its
    variation ("This one has webbed feet."). Each carries a different variation that at least 3
-   of the group carry. From the second choice on, the panel also says how the last choice
-   turned out ("Since your last choice, your group grew 58%. The ones with a sleeker body grew
-   79%."). A choice point without two such variations passes, and the story carries on.
+   of the group carry. From the second choice on, the panel also shows how the last choice
+   turned out, as counts beside two small bars, then and now ("Since your last choice: Yours:
+   29 → 52. The ones with pointier ear tips: 26 → 32."). A choice point without two such
+   variations passes, and the story carries on.
 3. **The adaptation rule: replacement.** After a choice, your group is every living animal,
    anywhere, that carries the chosen variation, fixed when it is chosen (the group's median for
    that trait, plus or minus 0.12). Earlier choices no longer count. Then the world
    fast-forwards.
 4. **The groups not chosen** stay on the map in their own colours (coloured bodies and a ring on
-   the ground), listed in the corner with their sizes. Tapping one says how it did since the
-   choice against yours: "Their group grew 48%. Yours grew 54%."
+   the ground), listed in the corner with their sizes. Each is a separate set: the animals with
+   its variation but not yours (scope decision 9), so no animal is in your group and theirs.
+   Tapping one shows how it did since the choice against yours: "Theirs: 26 → 32. Yours: 29 →
+   52.", each beside its bars. A child never sees a percentage (scope decision 12).
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
    and "Back to my group" goes to the group's largest cluster.
 6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
    generations.") or after the last choice point ("Your group survived 76 generations."). The
-   reflection screen shows the group's actual average traits at the end (a dot marks each trait
-   whose word changed since the start), the choices made, one question, and "Try another family
-   in this world" (same seed, generation 0) / "New world" (another good seed). A marked
-   placeholder holds the place of the real-animal reveal, which will match the group's actual
-   average traits.
+   reflection screen shows:
+   - the group's actual average traits at the end (a dot marks each trait whose word changed
+     since the start);
+   - one question, then **a clue**: one line of real evidence, not the answer, about the group's
+     most distinctive meaningful trait, counted in another habitat when the story began and now
+     ("Animals with webbed feet at the water's edge: 12 then, 25 now."; zero is "none"). A clue
+     that changed by fewer than 3 animals gives way to the next trait. See `src/evidence.js`;
+   - for a surviving group, **the real-animal reveal**: the animal it is most like, from its
+     actual average traits and main habitat, with its "why" lines (`src/reveal.js`, following
+     `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`);
+   - the choices made;
+   - "Try another family in this world" (same seed, generation 0) and "New world" (another good
+     seed), which stay pinned to the bottom of the card.
+7. **Neutral traits.** Coat shade, ear tips and tail tip have no effect on survival in the
+   engine. They are offered like any other variation, and the card never says so (scope decision
+   8). After the child follows one, the next "Since your last choice…" line and the ending add
+   "A darker coat didn't change who survived. Your group grew because of its other traits."
+8. **Read-aloud.** Every narration line, choice title, choice option, clue, reveal line and
+   ending line has a small speaker. Tapping it reads the text with the browser's own speech
+   (`speechSynthesis`, `src/speech.js`), in a calm voice at rate 0.85. "20 → 31" is read as "from
+   20 to 31". Child-facing lines stay under about 12 words.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.
