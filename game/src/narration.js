@@ -1,24 +1,12 @@
 /**
- * Narrative-log, label and story text in kid language. Every number in it is
- * read from the engine's records.
+ * Narrative-log, creature-card and story text in kid language. Every number in
+ * it is read from the engine's records.
  */
 
-import { TRAIT_INDEX } from "./engine.js";
 import { TRAIT_WORDS, hasWords } from "./variations.js";
 
 /** Where each engine zone is, in words. */
 export const ZONE_AT = ["in the high leaves", "on the open ground", "at the water's edge"];
-
-/** Body features worth a mention when an animal is inspected: [trait, at least, words]. */
-const NOTABLE = [
-  ["toe_webbing", 0.5, "webbed feet"],
-  ["curved_claws", 0.66, "curved claws"],
-  ["dense_fur", 0.66, "thick fur"],
-  ["long_hindlimbs", 0.66, "long back legs"],
-  ["strong_tail", 0.66, "a strong tail"],
-  ["large_eyes", 0.66, "big eyes"],
-  ["streamlined_body", 0.66, "a sleek body"],
-];
 
 const WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 const number = (n) => (n < WORDS.length ? WORDS[n] : String(n));
@@ -166,15 +154,21 @@ export const choiceRecap = (c) => (c.byChance ? `${c.group} (picked at random)` 
 export const noChoices = (outcome) =>
   (outcome === "died" ? "Their story ended before the first choice." : "Nothing new spread far enough to choose from.");
 
-/* ================= labels on tapped animals ================= */
+/* ================= the creature card (Step 3) ================= */
 
-/** A few words about an animal's body, for its label. */
-export function notable(genome) {
-  const found = NOTABLE.filter(([trait, at]) => genome[TRAIT_INDEX[trait]] >= at).map(([, , words]) => words);
-  return found.length ? `${capital(found.slice(0, 2).join(" and "))}.` : "";
-}
+export const inYour = (noun) => `In your ${noun}`;
+export const notInYour = (noun) => `Not in your ${noun}`;
+export const PASSED_AWAY = "This one has passed away.";
 
-/** Label text for an animal outside your group: where it lives and what stands out. */
-export function otherLabel(zone, genome) {
-  return `${capital(ZONE_AT[zone])}. ${notable(genome)}`.trim();
-}
+/** "Lives at the water's edge." */
+export const livesLine = (zone) => `Lives ${ZONE_AT[zone]}.`;
+
+/**
+ * The trait that is new in this animal: a mutation at birth, which way it went.
+ * "New at birth: a stronger tail, not from its parents."
+ */
+export const newAtBirthLine = (trait, up) => `New at birth: ${TRAIT_WORDS[trait][up ? 1 : 0]}, not from its parents.`;
+
+/** Beside the ending's drawing of the group's average body. */
+export const lookLine = (outcome) =>
+  (outcome === "died" ? "Here's what your animals looked like." : "Here's what your animals look like now.");

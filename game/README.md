@@ -46,9 +46,10 @@ That is about 80 seconds per choice and about 19 minutes per story.
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
    generations back through the mother line, `src/families.js`).
 2. **Choice points.** After each watch the world pauses: "Which one will you follow?" Two or
-   three animals are offered, each drawn from its real genome with one line naming its
-   variation ("This one has webbed feet."). Each carries a different variation that at least 3
-   of the group carry. From the second choice on, the panel also shows how the last choice
+   three animals are offered, each drawn from its real genome like its creature card, with a
+   ring on the part the choice is about (and a close-up of it when it is small: webbing, claws,
+   ear tips, tail tip), and one line naming its variation ("This one has webbed feet."). Each
+   carries a different variation that at least 3 of the group carry. From the second choice on, the panel also shows how the last choice
    turned out, as counts beside two small bars, then and now ("Since your last choice: Yours:
    29 → 52. The ones with pointier ear tips: 26 → 32."). A choice point without two such
    variations passes, and the story carries on.
@@ -60,15 +61,20 @@ That is about 80 seconds per choice and about 19 minutes per story.
    the ground), listed in the corner with their sizes. Each is a separate set: the animals with
    its variation but not yours (scope decision 9), so no animal is in your group and theirs.
    One that starts with fewer than 3 animals is not shown at all.
-   Tapping one shows how it did since the choice against yours: "Theirs: 26 → 32. Yours: 29 →
-   52.", each beside its bars. A child never sees a percentage (scope decision 12).
+   The creature card of one of its animals shows how it did since the choice against yours:
+   "Theirs: 26 → 32. Yours: 29 → 52.", each beside its bars. A child never sees a percentage
+   (scope decision 12).
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
    and "Back to my group" goes to the group's largest cluster.
 6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
    generations.") or after the last choice point ("Your group survived 76 generations."). The
    reflection screen shows:
-   - the group's actual average traits at the end (a dot marks each trait whose word changed
-     since the start);
+   - "Here's what your animals look like now." (or "looked like", if they died out): the group's
+     actual average body at the end, drawn in its main habitat, with the reveal right under it;
+   - the same average in words: each meaningful trait against the whole world at generation 0,
+     with the reveal's GAP (0.12): "Tail: Stronger than at the start", "Eyes: About the same as at
+     the start" (scope decision 20). A dot marks each one that is different from the start. The
+     neutral traits keep their plain words ("Coat: medium");
    - one question, then **a clue**: real evidence, not the answer (`src/evidence.js`). It shows
      both sides in one other habitat, from the story's start to now: "At the water's edge:",
      "With webbed feet: 12 → 25", "Without: 28 → 13" (scope decision 14). "With" is a trait's
@@ -76,7 +82,7 @@ That is about 80 seconds per choice and about 19 minutes per story.
      meaningful trait and habitat where both sides started with 3 or more animals and grew most
      differently. If none qualifies, it is one line about the group's most distinctive trait
      ("Animals with webbed feet at the water's edge: 12 then, 25 now.");
-   - for a surviving group, **the real-animal reveal**: the animal it is most like, from its
+   - for a surviving group, **the real-animal reveal** (under the drawing): the animal it is most like, from its
      actual average traits and main habitat, with its "why" lines (`src/reveal.js`, following
      `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`). Levels are relative to the generation-0 world (GAP
      0.12), and each animal needs its signature trait, so the reveal reflects what changed. Only
@@ -93,9 +99,27 @@ That is about 80 seconds per choice and about 19 minutes per story.
    (`speechSynthesis`, `src/speech.js`), in a calm voice at rate 0.85. "20 → 31" is read as "from
    20 to 31". Child-facing lines stay under about 12 words. The 20-second choice timer stands
    still while anything is being read aloud.
+9. **The creature card** (Step 3, scope decision 21). Once the story has begun, tapping any
+   animal opens its card; the world keeps running behind it. It shows which group the animal is
+   in, its drawing, where it lives ("Lives at the water's edge."), its ten traits in the same
+   words as the ending, and, when it has one, the trait that is new in it: "New at birth: a
+   stronger tail, not from its parents." That trait glows on the drawing and in the list. "New"
+   is the engine's body-mutation record at birth, when it changed the trait by at least 0.12.
+   Every line has a speaker. The card closes with ×, a tap on empty ground, or Escape. While a
+   card is open during a choice, the choice timer waits. If the animal passes away while its card
+   is open, the card stays and says so. A ring marks the animal on the map.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.
+
+**The drawings** (`src/creature.js`). One animal is drawn large from its real body genome as
+layered 2D parts, and each of the ten traits changes something you can see: webbing between the
+toes (pink skin, and wider, bigger feet), claw length and curve, a fluffier outline, back-leg
+length, tail thickness, eye size, body shape from round to streamlined, coat colour from dark to
+light, ears from rounded to pointed, and a coloured band on the tail tip. Values are continuous,
+so siblings look related but not identical; the animal's id seeds small touches, so the same
+animal always looks the same. A paper grain, a grain on the creature, soft edges and a wash in
+the habitat's colour give it a painted, field-guide look.
 
 **Variations** (`src/variations.js`). Every engine trait is a number from 0 to 1. A group's
 usual form is its median for each trait. A member carries a variation when one trait is at

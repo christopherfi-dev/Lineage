@@ -26,7 +26,7 @@ import {
   applyWebbingOverride,
 } from "./engine.js";
 import { Families } from "./families.js";
-import { carries } from "./variations.js";
+import { APART, carries } from "./variations.js";
 
 export class Bridge {
   /**
@@ -42,6 +42,8 @@ export class Bridge {
     );
     /** @type {null|{roots?:Array<number|string>, variation?:import("./variations.js").Option, members:Set<number>}} */
     this.follow = null;
+    /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
+    this.newAtBirth = new Map();
   }
 
   /**
@@ -122,6 +124,13 @@ export class Bridge {
     return { id, genome: ind.bodyGenome, zone: currentZoneBinIndex(ind) };
   }
 
+  /**
+   * The trait that is new in this animal compared with its parents: a body
+   * mutation at birth (engine record), or null. Founders have none.
+   * @returns {null|{trait:string, up:boolean}}
+   */
+  newTraitOf(id) { return this.newAtBirth.get(id) ?? null; }
+
   /* ================= one generation ================= */
 
   /**
@@ -152,6 +161,12 @@ export class Bridge {
     // Every baby joins its mother's family: the first parent in its birth record.
     for (const b of births) this.families.addBirth(b.childId, b.parentAId, g);
     if (g % 50 === 0) this.families.prune(result.livingIds, g);
+    // What a baby did not get from its parents: a body mutation at birth, when it
+    // changed the trait by at least APART (the smallest difference the game shows).
+    for (const m of mutations) {
+      if (Math.abs(m.after - m.before) >= APART) this.newAtBirth.set(m.childId, { trait: m.trait, up: m.after > m.before });
+    }
+    if (g % 10 === 0) for (const id of this.newAtBirth.keys()) if (!this.byId.has(id)) this.newAtBirth.delete(id);
 
     return {
       generation: g,
