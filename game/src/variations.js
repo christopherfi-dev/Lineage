@@ -207,6 +207,32 @@ export function comparedRows(values, base, gap) {
 }
 
 /**
+ * What a creature card says an animal has, in plain words (scope decision 22):
+ * [low, middle, high], split at thirds like the story's variation words.
+ */
+const PLAIN = {
+  toe_webbing: ["Hardly any webbing between the toes", "Some webbing between the toes", "Lots of webbing between the toes"],
+  curved_claws: ["Straight claws", "Slightly curved claws", "Curved claws"],
+  dense_fur: ["Thin fur", "Medium fur", "Thick fur"],
+  long_hindlimbs: ["Short back legs", "Medium back legs", "Long back legs"],
+  strong_tail: ["A weak tail", "A medium tail", "A strong tail"],
+  large_eyes: ["Small eyes", "Medium eyes", "Big eyes"],
+  streamlined_body: ["A chunky body", "A medium body", "A sleek body"],
+  coat_shade: ["A dark coat", "A medium coat", "A light coat"],
+  ear_tip_shape: ["Round ear tips", "Slightly pointy ear tips", "Pointy ear tips"],
+  tail_tip_marking: ["A plain tail tip", "A faint mark on the tail tip", "A bright mark on the tail tip"],
+};
+
+/**
+ * One animal's ten traits in plain words, for its creature card.
+ * @param {ArrayLike<number>} values its body genome
+ * @returns {Array<{trait:string, value:string}>}
+ */
+export function plainRows(values) {
+  return TRAITS.map((trait, t) => ({ trait, value: PLAIN[trait][levelOf(values[t])] }));
+}
+
+/**
  * @typedef {Object} Option
  * @property {number} id the animal to show
  * @property {string} trait engine trait name

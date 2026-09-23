@@ -93,15 +93,30 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
   display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-top: 6px;
   font-size: 14.5px; font-weight: 600; color: #5A6151;
 }
+/* What the animal has, in plain words (scope decision 22), one line each. */
 #card-traits { margin-top: 8px; border-top: 1px solid #E7DDC5; }
-#card-traits .row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 1px 2px 1px 6px; border-bottom: 1px solid #EFE7D3; }
-#card-traits .k { flex: 0 0 70px; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #A79B7C; }
-#card-traits .v { flex: 1; font-family: Petrona, Georgia, serif; font-size: 16px; line-height: 1.2; }
+#card-traits .row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 1px 2px 1px 8px; border-bottom: 1px solid #EFE7D3; }
+#card-traits .v { flex: 1; font-family: Petrona, Georgia, serif; font-size: 16.5px; line-height: 1.2; }
 #card-traits .say { width: 28px; height: 28px; margin: 0; }
 /* The trait that is new in this animal glows, like its part on the drawing. */
 #card-traits .row.new { border-radius: 10px; background: linear-gradient(90deg, #FFE3A0, #FFF3D4 70%); box-shadow: 0 0 10px rgba(255, 196, 64, .55); }
-#card-traits .row.new .k { color: #9A6A0E; }
 #card.gone #card-animal, #card.gone #card-traits, #card.gone #card-new { opacity: .55; filter: grayscale(.5); }
+/*
+ * While the choice panel is up, the card sits in the room above it, wide, and never reaches an
+ * option (scope decision 23): the drawing on the left, the words on the right, the traits in two
+ * columns. main.js sets --room, the height between the top of the screen and the panel.
+ */
+#card.above {
+  left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 800px; margin-left: auto;
+  max-height: var(--room); transform-origin: top center;
+}
+#card.above:not([hidden]) { display: grid; grid-template-columns: minmax(190px, 36%) 1fr; column-gap: 14px; align-content: start; }
+#card.above .head { grid-column: 1 / -1; }
+#card.above #card-animal { grid-column: 1; grid-row: 2 / span 4; align-self: start; height: min(190px, calc(var(--room) - 72px)); }
+#card.above #card-where, #card.above #card-new, #card.above #card-counts, #card.above #card-traits { grid-column: 2; }
+#card.above #card-where { margin-top: 6px; }
+#card.above #card-traits { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+#card.above #card-traits .v { font-size: 15px; }
 
 /* Narrower screens: the hint sits under the generation panel instead of beside it. */
 @media (max-width: 1180px) { #hint { top: calc(128px + env(safe-area-inset-top)); } }
