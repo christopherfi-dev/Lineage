@@ -120,3 +120,4 @@ These belong to later milestones. Do not pull one in because it looks easy.
 - Do not write repair records, audit manifests, or status derivations. Write a five-line summary.
 - If a step is taking more than a day of work, stop and report what is blocking rather than expanding scope.
 - Never merge a pull request. Start each step on a new branch from main, and end it by opening a new pull request into main. Marc merges.
+- End every report with a brief for the architect, who works in a separate thread. Give it twice: as a markdown code box to copy and paste, and as a downloadable .md file with the same text. It must stand on its own: where the build stands (pull request, branch, what is merged), the decisions taken, every measurement, what changed in this doc, what was built, new findings, the decisions needed from the architect, and how it was measured. It comes in addition to the five-line summary, and it goes in the report, not in the repository.
