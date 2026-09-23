@@ -37,7 +37,7 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{root:number|string, members:Set<number>, since:number, branch:boolean}} */
+    /** @type {null|{roots:Array<number|string>, members:Set<number>}} */
     this.follow = null;
   }
 
@@ -82,26 +82,26 @@ export class Bridge {
   /* ================= following (observer state only) ================= */
 
   /** Follow the family of this animal's ancestor FAMILY_DEPTH generations back. */
-  followFamilyOf(id) { return this.startFollowing(this.families.ancestor(id), false); }
+  followFamilyOf(id) { return this.followLinesOf([this.families.ancestor(id)]); }
 
-  /** Narrow to her own line: her and her descendants through the mother line. */
-  followBranchOf(id) { return this.startFollowing(id, true); }
-
-  startFollowing(root, branch) {
-    this.follow = { root, members: this.families.members(root, this.livingIds()), since: this.state.generation, branch };
+  /** Follow these animals' mother lines: each of them and her descendants through the mother line. */
+  followLinesOf(roots) {
+    const living = this.livingIds(), members = new Set();
+    for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
+    this.follow = { roots: [...roots], members };
     return this.follow;
   }
-
-  stopFollowing() { this.follow = null; }
 
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
 
+  /** Your family's living members with their body genomes. */
+  followedAnimals() {
+    return this.followedIds().map((id) => ({ id, genome: this.byId.get(id).bodyGenome }));
+  }
+
   /** Size of the family a tap on this animal would follow. */
   familySizeOf(id) { return this.families.members(this.families.ancestor(id), this.livingIds()).size; }
-
-  /** Size of her own line. */
-  branchSizeOf(id) { return this.families.members(id, this.livingIds()).size; }
 
   /* ================= one generation ================= */
 
@@ -164,7 +164,6 @@ export class Bridge {
       mutated: mutations.filter((m) => f.members.has(m.childId)),
       byZone,
       lastCouldNotMate: last !== null && this.foundNoMate(last, g),
-      lasted: g - f.since,
     };
   }
 
@@ -192,5 +191,4 @@ export class Bridge {
  * @property {Array<Object>} mutated this generation's mutations in your family
  * @property {number[]} byZone members by engine zone
  * @property {boolean} lastCouldNotMate one member left, and she found no mate this generation
- * @property {number} lasted generations since you started following this group
  */

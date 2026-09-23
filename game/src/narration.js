@@ -1,26 +1,13 @@
 /**
- * Narrative-log and label text in kid language. Every number in it is read
- * from the engine's records for the generation that just ran.
+ * Narrative-log, label and story text in kid language. Every number in it is
+ * read from the engine's records.
  */
 
 import { TRAIT_INDEX } from "./engine.js";
+import { TRAIT_WORDS, hasWords } from "./variations.js";
 
 /** Where each engine zone is, in words. */
 export const ZONE_AT = ["in the high leaves", "on the open ground", "at the water's edge"];
-
-/** [less, more] words for each engine trait. */
-const TRAIT_WORDS = {
-  toe_webbing: ["less webbing between its toes", "more webbing between its toes"],
-  curved_claws: ["straighter claws", "more curved claws"],
-  dense_fur: ["thinner fur", "thicker fur"],
-  long_hindlimbs: ["shorter back legs", "longer back legs"],
-  strong_tail: ["a weaker tail", "a stronger tail"],
-  large_eyes: ["smaller eyes", "bigger eyes"],
-  streamlined_body: ["a chunkier body", "a sleeker body"],
-  coat_shade: ["a darker coat", "a lighter coat"],
-  ear_tip_shape: ["rounder ear tips", "pointier ear tips"],
-  tail_tip_marking: ["a plainer tail tip", "a brighter tail tip"],
-};
 
 /** Body features worth a mention when an animal is inspected: [trait, at least, words]. */
 const NOTABLE = [
@@ -45,30 +32,17 @@ export function traitChange(m) {
 }
 
 export const START_LINE = "Tap an animal to follow its family.";
-export const PROMPT_LINE = "Tap any animal to follow a new group.";
 
 export function followLine(zone, n) {
   return `You're following a family of ${plural(n, "animal", "animals")} ${ZONE_AT[zone]}.`;
 }
 
-export function branchLine(n) {
-  return n === 1 ? "You're following just her branch now. So far it is only her." :
-    `You're following just her branch now: ${plural(n, "animal", "animals")}.`;
-}
-
-export function extinctionLines(lasted) {
-  return [
-    `The last of your group has passed. Their story lasted ${plural(lasted, "generation", "generations")}.`,
-    PROMPT_LINE,
-  ];
-}
-
 /**
  * What the log says about your family after a generation, from real counts.
+ * Only for a family that is still alive.
  * @param {import("./bridge.js").FamilyEvents} f
  */
 export function familyLines(f) {
-  if (f.count === 0) return extinctionLines(f.lasted);
   const zones = f.byZone.map((n, z) => (n ? z : -1)).filter((z) => z >= 0);
   const where = zones.length === 1 ? ` ${ZONE_AT[zones[0]]}` : "";
   const lines = [];
@@ -77,11 +51,11 @@ export function familyLines(f) {
   } else if (f.count <= f.before && f.count <= 5) {
     lines.push(`Only ${number(f.count)} of your animals ${f.count === 1 ? "is" : "are"} left${where}.`);
   } else if (f.count < f.before) {
-    lines.push(`Your group is smaller than last generation: ${f.count} animals now.`);
+    lines.push(`Your family is smaller than last generation: ${f.count} animals now.`);
   } else if (f.count > f.before) {
-    lines.push(`Your group is bigger than last generation: ${f.count} animals now.`);
+    lines.push(`Your family is bigger than last generation: ${f.count} animals now.`);
   } else {
-    lines.push(`Your group is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
+    lines.push(`Your family is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
   }
   if (f.mutated.length === 1) {
     lines.push(`One of your babies was born with ${traitChange(f.mutated[0])}.`);
@@ -90,6 +64,56 @@ export function familyLines(f) {
   }
   return lines;
 }
+
+/* ================= the story (scope decision 6) ================= */
+
+export const NOTHING_SPREAD = "Nothing new has spread through your family yet. Keep watching.";
+export const TIMES_UP = "Time's up! This one was picked at random.";
+export const optionLine = (words) => `This one has ${words}.`;
+
+/** Right after a choice. */
+export function chosenLines(words, n, skip) {
+  return [
+    `Now you follow the ones with ${words}: ${plural(n, "animal", "animals")}.`,
+    `Fast-forward: ${skip} generations!`,
+  ];
+}
+
+/**
+ * After a fast-forward: how big the family is, and what most of it has now
+ * that it didn't before.
+ * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
+ */
+export function skipDoneLines(skip, n, changed) {
+  const lines = [`${skip} generations later, your family has ${plural(n, "animal", "animals")}.`];
+  if (changed.length) lines.push(`Most of your family now has ${hasWords(changed[0].trait, changed[0].level)}.`);
+  return lines;
+}
+
+export const LAST_PASSED = "The last of your family has passed.";
+export const MADE_IT = "Your family made it to the end of the story.";
+
+export function endingTitle(outcome, n) {
+  return outcome === "died" ?
+    `Their story lasted ${plural(n, "generation", "generations")}.` :
+    `Your family survived ${plural(n, "generation", "generations")}.`;
+}
+
+export const QUESTION = {
+  died: "Why do you think your family didn't survive?",
+  survived: "Why do you think your family survived?",
+};
+
+/** @param {{words:string, byChance:boolean}} c */
+export function choiceRecap(c) {
+  return c.byChance ?
+    `Time ran out, and the one with ${c.words} was picked at random.` :
+    `You followed the one with ${c.words}.`;
+}
+
+export const NO_CHOICES = "Their story ended before the first choice.";
+
+/* ================= labels on tapped animals ================= */
 
 /** A few words about an animal's body, for its label. */
 export function notable(genome) {
@@ -100,11 +124,4 @@ export function notable(genome) {
 /** Label text for an animal in another family. */
 export function otherLabel(zone, familySize, genome) {
   return `${capital(ZONE_AT[zone])}. Its family has ${plural(familySize, "animal", "animals")}. ${notable(genome)}`.trim();
-}
-
-/** Label text for one of yours; `branchSize` is given when she can be followed on her own. */
-export function memberLabel(genome, branchSize) {
-  const branch = branchSize === undefined ? "" :
-    branchSize === 1 ? "Her branch is only her so far." : `Her branch has ${branchSize} animals.`;
-  return `${notable(genome)} ${branch}`.trim();
 }

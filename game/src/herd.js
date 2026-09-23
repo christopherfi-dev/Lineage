@@ -38,6 +38,7 @@ function looksFrom(g) {
     ears: 2 * g[T.ear_tip_shape],
     claws: 2 * g[T.curved_claws],
     tailTip: 2 * g[T.tail_tip_marking],
+    shade: g[T.coat_shade],
   };
 }
 
@@ -58,6 +59,8 @@ export class Herd {
     this.followed = new Set();
     /** false while you have no family: everyone is drawn plainly */
     this.following = false;
+    /** how fast the world moves: 1 while watching, faster in a fast-forward */
+    this.pace = 1;
   }
 
   make(id, zone, genome, x, y, home, bornAt) {
@@ -68,7 +71,7 @@ export class Herd {
       ph: this.rr(0, TAU), face: this.rnd() < .5 ? -1 : 1,
       mode: "walk", modeT: this.rr(600, 4200),
       flash: 0, flashT: 0,
-      bornAt, diedAt: null,
+      bornAt, diedAt: null, growMs: GROW_MS / this.pace, fadeMs: FADE_MS,
     };
   }
 
@@ -113,6 +116,7 @@ export class Herd {
       if (!a) continue;
       this.animals.delete(d.id);
       a.diedAt = now;
+      a.fadeMs = FADE_MS / this.pace;
       a.wasFollowed = this.followed.has(a.id);
       a.wasFollowing = this.following;
       this.fading.push(a);
@@ -147,7 +151,7 @@ export class Herd {
     }
   }
 
-  /** A new group starts with no flash history of its own. */
+  /** A newly followed group starts with no flash history of its own. */
   resetFlashes() {
     for (const a of this.animals.values()) if (a.flash === FLASH_NEWEST || a.flash === FLASH_PREVIOUS) a.flash = 0;
   }
@@ -173,6 +177,7 @@ export class Herd {
 
   /* ================= wandering (visual only) ================= */
   tick(dt, now) {
+    dt *= this.pace;
     const s = dt / 16.7, W = this.world.W, H = this.world.H;
     const cell = 74, grid = new Map();
     for (const c of this.animals.values()) {
@@ -222,7 +227,7 @@ export class Herd {
       if (Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
     for (const c of this.animals.values()) if (c.flash) c.flashT += dt;
-    this.fading = this.fading.filter((a) => now - a.diedAt < FADE_MS);
+    this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
   }
 
   /* ================= drawing ================= */
@@ -245,23 +250,33 @@ export class Herd {
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
       let life = 1;
-      if (c.diedAt !== null) life = clamp(1 - (now - c.diedAt) / FADE_MS, 0, 1);
-      else if (now - c.bornAt < GROW_MS) life = 0.35 + 0.65 * clamp((now - c.bornAt) / GROW_MS, 0, 1);
+      if (c.diedAt !== null) life = clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
+      else if (now - c.bornAt < c.growMs) life = 0.35 + 0.65 * clamp((now - c.bornAt) / c.growMs, 0, 1);
       if (life > 0) drawCreature(x, c, style(c), life);
     }
   }
+}
+
+/** Mix a #rrggbb colour toward white (k > 0) or black (k < 0). */
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16), to = k > 0 ? 255 : 0, a = Math.abs(k);
+  const ch = (v) => Math.round(v + (to - v) * a);
+  return `rgb(${ch(n >> 16)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
 }
 
 /**
  * World-scale creature, ported from the mockup's drawCreature (halo ring,
  * creature scale 1). Styles: "mine" — your family, larger, sharper and with
  * detail; "gray" — everyone else while you follow a family, smaller and faded;
- * "plain" — everyone while you have no family.
+ * "plain" — everyone while you have no family; "portrait" — one animal drawn
+ * large on a card, with your family's detail but no halo.
  * @param {CanvasRenderingContext2D} x
+ * @param {Object} [parts] filled with where each body part is, for a portrait
  */
-function drawCreature(x, c, style, scale) {
+function drawCreature(x, c, style, scale, parts) {
   const g = c.looks;
-  const mine = style === "mine", gray = style === "gray";
+  const portrait = style === "portrait";
+  const mine = style === "mine" || portrait, gray = style === "gray";
   const fade = gray ? 0.9 : 1;
   const A = (a) => a * fade;
   /* side-on figures, flipped by travel direction: at 25px a rotating
@@ -272,11 +287,11 @@ function drawCreature(x, c, style, scale) {
   const ph = c.ph * 2.0;
   const bob = walk ? Math.abs(Math.sin(ph)) * u * 0.09 : 0;
   const legL = u * (0.34 + g.legLength * 0.30);
-  const bRX = u * 0.80, bRY = u * 0.50, hR = u * 0.47;
+  const bRX = u * 0.80, bRY = u * 0.50 * (1.12 - g.snout * 0.12), hR = u * 0.47;
   const bodyY = -(legL + bRY) - bob;
   const headX = bRX * 0.74, headY = bodyY - bRY * 0.52 - hR * 0.42;
-  const nose = hR * (0.78 + g.snout * 0.20);
-  const web = gray ? 0 : clamp((g.feet / 2 - 0.3) / 0.4, 0, 1);
+  const nose = hR * (0.72 + g.snout * 0.26);
+  const web = gray ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
   x.globalAlpha = A(mine ? 0.26 : 0.14);
   x.fillStyle = "#332F1E";
@@ -286,7 +301,8 @@ function drawCreature(x, c, style, scale) {
   x.translate(c.x, c.y);
   x.scale(dir, 1);
 
-  const body = mine ? "#1A657E" : "#8E8574";
+  /* the coat shade lightens or darkens the body */
+  const body = shade(mine ? "#1A657E" : "#8E8574", (g.shade - 0.5) * (mine ? 0.7 : 0.4));
   const dark = mine ? "#0C3B4D" : "#7C7463";
   const far = mine ? "#124F65" : "#807867";
   const rim = mine ? "#8FD2E6" : "#BAB29C";
@@ -322,7 +338,9 @@ function drawCreature(x, c, style, scale) {
   x.moveTo(-bRX * 0.84, bodyY + bRY * 0.10);
   x.quadraticCurveTo(-bRX * 0.84 - tl * 0.95, bodyY + tl * 0.10 + sway, tipX, tipY);
   x.stroke();
-  if (mine && g.tailTip > 1.1) {
+  const mark = clamp((g.tailTip / 2 - 0.3) / 0.4, 0, 1);
+  if (mine && mark > 0) {
+    x.globalAlpha = mark;
     x.fillStyle = "#D8F0F6";
     x.beginPath(); x.arc(tipX, tipY, u * 0.1, 0, TAU); x.fill();
   }
@@ -335,16 +353,22 @@ function drawCreature(x, c, style, scale) {
   P.quadraticCurveTo(headX + nose * 1.18, headY - hR * 0.10, headX + nose * 1.10, headY + hR * 0.30);
   P.quadraticCurveTo(headX + hR * 0.50, headY + hR * 0.62, headX + hR * 0.20, headY + hR * 0.50);
   P.closePath();
-  if (g.ears > 0.15) {
-    const er = u * (0.09 + g.ears * 0.085);
-    P.ellipse(headX - hR * 0.30, headY - hR * 0.86, er * 0.78, er, -0.25, 0, TAU);
-    P.ellipse(headX + hR * 0.34, headY - hR * 0.80, er * 0.72, er * 0.9, 0.18, 0, TAU);
-  }
+  /* ears: rounded tips, or pointed ones */
+  const point = g.ears / 2, earW = u * 0.13, earH = u * 0.27;
+  const ear = (ex, ey, lean) => {
+    const k = 1.05 - 0.45 * point;
+    P.moveTo(ex - earW, ey);
+    P.quadraticCurveTo(ex - earW * k, ey - earH * k, ex + lean, ey - earH * (0.95 + 0.25 * point));
+    P.quadraticCurveTo(ex + earW * k, ey - earH * k, ex + earW, ey);
+    P.closePath();
+  };
+  ear(headX - hR * 0.34, headY - hR * 0.62, -u * 0.05);
+  ear(headX + hR * 0.28, headY - hR * 0.66, u * 0.03);
   /* haunch */
   P.ellipse(-bRX * 0.46, bodyY + bRY * 0.16, bRX * 0.50, bRY * 0.86, 0, 0, TAU);
 
   /* shaggy coat grows in with dense fur */
-  const shag = clamp(g.coat - 1, 0, 1);
+  const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
   if (shag > 0.05) {
     x.strokeStyle = mine ? "#1E7086" : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
@@ -370,13 +394,14 @@ function drawCreature(x, c, style, scale) {
   leg(-bRX * 0.46, Math.PI, dark);
 
   /* curved claws hook from the front foot */
-  if (mine && g.claws > 1.1) {
-    x.globalAlpha = 1; x.strokeStyle = "#DDEFF3"; x.lineWidth = u * 0.06; x.lineCap = "round";
+  const hook = clamp((g.claws / 2 - 0.35) / 0.35, 0, 1);
+  if (mine && hook > 0) {
+    x.globalAlpha = hook; x.strokeStyle = "#DDEFF3"; x.lineWidth = u * 0.06; x.lineCap = "round";
     x.beginPath(); x.moveTo(bRX * 0.52 + fw * 0.6, -u * 0.02); x.quadraticCurveTo(bRX * 0.52 + fw * 0.95, -u * 0.02, bRX * 0.52 + fw * 0.9, u * 0.08); x.stroke();
   }
 
   if (!gray) {
-    const eR = u * (0.085 + g.eyes * 0.036);
+    const eR = u * (0.07 + g.eyes * 0.055);
     x.globalAlpha = 1;
     x.fillStyle = mine ? "#F0FAFC" : "#EFEAD9";
     x.beginPath(); x.arc(headX + hR * 0.30, headY - hR * 0.10, eR, 0, TAU); x.fill();
@@ -385,8 +410,25 @@ function drawCreature(x, c, style, scale) {
   }
   x.restore();
 
+  if (parts) {
+    // Where each part is on the canvas: [centre x, centre y, radius x, radius y].
+    const at = (lx, ly, rx, ry) => [c.x + dir * lx, c.y + ly, rx, ry];
+    Object.assign(parts, {
+      toe_webbing: at(bRX * 0.05, -u * 0.02, bRX * 1.15, u * 0.3),
+      curved_claws: at(bRX * 0.52 + fw * 0.7, u * 0.02, u * 0.32, u * 0.26),
+      dense_fur: at(0, bodyY, bRX * 1.35, bRY * 1.55),
+      long_hindlimbs: at(-bRX * 0.46, (bodyY + bRY * 0.55) / 2, u * 0.4, legL * 0.75),
+      strong_tail: at(-bRX * 0.84 - tl * 0.5, bodyY - tl * 0.3, tl * 0.75 + u * 0.12, tl * 0.6 + u * 0.12),
+      large_eyes: at(headX + hR * 0.3, headY - hR * 0.1, u * 0.3, u * 0.3),
+      streamlined_body: at(headX * 0.45, bodyY, bRX * 1.7, bRY * 1.45),
+      coat_shade: at(0, bodyY, bRX * 1.3, bRY * 1.45),
+      ear_tip_shape: at(headX - hR * 0.03, headY - hR * 0.62 - earH * 0.55, u * 0.42, earH * 0.85),
+      tail_tip_marking: at(tipX, tipY, u * 0.3, u * 0.3),
+    });
+  }
+
   const midY = c.y + bodyY;
-  if (mine) {
+  if (mine && !portrait) {
     /* halo ring — the non-colour lineage indicator */
     x.strokeStyle = "#1E7E9C"; x.globalAlpha = 0.5; x.lineWidth = 1.8;
     x.beginPath(); x.ellipse(c.x, midY, u * 1.58, u * 1.46, 0, 0, TAU); x.stroke();
@@ -409,6 +451,35 @@ function drawCreature(x, c, style, scale) {
     x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
   }
   x.globalAlpha = 1;
+}
+
+/**
+ * One animal drawn large from its real genome, for the choice cards and the
+ * ending. Every portrait on a card row uses the same scale, so differences
+ * between animals are real differences. `focus` rings the part a variation is
+ * about.
+ * @param {HTMLCanvasElement} cv sized by CSS
+ * @param {ArrayLike<number>} genome engine body genome
+ * @param {string} [focus] engine trait name
+ */
+export function drawPortrait(cv, genome, focus) {
+  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth || 220, h = cv.clientHeight || 150;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const x = /** @type {CanvasRenderingContext2D} */ (cv.getContext("2d"));
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  x.clearRect(0, 0, w, h);
+  const u = Math.min(0.8 * w / 2.8, 0.8 * h / 2.7);
+  const c = { looks: looksFrom(genome), x: w / 2 + u * 0.15, y: h / 2 + u * 1.25, face: 1, mode: "pause", ph: 0.6, inZone: true, flash: 0 };
+  const parts = {};
+  drawCreature(x, c, "portrait", u / (11.2 * 1.04), parts);
+  const p = focus && parts[focus];
+  if (p) {
+    x.save();
+    x.strokeStyle = "#D9892B"; x.lineWidth = 2.5; x.setLineDash([6, 5]); x.globalAlpha = 0.95;
+    x.beginPath(); x.ellipse(p[0], p[1], p[2], p[3], 0, 0, TAU); x.stroke();
+    x.restore();
+  }
 }
 
 /**
