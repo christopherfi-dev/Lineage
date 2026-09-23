@@ -1,10 +1,10 @@
 /**
  * LINEAGE — Milestone 2: the frozen M1 engine on the designed canvas.
  *
- * One engine generation happens every GENERATION_SECONDS; between generations
- * the animals only wander. Births, deaths, mutation flashes and every count on
- * screen come from the engine's records. The group you follow is a family, a
- * mother line (families.js).
+ * Once the child has followed a family, one engine generation happens every
+ * GENERATION_SECONDS; between generations the animals only wander. Births,
+ * deaths, mutation flashes and every count on screen come from the engine's
+ * records. The group you follow is a family, a mother line (families.js).
  */
 
 import { Bridge } from "./bridge.js";
@@ -12,7 +12,7 @@ import { FIXTURE_URL } from "./engine.js";
 import { World, clamp, TAU } from "./world.js";
 import { Herd } from "./herd.js";
 import {
-  START_LINE, followLine, branchLine, familyLines, otherLabel, memberLabel,
+  START_LINE, followLine, branchLine, familyLines, endingLines, otherLabel, memberLabel,
 } from "./narration.js";
 
 /** Real seconds per engine generation. */
@@ -55,6 +55,8 @@ export class Game {
     this.logQueue = [];
     this.logTimer = 0;
     this.clock = 0;
+    /** Time waits for the child: generation 1 begins only after the first family is followed. */
+    this.started = false;
     this.label = null;
     this.last = performance.now();
 
@@ -82,15 +84,21 @@ export class Game {
     if (!ev) return;
     this.herd.applyGeneration(ev, this.bridge, now);
     const f = ev.family;
+    let lines = f && f.count > 0 ? familyLines(f) : null;
     if (f && f.count === 0) {
-      // Your group has ended. The world keeps running; any animal can start a new story.
-      this.bridge.stopFollowing();
-      this.herd.following = false;
+      // A branch goes back to the family it came from, if that is still alive.
+      // Otherwise your group has ended: the world keeps running and any animal
+      // can start a new story.
+      const home = f.branch ? this.bridge.returnFromBranch() : null;
+      if (!home) this.bridge.stopFollowing();
+      this.herd.following = !!home;
       this.herd.resetFlashes();
+      lines = endingLines(f, home);
     }
     this.herd.followed = new Set(this.bridge.followedIds());
+    if (f && f.count === 0 && this.bridge.follow) this.centerOnFollowed(false);
     if (this.bridge.extinct) this.say(["No animals are left anywhere in the world."]);
-    else if (f) this.say(familyLines(f));
+    else if (lines) this.say(lines);
     this.updateHud();
     if (this.label) this.showLabel(this.label.id, this.label.until); // counts change each generation
     console.info(
@@ -115,6 +123,7 @@ export class Game {
   }
 
   startGroup(line) {
+    this.started = true;
     this.herd.followed = new Set(this.bridge.followedIds());
     this.herd.following = true;
     this.herd.resetFlashes();
@@ -210,9 +219,10 @@ export class Game {
     const raw = Math.max(0, now - this.last); this.last = now;
     const dt = Math.min(48, raw);
 
-    // The generation clock follows real time, but a hidden tab or a long
-    // stall never releases a burst of generations.
-    this.clock += Math.min(250, raw);
+    // The generation clock follows real time once the child has chosen a
+    // family, but a hidden tab or a long stall never releases a burst of
+    // generations. Animals wander either way.
+    if (this.started) this.clock += Math.min(250, raw);
     const GEN_MS = GENERATION_SECONDS * 1000;
     if (this.clock >= GEN_MS) {
       this.clock = Math.min(this.clock - GEN_MS, GEN_MS - 1);

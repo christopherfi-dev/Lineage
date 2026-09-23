@@ -37,7 +37,7 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{root:number|string, members:Set<number>, since:number, branch:boolean}} */
+    /** @type {null|Group} */
     this.follow = null;
   }
 
@@ -88,11 +88,29 @@ export class Bridge {
   followBranchOf(id) { return this.startFollowing(id, true); }
 
   startFollowing(root, branch) {
-    this.follow = { root, members: this.families.members(root, this.livingIds()), since: this.state.generation, branch };
+    this.follow = {
+      root,
+      members: this.families.members(root, this.livingIds()),
+      since: this.state.generation,
+      branch,
+      parent: branch ? this.follow : null,
+    };
     return this.follow;
   }
 
   stopFollowing() { this.follow = null; }
+
+  /**
+   * After your branch has ended, go back to the nearest group it narrowed
+   * from that is still alive. Returns it, or null when the whole original
+   * family is gone too.
+   */
+  returnFromBranch() {
+    let group = this.follow ? this.follow.parent : null;
+    while (group && group.members.size === 0) group = group.parent;
+    this.follow = group;
+    return group;
+  }
 
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
@@ -151,8 +169,12 @@ export class Bridge {
     // A mother is always a survivor of this generation, so she is still a member here.
     const born = births.filter((b) => f.members.has(b.parentAId)).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
-    for (const id of born) f.members.add(id);
-    for (const id of gone) f.members.delete(id);
+    // Your group and every family it narrowed from keep their own members,
+    // so a branch that ends can hand the child back to where it came from.
+    for (let group = f; group; group = group.parent) {
+      for (const b of births) if (group.members.has(b.parentAId)) group.members.add(b.childId);
+      for (const d of deaths) group.members.delete(d.id);
+    }
     const byZone = [0, 0, 0];
     for (const id of f.members) byZone[this.zoneOf(id)]++;
     const last = f.members.size === 1 ? [...f.members][0] : null;
@@ -165,6 +187,7 @@ export class Bridge {
       byZone,
       lastCouldNotMate: last !== null && this.foundNoMate(last, g),
       lasted: g - f.since,
+      branch: f.branch,
     };
   }
 
@@ -193,4 +216,12 @@ export class Bridge {
  * @property {number[]} byZone members by engine zone
  * @property {boolean} lastCouldNotMate one member left, and she found no mate this generation
  * @property {number} lasted generations since you started following this group
+ * @property {boolean} branch this group came from "Follow just her branch"
+ *
+ * @typedef {Object} Group the group you follow
+ * @property {number|string} root the ancestor (or founding family) at the top of its line
+ * @property {Set<number>} members its living members
+ * @property {number} since generation you started following it
+ * @property {boolean} branch started with "Follow just her branch"
+ * @property {null|Group} parent the group a branch narrowed from
  */

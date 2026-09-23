@@ -20,9 +20,10 @@ family. `?seed=N` picks another trajectory (default 6).
 
 ## What is real
 
-- One engine generation (`advanceGeneration`) every `GENERATION_SECONDS` (8, in `src/main.js`).
-  Between generations the animals only wander, inside the habitat their inherited time
-  allocation gives them.
+- Time waits for the child: animals wander from the start, but generation 1 begins only once
+  a family is followed. After that, one engine generation (`advanceGeneration`) runs every
+  `GENERATION_SECONDS` (8, in `src/main.js`). Between generations the animals only wander,
+  inside the habitat their inherited time allocation gives them.
 - Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
   body mutation at birth flashes: in your family the newest flash is bright and the one before
   it dim; any other newborn with a mutation glows faintly for one generation.
@@ -34,8 +35,9 @@ A family is a mother line, computed in `src/families.js` from the engine's birth
 engine has no sexes, so the "mother" is the first parent in each birth record. With no family,
 tapping an animal follows the family of its ancestor 3 generations back through that line.
 While you follow a family, tapping another animal only shows a label; tapping one of yours
-offers "Follow just her branch." When your family ends, the world keeps running and any
-animal can start a new group.
+offers "Follow just her branch." When a branch dies out, the log says so and the child goes
+back to the family it came from, if that is still alive. When the whole family is gone, the
+world keeps running and any animal can start a new group.
 
 `lineageGame` in the browser console is the live game. Each generation is also logged there.
 

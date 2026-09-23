@@ -56,6 +56,8 @@ export function branchLine(n) {
     `You're following just her branch now: ${plural(n, "animal", "animals")}.`;
 }
 
+export const BRANCH_ENDED_LINE = "Her line ended. Most new variations are lost by chance before they can spread.";
+
 export function extinctionLines(lasted) {
   return [
     `The last of your group has passed. Their story lasted ${plural(lasted, "generation", "generations")}.`,
@@ -64,11 +66,22 @@ export function extinctionLines(lasted) {
 }
 
 /**
+ * What the log says when your group has just ended.
+ * @param {import("./bridge.js").FamilyEvents} f the group that ended
+ * @param {null|{members:Set<number>}} home the family a branch went back to, if any is alive
+ */
+export function endingLines(f, home) {
+  if (!f.branch) return extinctionLines(f.lasted);
+  if (!home) return [BRANCH_ENDED_LINE, PROMPT_LINE];
+  return [BRANCH_ENDED_LINE, `You're back with the family she came from: ${plural(home.members.size, "animal", "animals")}.`];
+}
+
+/**
  * What the log says about your family after a generation, from real counts.
+ * Only for a group that is still alive; `endingLines` covers one that just ended.
  * @param {import("./bridge.js").FamilyEvents} f
  */
 export function familyLines(f) {
-  if (f.count === 0) return extinctionLines(f.lasted);
   const zones = f.byZone.map((n, z) => (n ? z : -1)).filter((z) => z >= 0);
   const where = zones.length === 1 ? ` ${ZONE_AT[zones[0]]}` : "";
   const lines = [];
