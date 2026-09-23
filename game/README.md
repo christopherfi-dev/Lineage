@@ -18,38 +18,60 @@ Plain ES modules, no build step. The world is M1's defining experiment: the fixt
 webbing override, so the same webbed feet start in one canopy family and one shoreline
 family. `?seed=N` picks another trajectory (default 6).
 
+**Curated worlds** (`src/seeds.js`). The game only shows a seed whose three habitats all still
+have living animals at generation 76, where every story that lasts ends. Before a world is
+shown, the engine runs ahead in a throwaway copy of it (an observer run: the biology is
+unchanged, and the world you see starts again from generation 0 with the same seed). 95 of
+seeds 1–100 pass. A `?seed=` that fails is swapped for a good one, and "New world" only picks
+good seeds.
+
 ## The story (scope decision 6)
 
 The rules are in `src/story.js`, with every number at the top of the file:
 
 | constant | value | what it does |
 | --- | --- | --- |
-| `GENERATION_SECONDS` | 8 | real seconds per generation while watching |
-| `WATCH_GENERATIONS` | 3 | generations watched before each choice point |
+| `GENERATION_SECONDS` | 20 | real seconds per generation while watching |
+| `FIRST_WATCH_GENERATIONS` | 4 | generations watched before the first choice point |
+| `WATCH_GENERATIONS` | 3 | generations watched before each later choice point |
 | `CHOICE_SECONDS` | 20 | time to choose before one option is picked at random |
-| `SKIP_GENERATIONS` | 10 | generations fast-forwarded after each choice |
-| `FAST_SECONDS` | 0.8 | real seconds per generation in a fast-forward |
-| `STORY_CHOICES` | 5 | the story ends after this many choices |
+| `SKIP_GENERATIONS` | 2 | generations fast-forwarded after each choice point |
+| `FAST_SECONDS` | 2 | real seconds per generation in a fast-forward |
+| `STORY_CHOICES` | 15 | choice points in a story |
+| `STORY_GENERATIONS` | 76 | where every story that lasts ends: 4 + 14 × (2 + 3) + 2 |
+
+That is about 80 seconds per choice and about 19 minutes per story.
 
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
-   only when the child taps an animal and follows its family.
-2. **Choice points.** After the watch, the world pauses: "Which one will you follow?" Two or
-   three family members are offered, each drawn from its real genome with one line naming its
-   variation ("This one has webbed feet."). Each carries a different variation that at least
-   3 family members carry. With fewer than two such variations, there is no choice yet and the
-   story keeps watching.
-3. **Following a choice** narrows the story to the mother lines of every family member carrying
-   that variation, then fast-forwards `SKIP_GENERATIONS` at `FAST_SECONDS` each.
-4. **Endings.** The story ends when the followed line dies out ("Their story lasted N
-   generations.") or after `STORY_CHOICES` choices ("Your family survived N generations."). The
-   reflection screen lists the family's traits in plain words, the choices made and one question,
-   with "Try another family in this world" (same seed, generation 0) and "New world" (new seed).
-   A marked placeholder holds the place of the real-animal reveal for surviving families.
+   only when the child taps an animal and follows its family (the tapped animal's ancestor 3
+   generations back through the mother line, `src/families.js`).
+2. **Choice points.** After each watch the world pauses: "Which one will you follow?" Two or
+   three animals are offered, each drawn from its real genome with one line naming its
+   variation ("This one has webbed feet."). Each carries a different variation that at least 3
+   of the group carry. From the second choice on, the panel also says how the last choice
+   turned out ("Since your last choice, your group grew 58%. The ones with a sleeker body grew
+   79%."). A choice point without two such variations passes, and the story carries on.
+3. **The adaptation rule: replacement.** After a choice, your group is every living animal,
+   anywhere, that carries the chosen variation, fixed when it is chosen (the group's median for
+   that trait, plus or minus 0.12). Earlier choices no longer count. Then the world
+   fast-forwards.
+4. **The groups not chosen** stay on the map in their own colours (coloured bodies and a ring on
+   the ground), listed in the corner with their sizes. Tapping one says how it did since the
+   choice against yours: "Their group grew 48%. Yours grew 54%."
+5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
+   and "Back to my group" goes to the group's largest cluster.
+6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
+   generations.") or after the last choice point ("Your group survived 76 generations."). The
+   reflection screen shows the group's actual average traits at the end (a dot marks each trait
+   whose word changed since the start), the choices made, one question, and "Try another family
+   in this world" (same seed, generation 0) / "New world" (another good seed). A marked
+   placeholder holds the place of the real-animal reveal, which will match the group's actual
+   average traits.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.
 
-**Variations** (`src/variations.js`). Every engine trait is a number from 0 to 1. A family's
+**Variations** (`src/variations.js`). Every engine trait is a number from 0 to 1. A group's
 usual form is its median for each trait. A member carries a variation when one trait is at
 least `APART` (0.12) from that median, in one direction. Words come in three levels for each
 trait (for example feet: no webbing, some webbing, webbed).
@@ -57,18 +79,11 @@ trait (for example feet: no webbing, some webbing, webbed).
 ## What is real
 
 - Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
-  body mutation at birth flashes: in your family the newest flash is bright and the one before
+  body mutation at birth flashes: in your group the newest flash is bright and the one before
   it dim; any other newborn with a mutation glows faintly for one generation.
 - Between generations the animals only wander, inside the habitat their inherited time
   allocation gives them.
 - Every count on screen and in the log is read from the engine state.
-
-## Families (scope decision 5)
-
-A family is a mother line, computed in `src/families.js` from the engine's birth records. The
-engine has no sexes, so the "mother" is the first parent in each birth record. The first tap
-follows the family of the tapped animal's ancestor 3 generations back through that line. After
-that, tapping any animal only shows a label; only choice points change whom you follow.
 
 `lineageGame` in the browser console is the live game. Each generation is also logged there.
 

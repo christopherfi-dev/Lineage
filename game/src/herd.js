@@ -17,7 +17,10 @@ const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
 const FADE_MS = 700;   // a death shrinks away
 
-/** Flash states. Your family keeps two: its newest flash bright, the one before dim. */
+/** Colours for the groups not chosen at a choice point, in the order the options are shown. */
+export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
+
+/** Flash states. Your group keeps two: its newest flash bright, the one before dim. */
 const FLASH_NEWEST = 1, FLASH_PREVIOUS = 2, FLASH_OTHER = 3;
 
 /**
@@ -55,10 +58,12 @@ export class Herd {
     this.animals = new Map();
     /** @type {Animal[]} dead animals shrinking away */
     this.fading = [];
-    /** @type {Set<number>} your family */
+    /** @type {Set<number>} your group */
     this.followed = new Set();
-    /** false while you have no family: everyone is drawn plainly */
+    /** false while you have no group: everyone is drawn plainly */
     this.following = false;
+    /** @type {Map<number, string[]>} members of the groups not chosen, and their colours */
+    this.marks = new Map();
     /** how fast the world moves: 1 while watching, faster in a fast-forward */
     this.pace = 1;
   }
@@ -119,6 +124,7 @@ export class Herd {
       a.fadeMs = FADE_MS / this.pace;
       a.wasFollowed = this.followed.has(a.id);
       a.wasFollowing = this.following;
+      a.wasMarked = this.marks.get(a.id) ?? null;
       this.fading.push(a);
     }
     // Real births: each newborn appears beside its mother (the first parent in its birth record).
@@ -133,7 +139,7 @@ export class Herd {
       if (mother) a.face = mother.face;
       this.animals.set(b.childId, a);
     }
-    // Real mutations at birth. In your family: newest bright, the one before dim, older gone.
+    // Real mutations at birth. In your group: newest bright, the one before dim, older gone.
     // Elsewhere a newborn with a mutation glows faintly for its first generation.
     for (const a of this.animals.values()) if (a.flash === FLASH_OTHER) a.flash = 0;
     const mine = ev.mutations.filter((m) => bridge.isFollowed(m.childId));
@@ -163,7 +169,23 @@ export class Herd {
     return n ? { x: sx / n, y: sy / n, n } : null;
   }
 
-  followedCentroid() { return this.centroidOf(this.followed); }
+  /**
+   * Where most of a group stands: the centre of the members within `radius`
+   * of the member with the most members around her. Null when none are alive.
+   */
+  largestCluster(ids, radius = 240) {
+    const pts = [];
+    for (const id of ids) { const a = this.animals.get(id); if (a) pts.push(a); }
+    if (!pts.length) return null;
+    const r2 = radius * radius, near = (p, q) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r2;
+    let peak = pts[0], most = 0;
+    for (const p of pts) {
+      let n = 0;
+      for (const q of pts) if (near(p, q)) n++;
+      if (n > most) { most = n; peak = p; }
+    }
+    return this.centroidOf(pts.filter((q) => near(peak, q)).map((q) => q.id));
+  }
 
   /** Nearest living animal to a world point, within reach of a fingertip. */
   hit(wx, wy) {
@@ -241,20 +263,62 @@ export class Herd {
     const inView = (c) => !(c.x < view.x - m || c.x > view.x + view.w + m || c.y < view.y - m || c.y > view.y + view.h + m);
     for (const c of this.animals.values()) if (inView(c)) vis.push(c);
     for (const c of this.fading) if (inView(c)) vis.push(c);
+    const marksOf = (c) => (c.diedAt !== null ? c.wasMarked : this.marks.get(c.id)) ?? null;
     const style = (c) => {
       const following = c.diedAt !== null ? c.wasFollowing : this.following;
       const mine = c.diedAt !== null ? c.wasFollowed : this.followed.has(c.id);
-      return mine ? "mine" : following ? "gray" : "plain";
+      return mine ? "mine" : marksOf(c) ? "other" : following ? "gray" : "plain";
     };
-    const rank = { gray: 0, plain: 1, mine: 2 };
+    const lifeOf = (c) => {
+      if (c.diedAt !== null) return clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
+      if (now - c.bornAt < c.growMs) return 0.35 + 0.65 * clamp((now - c.bornAt) / c.growMs, 0, 1);
+      return 1;
+    };
+    // Under everyone: a soft glow under every member of your group, wherever
+    // she is, then a ring in its colour under every member of a group not chosen.
+    if (this.following) {
+      const sprite = glowSprite(), r = sprite.width / 2;
+      for (const c of vis) {
+        if (c.diedAt !== null || !this.followed.has(c.id)) continue;
+        x.globalAlpha = lifeOf(c);
+        x.drawImage(sprite, c.x - r, c.y - 12 - r);
+      }
+      x.globalAlpha = 1;
+    }
+    for (const c of vis) {
+      const colors = marksOf(c);
+      if (!colors) continue;
+      const life = lifeOf(c), rx = style(c) === "mine" ? 17 : 14;
+      colors.forEach((col, k) => {
+        x.beginPath(); x.ellipse(c.x, c.y + 1, rx + 5 * k, (rx + 5 * k) * 0.4, 0, 0, TAU);
+        x.globalAlpha = 0.34 * life; x.fillStyle = col; if (k === 0) x.fill();
+        x.globalAlpha = 0.95 * life; x.strokeStyle = col; x.lineWidth = 2.2; x.stroke();
+      });
+      x.globalAlpha = 1;
+    }
+    const rank = { gray: 0, plain: 1, other: 1, mine: 2 };
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
-      let life = 1;
-      if (c.diedAt !== null) life = clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
-      else if (now - c.bornAt < c.growMs) life = 0.35 + 0.65 * clamp((now - c.bornAt) / c.growMs, 0, 1);
-      if (life > 0) drawCreature(x, c, style(c), life);
+      const life = lifeOf(c);
+      if (life > 0) drawCreature(x, c, style(c), life, undefined, marksOf(c)?.[0]);
     }
   }
+}
+
+/** The glow under each member of your group, drawn once. */
+let glow = null;
+function glowSprite() {
+  if (glow) return glow;
+  const R = 44;
+  glow = Object.assign(document.createElement("canvas"), { width: 2 * R, height: 2 * R });
+  const x = /** @type {CanvasRenderingContext2D} */ (glow.getContext("2d"));
+  const grd = x.createRadialGradient(R, R, 0, R, R, R);
+  grd.addColorStop(0, "rgba(255,246,214,0.42)");
+  grd.addColorStop(0.55, "rgba(255,244,208,0.16)");
+  grd.addColorStop(1, "rgba(255,244,208,0)");
+  x.fillStyle = grd;
+  x.fillRect(0, 0, 2 * R, 2 * R);
+  return glow;
 }
 
 /** Mix a #rrggbb colour toward white (k > 0) or black (k < 0). */
@@ -266,17 +330,20 @@ function shade(hex, k) {
 
 /**
  * World-scale creature, ported from the mockup's drawCreature (halo ring,
- * creature scale 1). Styles: "mine" — your family, larger, sharper and with
- * detail; "gray" — everyone else while you follow a family, smaller and faded;
- * "plain" — everyone while you have no family; "portrait" — one animal drawn
- * large on a card, with your family's detail but no halo.
+ * creature scale 1). Styles: "mine" — your group, larger, sharper and with
+ * detail; "other" — a group you did not choose, in its colour; "gray" —
+ * everyone else while you follow a group, smaller and faded; "plain" —
+ * everyone while you have no group; "portrait" — one animal drawn large on a
+ * card, with your group's detail but no halo.
  * @param {CanvasRenderingContext2D} x
  * @param {Object} [parts] filled with where each body part is, for a portrait
+ * @param {string} [color] an "other" animal's group colour
  */
-function drawCreature(x, c, style, scale, parts) {
+function drawCreature(x, c, style, scale, parts, color) {
   const g = c.looks;
   const portrait = style === "portrait";
   const mine = style === "mine" || portrait, gray = style === "gray";
+  const other = style === "other" && !!color;
   const fade = gray ? 0.9 : 1;
   const A = (a) => a * fade;
   /* side-on figures, flipped by travel direction: at 25px a rotating
@@ -302,11 +369,11 @@ function drawCreature(x, c, style, scale, parts) {
   x.scale(dir, 1);
 
   /* the coat shade lightens or darkens the body */
-  const body = shade(mine ? "#1A657E" : "#8E8574", (g.shade - 0.5) * (mine ? 0.7 : 0.4));
-  const dark = mine ? "#0C3B4D" : "#7C7463";
-  const far = mine ? "#124F65" : "#807867";
-  const rim = mine ? "#8FD2E6" : "#BAB29C";
-  const webCol = mine ? "#A6DDEB" : "#D9D2BE";
+  const body = shade(mine ? "#1A657E" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.7 : 0.4));
+  const dark = mine ? "#0C3B4D" : other ? shade(color, -0.45) : "#7C7463";
+  const far = mine ? "#124F65" : other ? shade(color, -0.25) : "#807867";
+  const rim = mine ? "#8FD2E6" : other ? shade(color, 0.5) : "#BAB29C";
+  const webCol = mine ? "#A6DDEB" : other ? shade(color, 0.65) : "#D9D2BE";
 
   const fw = u * (0.15 + 0.14 * g.feet);
   const legW = mine ? u * 0.15 : u * 0.12;
@@ -370,7 +437,7 @@ function drawCreature(x, c, style, scale, parts) {
   /* shaggy coat grows in with dense fur */
   const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
   if (shag > 0.05) {
-    x.strokeStyle = mine ? "#1E7086" : "#A69E8C";
+    x.strokeStyle = mine ? "#1E7086" : other ? shade(color, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
     for (let k = 0; k < 10; k++) {
       const a = k / 10 * TAU;
@@ -385,7 +452,7 @@ function drawCreature(x, c, style, scale, parts) {
   x.fillStyle = rim; x.globalAlpha = A(mine ? 0.95 : 0.5);
   x.fill(P);
   x.restore();
-  x.globalAlpha = A(mine ? 1 : 0.82);
+  x.globalAlpha = A(mine || other ? 1 : 0.82);
   x.fillStyle = body; x.fill(P);
   if (mine) { x.strokeStyle = "#08333F"; x.globalAlpha = 0.6; x.lineWidth = u * 0.08; x.stroke(P); }
 
@@ -434,7 +501,7 @@ function drawCreature(x, c, style, scale, parts) {
     x.beginPath(); x.ellipse(c.x, midY, u * 1.58, u * 1.46, 0, 0, TAU); x.stroke();
   }
 
-  /* mutation flash: your family's newest bright, the one before dim; others faint */
+  /* mutation flash: your group's newest bright, the one before dim; others faint */
   if (c.flash) {
     const puls = (Math.sin((c.flashT || 0) * 0.0042) + 1) / 2;
     const newest = c.flash === FLASH_NEWEST;

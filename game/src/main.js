@@ -5,21 +5,23 @@
  * Time waits for the child: the animals wander from the start, but no
  * generation runs until an animal is tapped and its family followed. Then one
  * engine generation happens every GENERATION_SECONDS. At each choice point the
- * world pauses; after a choice it fast-forwards. Births, deaths, mutation
+ * world pauses; after it the world fast-forwards. Births, deaths, mutation
  * flashes and every count on screen come from the engine's records.
  */
 
 import { Bridge } from "./bridge.js";
 import { FIXTURE_URL } from "./engine.js";
-import { World, clamp, TAU } from "./world.js";
-import { Herd, drawPortrait } from "./herd.js";
+import { World, clamp } from "./world.js";
+import { Herd, drawPortrait, GROUP_COLORS } from "./herd.js";
 import {
-  Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES,
+  Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
 } from "./story.js";
-import { changedTraits, traitRows, typicalOf } from "./variations.js";
+import { isGoodSeed, goodSeed } from "./seeds.js";
+import { averageOf, changedTraits, traitRows, typicalOf } from "./variations.js";
 import {
-  START_LINE, followLine, familyLines, otherLabel, notable, NOTHING_SPREAD, TIMES_UP, optionLine,
-  chosenLines, skipDoneLines, LAST_PASSED, MADE_IT, endingTitle, QUESTION, choiceRecap, NO_CHOICES,
+  START_LINE, followLine, groupLines, otherLabel, notable, TIMES_UP, optionLine, passedLines, chosenLines,
+  skipDoneLines, compareLine, sinceLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap,
+  noChoices,
 } from "./narration.js";
 
 const LOG_MS = 3800;
@@ -32,6 +34,8 @@ const TIMES_UP_MS = 2800;
 const ENDING_DELAY_MS = 2600;
 /** The animals move this much faster during a fast-forward. */
 const FAST_PACE = 2.5;
+/** How often the camera target (your group's largest cluster) is worked out again. */
+const HOME_MS = 400;
 /** In the defining world, seed 6 lets the webbed canopy family's decline play out over a few generations. */
 const DEFAULT_SEED = 6;
 
@@ -39,9 +43,9 @@ export class Game {
   /**
    * @param {Document} doc
    * @param {Bridge} bridge the engine world to show, at generation 0
-   * @param {{seed:number, loadWorld:(seed:number)=>Promise<Bridge>}} world how to make this world again, or another
+   * @param {{seed:number, makeWorld:(seed:number)=>Bridge}} world how to make this world again, or another
    */
-  constructor(doc, bridge, { seed, loadWorld }) {
+  constructor(doc, bridge, { seed, makeWorld }) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.doc = doc;
     this.stage = $("stage");
@@ -55,25 +59,31 @@ export class Game {
     this.fastEl = $("fast");
     this.countsEl = $("counts");
     this.zonesEl = $("zones");
+    this.othersEl = $("others");
     this.labelEl = $("label");
     this.labelWhoEl = $("label-who");
     this.labelAboutEl = $("label-about");
     this.choiceEl = $("choice");
     this.choiceCountEl = $("choice-count");
+    this.choiceSinceEl = $("choice-since");
     this.optionsEl = $("options");
     this.choiceBarEl = $("choice-bar");
     this.choiceNoteEl = $("choice-note");
     this.endingEl = $("ending");
     this.endingTitleEl = $("ending-title");
     this.endingAnimalEl = /** @type {HTMLCanvasElement} */ ($("ending-animal"));
+    this.endingTraitsTitleEl = $("ending-traits-title");
     this.endingTraitsEl = $("ending-traits");
+    this.endingChoicesTitleEl = $("ending-choices-title");
     this.endingChoicesEl = $("ending-choices");
     this.endingQuestionEl = $("ending-question");
     this.revealEl = $("reveal");
+    this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
+    this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
     this.world = new World();
     this.seed = seed;
-    this.loadWorld = loadWorld;
+    this.makeWorld = makeWorld;
     this.cam = { x: 0, y: 0 };
     this.camTween = null;
     this.logQueue = [];
@@ -102,7 +112,9 @@ export class Game {
     this.clock = 0;
     this.choice = null;
     this.endingAt = null;
-    this.saidNothingSpread = false;
+    this.home = null;
+    this.homeT = 0;
+    this.fastShown = null;
     this.closeLabel();
     this.choiceEl.classList.remove("open");
     this.choiceEl.hidden = true;
@@ -123,58 +135,77 @@ export class Game {
     const fast = this.story.fast;
     this.herd.applyGeneration(ev, this.bridge, now);
     const what = this.story.afterGeneration(ev);
-    this.herd.followed = new Set(this.bridge.followedIds());
-    this.herd.pace = this.story.fast ? FAST_PACE : 1;
+    this.syncGroups();
     this.updateHud();
     if (this.label) this.showLabel(this.label.id, this.label.until); // counts change each generation
     if (what === "ended") this.storyEnded();
     else if (what === "choice") this.openChoice(now);
+    else if (what === "passed") this.pointPassed();
     else if (what === "skip-done") this.fastForwardDone();
-    else if (!fast) {
-      // Watching: narrate each generation. During a fast-forward, only its end is narrated.
-      const lines = familyLines(ev.family);
-      if (what === "no-choice" && !this.saidNothingSpread) { lines.push(NOTHING_SPREAD); this.saidNothingSpread = true; }
-      this.say(lines);
-    }
-    const f = ev.family;
+    else if (!fast) this.say(groupLines(ev.group, this.story.noun)); // during a fast-forward, only its end is narrated
+    const g = ev.group;
     console.info(
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
       `${ev.mutations.length} mutations at birth` +
-      (f ? ` · your family ${f.count} (was ${f.before}: +${f.born.length} −${f.gone.length}, ${f.mutated.length} new traits)` : "") +
-      ` · story: ${this.story.phase}`
+      (g ? ` · your ${this.story.noun} ${g.count} (was ${g.before}: +${g.born.length} −${g.gone.length}, ${g.mutated.length} new traits)` : "") +
+      this.story.others.map((o) => ` · ${o.option.group} ${o.members.size}`).join("") +
+      ` · story: ${this.story.phase}, choice point ${this.story.points}`
     );
     if (ev.observerErrors.length) console.warn("[lineage] observer errors", ev.observerErrors);
+  }
+
+  /** The map shows whom you follow now, and the groups you did not choose in their colours. */
+  syncGroups() {
+    this.herd.followed = new Set(this.bridge.followedIds());
+    const marks = new Map();
+    for (const o of this.story.others) {
+      for (const id of o.members) {
+        const colors = marks.get(id);
+        if (colors) colors.push(o.option.color); else marks.set(id, [o.option.color]);
+      }
+    }
+    this.herd.marks = marks;
+    this.homeT = 0; // work the camera target out again on the next frame
   }
 
   /* ================= the story ================= */
   /** The first tap: follow the family of the tapped animal's ancestor a few generations back. Time starts. */
   begin(animal) {
     const f = this.story.begin(animal.id);
-    this.herd.followed = new Set(f.members);
+    this.syncGroups();
     this.herd.following = true;
     this.herd.resetFlashes();
     this.clock = 0;
     this.closeLabel();
     this.hideHint();
     this.say([followLine(this.bridge.zoneOf(animal.id), f.members.size)]);
-    this.centerOnFollowed(false);
+    this.centerOnGroup();
     this.updateHud();
   }
 
-  /** A choice point: the world pauses, and two or three family members are offered. */
+  /** A choice point: the world pauses, and two or three animals are offered. */
   openChoice(now) {
     const s = this.story;
     this.closeLabel();
-    this.choiceCountEl.textContent = `Choice ${s.choices.length + 1} of ${STORY_CHOICES}`;
+    this.choiceCountEl.textContent = `Choice ${s.points} of ${STORY_CHOICES}`;
+    // How the last choice turned out, against the ones not chosen.
+    const since = s.choices.length ?
+      sinceLines(s.mine, s.others.map((o) => ({ group: o.option.group, now: o.members.size, then: o.sizeAtChoice }))) : [];
+    this.choiceSinceEl.textContent = since.join(" ");
     this.choiceNoteEl.textContent = "";
     this.choiceBarEl.style.width = "100%";
-    // Shown in a random order, so the most common variation isn't always first.
+    // Shown in a random order, so the most common variation isn't always first. Each
+    // keeps its colour on the map if it is not chosen.
     const shown = s.options.map((o) => ({ o, k: Math.random() })).sort((a, b) => a.k - b.k).map(({ o }) => o);
-    this.optionEls = shown.map((o) => {
+    this.optionEls = shown.map((o, k) => {
+      o.color = GROUP_COLORS[k];
       const el = this.doc.createElement("button");
       el.type = "button";
       el.className = "option";
-      el.append(this.doc.createElement("canvas"), Object.assign(this.doc.createElement("span"), { textContent: optionLine(o.words) }));
+      el.style.setProperty("--mark", o.color);
+      const words = this.doc.createElement("span");
+      words.append(Object.assign(this.doc.createElement("i"), { className: "swatch" }), optionLine(o.words));
+      el.append(this.doc.createElement("canvas"), words);
       el.addEventListener("click", () => this.pick(o, false, performance.now()));
       return Object.assign(el, { option: o });
     });
@@ -184,7 +215,7 @@ export class Game {
     for (const el of this.optionEls) drawPortrait(el.querySelector("canvas"), this.bridge.get(el.option.id).bodyGenome, el.option.trait);
     requestAnimationFrame(() => this.choiceEl.classList.add("open"));
     this.choice = { until: now + CHOICE_SECONDS * 1000, picked: null };
-    this.centerOnFollowed(false, 0.3);
+    this.centerOnGroup(0.3);
   }
 
   pick(option, byChance, now) {
@@ -214,32 +245,38 @@ export class Game {
     }
   }
 
-  /** Narrow to the mother lines of the variation's carriers, then fast-forward. */
+  /** Your group becomes every animal with the chosen variation; then the world fast-forwards. */
   followChoice(option, byChance) {
     this.choice = null;
     this.choiceEl.classList.remove("open");
     this.choiceHideT = setTimeout(() => { if (!this.choice) this.choiceEl.hidden = true; }, 450);
     this.story.choose(option, byChance);
-    this.herd.followed = new Set(this.bridge.followedIds());
+    this.syncGroups();
     this.herd.resetFlashes();
-    // A moment to see whom you follow now, then the fast-forward starts as the log says so.
-    this.clock = FAST_SECONDS * 1000 - LOG_MS;
-    this.say(chosenLines(option.words, this.herd.followed.size, SKIP_GENERATIONS));
-    this.centerOnFollowed(false);
+    this.preRoll();
+    this.say(chosenLines(option.group, this.herd.followed.size, SKIP_GENERATIONS));
+    this.centerOnGroup();
     this.updateHud();
   }
+
+  /** Nothing to choose from at this point: say so, then fast-forward anyway. */
+  pointPassed() {
+    this.preRoll();
+    this.say(passedLines(this.story.noun, SKIP_GENERATIONS));
+  }
+
+  /** A moment to read the log before the fast-forward starts. */
+  preRoll() { this.clock = FAST_SECONDS * 1000 - LOG_MS; }
 
   fastForwardDone() {
     const s = this.story;
-    this.saidNothingSpread = false;
-    this.say(skipDoneLines(SKIP_GENERATIONS, this.herd.followed.size, changedTraits(s.formBeforeChoice, s.lastForm)));
-    this.centerOnFollowed(false);
-    this.updateHud();
+    this.say(skipDoneLines(SKIP_GENERATIONS, this.herd.followed.size, changedTraits(s.formAtPoint, s.lastForm), s.noun));
   }
 
-  /** The line died out, or the last choice's fast-forward finished. A moment, then the reflection screen. */
+  /** The group died out, or the last choice point's fast-forward finished. A moment, then the reflection screen. */
   storyEnded() {
-    this.say([this.story.outcome === "died" ? LAST_PASSED : MADE_IT]);
+    const s = this.story;
+    this.say([s.outcome === "died" ? lastPassed(s.noun) : madeIt(s.noun)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
   }
@@ -247,42 +284,69 @@ export class Game {
   /** Every ending is a reflection screen, not a game-over screen. */
   showEnding() {
     const s = this.story, doc = this.doc;
-    this.endingTitleEl.textContent = endingTitle(s.outcome, s.lasted);
-    this.endingTraitsEl.replaceChildren(...traitRows(s.lastForm, s.startForm).map((r) => {
+    this.endingTitleEl.textContent = endingTitle(s.outcome, s.lasted, s.noun);
+    // The group's actual average body at the end (the last members alive), not a list of the choices.
+    this.endingTraitsTitleEl.textContent = `Your ${s.noun}'s traits`;
+    const genomes = (animals) => animals.map((a) => a.genome);
+    this.endingTraitsEl.replaceChildren(...traitRows(averageOf(genomes(s.lastAnimals)), averageOf(genomes(s.startAnimals))).map((r) => {
       const row = doc.createElement("div");
       row.className = r.changed ? "row changed" : "row";
       row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
         Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }));
       return row;
     }));
-    const recaps = s.choices.length ? s.choices.map(choiceRecap) : [NO_CHOICES];
+    this.endingChoicesTitleEl.textContent = choicesHeading(s.choices.length);
+    const recaps = s.choices.length ? s.choices.map(choiceRecap) : [noChoices(s.outcome)];
     this.endingChoicesEl.replaceChildren(...recaps.map((t) => Object.assign(doc.createElement("li"), { textContent: t })));
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
-    this.endingQuestionEl.textContent = QUESTION[s.outcome];
-    // Surviving families will later be revealed as the real animal they most resemble.
+    this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
+    this.endingQuestionEl.textContent = question(s.outcome, s.noun);
+    // REAL-ANIMAL REVEAL (placeholder): a surviving group will be revealed as the real
+    // animal it most resembles, matched on the group's actual average traits (the same
+    // averageOf(lastAnimals) shown above), not on the choices made.
     this.revealEl.hidden = s.outcome !== "survived";
     this.endingEl.hidden = false;
     drawPortrait(this.endingAnimalEl, typicalOf(s.lastAnimals).genome);
   }
 
-  /** Same seed: the same world again from generation 0. A new seed: a new world. */
-  async restart(seed) {
+  /** Same seed: the same world again from generation 0. */
+  restart(seed) {
     this.endingEl.hidden = true;
-    const bridge = await this.loadWorld(seed);
     this.seed = seed;
     history.replaceState(null, "", `?seed=${seed}`);
-    this.start(bridge);
+    this.start(this.makeWorld(seed));
+  }
+
+  /** A new world: only a seed whose three habitats all last the whole story (seeds.js). */
+  newWorld() {
+    const label = this.newWorldEl.textContent;
+    this.newWorldEl.textContent = "Finding a new world…";
+    this.newWorldEl.disabled = this.againEl.disabled = true;
+    // Let the button repaint before the engine runs ahead.
+    setTimeout(() => {
+      const seed = goodSeed(this.makeWorld, this.seed) ?? this.seed;
+      this.newWorldEl.textContent = label;
+      this.newWorldEl.disabled = this.againEl.disabled = false;
+      this.restart(seed);
+    }, 40);
   }
 
   updateHud() {
+    const s = this.story, doc = this.doc;
     const zones = this.bridge.zoneCounts();
-    const following = this.story.phase !== "waiting" && this.story.phase !== "ended";
+    const following = s.phase !== "waiting" && s.phase !== "ended";
     this.genEl.textContent = String(this.bridge.generation);
     this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
-      (following ? `your family ${this.herd.followed.size}` : this.story.phase === "ended" ? "story over" : "no family yet");
+      (following ? `your ${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
-    this.fastEl.hidden = !(this.story.fast && this.clock >= 0);
-    if (!this.story.running) this.barEl.style.width = "0%";
+    this.othersEl.replaceChildren(...s.others.map((o) => {
+      const el = doc.createElement("span");
+      el.append(Object.assign(doc.createElement("i"), { className: "swatch" }), `${o.option.group} ${o.members.size}`);
+      el.style.setProperty("--mark", o.option.color);
+      return el;
+    }));
+    this.othersEl.hidden = !s.others.length;
+    if (!s.running) this.barEl.style.width = "0%";
   }
 
   /* ================= the label on a tapped animal ================= */
@@ -290,13 +354,21 @@ export class Game {
   showLabel(id, until = performance.now() + LABEL_MS) {
     const ind = this.bridge.get(id);
     if (!ind) { this.closeLabel(); return; }
+    const s = this.story;
+    const theirs = s.others.find((o) => o.members.has(id));
     if (this.herd.followed.has(id)) {
-      this.labelWhoEl.textContent = "In your family";
+      this.labelWhoEl.textContent = `In your ${s.noun}`;
       this.labelAboutEl.textContent = notable(ind.bodyGenome);
+    } else if (theirs) {
+      // A group not chosen: how it did since the choice, against yours.
+      this.labelWhoEl.textContent = `The ones with ${theirs.option.group}`;
+      this.labelAboutEl.textContent = compareLine({ now: theirs.members.size, then: theirs.sizeAtChoice }, s.mine);
     } else {
-      this.labelWhoEl.textContent = "Another family";
-      this.labelAboutEl.textContent = otherLabel(this.bridge.zoneOf(id), this.bridge.familySizeOf(id), ind.bodyGenome);
+      this.labelWhoEl.textContent = `Not in your ${s.noun}`;
+      this.labelAboutEl.textContent = otherLabel(this.bridge.zoneOf(id), ind.bodyGenome);
     }
+    this.labelEl.classList.toggle("marked", !!theirs && !this.herd.followed.has(id));
+    if (theirs) this.labelEl.style.setProperty("--mark", theirs.option.color);
     this.label = { id, until };
     this.labelEl.hidden = false;
   }
@@ -341,12 +413,13 @@ export class Game {
     this.cam.x = clamp(this.cam.x, 0, Math.max(0, this.world.W - this.vw));
     this.cam.y = clamp(this.cam.y, 0, Math.max(0, this.world.H - this.vh));
   }
-  /** The camera centres on your family, `high` of the screen above the middle (to clear a panel). */
-  centerOnFollowed(instant, high = 0) {
-    const p = this.herd.followedCentroid(); if (!p) return;
-    const tx = p.x - this.vw / 2, ty = p.y - this.vh * (0.5 - high);
-    if (instant) { this.cam.x = tx; this.cam.y = ty; this.clampCam(); }
-    else this.camTween = { x: tx, y: ty, t: 0 };
+  /**
+   * The camera goes to your group's largest cluster: the group may be spread
+   * across habitats. `high` of the screen above the middle, to clear a panel.
+   */
+  centerOnGroup(high = 0) {
+    const p = this.herd.largestCluster(this.herd.followed); if (!p) return;
+    this.camTween = { x: p.x - this.vw / 2, y: p.y - this.vh * (0.5 - high), t: 0 };
   }
 
   /* ================= frame ================= */
@@ -366,10 +439,20 @@ export class Game {
       }
       if (s.running) this.barEl.style.width = `${(100 * Math.max(0, this.clock) / genMs).toFixed(1)}%`;
     }
+    // A fast-forward shows: the badge is up and the animals hurry.
+    const fastNow = s.fast && this.clock >= 0;
+    if (fastNow !== this.fastShown) {
+      this.fastShown = fastNow;
+      this.fastEl.hidden = !fastNow;
+      this.herd.pace = fastNow ? FAST_PACE : 1;
+    }
     // At a choice point the world pauses.
     if (s.phase === "choice") this.tickChoice(now);
     else this.herd.tick(dt, now);
     if (this.endingAt !== null && now >= this.endingAt) { this.endingAt = null; this.showEnding(); }
+
+    // Where "Back to my group" goes: the group's largest cluster.
+    if ((this.homeT -= dt) <= 0) { this.homeT = HOME_MS; this.home = this.herd.largestCluster(this.herd.followed); }
 
     this.pumpLog(dt);
     if (this.camTween) {
@@ -404,21 +487,11 @@ export class Game {
     x.fillStyle = "rgba(255,247,227," + (0.05 + 0.17 * 0.35).toFixed(3) + ")";
     x.fillRect(vx, vy, vw, vh);
 
-    /* home ground — a soft pool of light where your family lives */
-    const home = this.herd.followedCentroid();
-    if (home) {
-      const R = 430;
-      const grd = x.createRadialGradient(home.x, home.y, 0, home.x, home.y, R);
-      grd.addColorStop(0, "rgba(255,246,214,0.20)");
-      grd.addColorStop(0.6, "rgba(255,244,208,0.08)");
-      grd.addColorStop(1, "rgba(255,244,208,0)");
-      x.fillStyle = grd;
-      x.beginPath(); x.arc(home.x, home.y, R, 0, TAU); x.fill();
-    }
-
+    /* the animals; every member of your group stands in a soft glow (herd.js) */
     this.herd.draw(x, { x: vx, y: vy, w: vw, h: vh }, now);
     x.restore();
 
+    const home = this.home;
     const onScreen = home && home.x > vx && home.x < vx + vw && home.y > vy && home.y < vy + vh;
     const want = !!home && !onScreen && this.story.phase !== "choice";
     if (want !== this.homeShown) {
@@ -461,13 +534,9 @@ export class Game {
     };
     s.addEventListener("pointerup", end);
     s.addEventListener("pointercancel", end);
-    this.homeEl.addEventListener("click", () => { this.centerOnFollowed(false); this.hideHint(); });
-    this.doc.getElementById("again").addEventListener("click", () => this.restart(this.seed));
-    this.doc.getElementById("new-world").addEventListener("click", () => {
-      let seed;
-      do seed = 1 + Math.floor(Math.random() * 9999); while (seed === this.seed);
-      this.restart(seed);
-    });
+    this.homeEl.addEventListener("click", () => { this.centerOnGroup(); this.hideHint(); });
+    this.againEl.addEventListener("click", () => this.restart(this.seed));
+    this.newWorldEl.addEventListener("click", () => this.newWorld());
   }
   showHint() {
     this.hintGone = false;
@@ -490,30 +559,35 @@ export class Game {
   }
 }
 
-/** The defining fixture, fetched once. */
+/** The defining fixture, fetched once; null if it can't be read. */
 let fixture = null;
 
-/** The defining-experiment world for a seed, or the engine's random world if the fixture can't be read. */
-async function loadWorld(seed) {
+async function loadFixture() {
   try {
-    if (!fixture) {
-      const res = await fetch(FIXTURE_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      fixture = await res.json();
-    }
-    return Bridge.fromFixture(fixture, seed);
+    const res = await fetch(FIXTURE_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    fixture = await res.json();
   } catch (err) {
     console.warn("[lineage] defining fixture unavailable; using a random world", err);
-    return Bridge.fromRandom(seed);
   }
 }
+
+/** The defining-experiment world for a seed, or the engine's random world without the fixture. */
+const makeWorld = (seed) => (fixture ? Bridge.fromFixture(fixture, seed) : Bridge.fromRandom(seed));
 
 // ---- bootstrap ----
 if (typeof document !== "undefined") {
   const q = new URLSearchParams(location.search);
   const asked = Number.parseInt(q.get("seed") ?? "", 10);
-  const seed = Number.isFinite(asked) && asked > 0 ? asked : DEFAULT_SEED;
-  loadWorld(seed).then((bridge) => {
-    globalThis.lineageGame = new Game(document, bridge, { seed, loadWorld }); // for poking at the live engine from the console
+  loadFixture().then(() => {
+    let seed = Number.isFinite(asked) && asked > 0 ? asked : DEFAULT_SEED;
+    // Only curated worlds: a seed that loses a habitat before the story's end is swapped for one that doesn't.
+    if (!isGoodSeed(makeWorld, seed)) {
+      const good = goodSeed(makeWorld, seed) ?? seed;
+      console.info(`[lineage] seed ${seed} loses a habitat by generation ${STORY_GENERATIONS}; showing seed ${good} instead`);
+      seed = good;
+      history.replaceState(null, "", `?seed=${seed}`);
+    }
+    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld }); // for poking at the live engine from the console
   });
 }

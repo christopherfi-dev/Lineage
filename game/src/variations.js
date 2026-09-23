@@ -1,20 +1,21 @@
 /**
- * Variations within a family, in plain words. DOM-free.
+ * Variations within a group, in plain words. DOM-free.
  *
  * Every engine body trait is a number from 0 to 1, and siblings differ a
- * little in each. A family's usual form is its median for each trait. A
+ * little in each. A group's usual form is its median for each trait. A
  * variation is one way of being different from that, in one trait and one
- * direction ("more webbing between its toes"). A member carries it when her
- * value is at least APART from the family's median that way, which is enough
- * for the difference to show.
+ * direction ("more webbing between the toes"). A member carries it when her
+ * value is at least APART from the group's median that way, which is enough
+ * for the difference to show. Once chosen, a variation is fixed as that
+ * threshold, so any animal anywhere can be checked against it.
  */
 
 import { TRAITS } from "./engine.js";
 
-/** How far from the family's median a member's trait must be to carry a variation. */
+/** How far from the group's median a member's trait must be to carry a variation. */
 export const APART = 0.12;
 
-/** A variation can be chosen once this many family members carry it (scope decision 6). */
+/** A variation can be chosen once this many group members carry it (scope decision 6). */
 export const MIN_CARRIERS = 3;
 
 /** At most this many animals to choose from. */
@@ -23,7 +24,7 @@ export const MAX_OPTIONS = 3;
 /** Three levels for words: low, middle, high. */
 export const levelOf = (v) => (v < 1 / 3 ? 0 : v < 2 / 3 ? 1 : 2);
 
-/** [less, more] than the rest of the family, for each trait in engine order. */
+/** [less, more] than the rest of the group, for each trait in engine order. */
 export const TRAIT_WORDS = {
   toe_webbing: ["less webbing between the toes", "more webbing between the toes"],
   curved_claws: ["straighter claws", "more curved claws"],
@@ -54,7 +55,7 @@ const HAS = {
 /** "webbed feet": what an animal with this trait at this level has. */
 export const hasWords = (trait, level) => HAS[trait][level];
 
-/** A family's traits as a list: [label, [low, middle, high]] for each trait. */
+/** A group's traits as a list: [label, [low, middle, high]] for each trait. */
 const ROWS = {
   toe_webbing: ["Feet", ["no webbing", "some webbing", "webbed"]],
   curved_claws: ["Claws", ["straight", "a bit curved", "curved"]],
@@ -74,7 +75,7 @@ function median(values) {
 }
 
 /**
- * A family's usual form: its median and word level for each trait.
+ * A group's usual form: its median and word level for each trait.
  * @param {ArrayLike<number>[]} genomes the members' body genomes
  * @returns {Array<{median:number, level:number}>}
  */
@@ -86,7 +87,7 @@ export function formOf(genomes) {
 }
 
 /**
- * Every variation in a family that at least MIN_CARRIERS members carry, most
+ * Every variation in a group that at least MIN_CARRIERS members carry, most
  * carried first.
  * @param {Array<{id:number, genome:ArrayLike<number>}>} members
  * @param {number} [apart] for measuring other values of APART
@@ -104,7 +105,7 @@ export function variationsOf(members, apart = APART) {
   return found.sort((a, b) => b.carriers.length - a.carriers.length || a.t - b.t);
 }
 
-/** "webbed feet" when she is at the far end the family isn't, else "more webbing between its toes". */
+/** "webbed feet" when she is at the far end the group isn't, else "more webbing between the toes". */
 export function variationWords(trait, dir, value, usualLevel) {
   const level = levelOf(value), end = dir > 0 ? 2 : 0;
   if (level === end && usualLevel !== end) return HAS[trait][end];
@@ -112,10 +113,10 @@ export function variationWords(trait, dir, value, usualLevel) {
 }
 
 /**
- * The choice at a choice point: up to MAX_OPTIONS family members, each
+ * The choice at a choice point: up to MAX_OPTIONS group members, each
  * carrying a different variation (different traits) that at least
  * MIN_CARRIERS members carry. Each option's animal is the carrier who shows
- * it most. Fewer than two options means there is no choice yet.
+ * it most. Fewer than two options means there is no choice at this point.
  * @param {Array<{id:number, genome:ArrayLike<number>}>} members
  * @param {number} [apart] for measuring other values of APART
  * @returns {Option[]}
@@ -133,8 +134,11 @@ export function choiceOptions(members, apart = APART) {
     options.push({
       id: animal.id,
       trait: v.trait,
+      t: v.t,
       dir: v.dir,
+      thr: v.usual.median + v.dir * apart,
       words: variationWords(v.trait, v.dir, animal.genome[v.t], v.usual.level),
+      group: TRAIT_WORDS[v.trait][v.dir > 0 ? 1 : 0],
       carriers: v.carriers.map((m) => m.id),
     });
   }
@@ -151,17 +155,32 @@ export function changedTraits(from, to, minMove = 0.1) {
     .filter(({ t }) => to[t].level !== from[t].level && Math.abs(to[t].median - from[t].median) >= minMove);
 }
 
-/** The member closest to the family's usual form, to picture the family. */
+/** True when this body carries the variation: past its threshold, its way. */
+export const carries = (genome, v) => (genome[v.t] - v.thr) * v.dir >= 0;
+
+/**
+ * A group's actual average body: its mean and word level for each trait.
+ * @param {ArrayLike<number>[]} genomes
+ * @returns {Array<{mean:number, level:number}>}
+ */
+export function averageOf(genomes) {
+  return TRAITS.map((_, t) => {
+    const m = genomes.reduce((sum, g) => sum + g[t], 0) / genomes.length;
+    return { mean: m, level: levelOf(m) };
+  });
+}
+
+/** The member closest to the group's average body, to picture the group. */
 export function typicalOf(members) {
-  const form = formOf(members.map((m) => m.genome));
-  const off = (m) => form.reduce((sum, f, t) => sum + Math.abs(m.genome[t] - f.median), 0);
+  const avg = averageOf(members.map((m) => m.genome));
+  const off = (m) => avg.reduce((sum, a, t) => sum + Math.abs(m.genome[t] - a.mean), 0);
   return members.reduce((best, m) => (off(m) < off(best) ? m : best), members[0]);
 }
 
 /**
- * A family's traits in plain words, marking the ones whose word changed since `from`.
- * @param {Array<{median:number, level:number}>} form
- * @param {Array<{median:number, level:number}>} [from]
+ * A group's traits in plain words, marking the ones whose word changed since `from`.
+ * @param {Array<{level:number}>} form
+ * @param {Array<{level:number}>} [from]
  */
 export function traitRows(form, from) {
   return TRAITS.map((trait, t) => {
@@ -174,7 +193,10 @@ export function traitRows(form, from) {
  * @typedef {Object} Option
  * @property {number} id the animal to show
  * @property {string} trait engine trait name
- * @property {number} dir +1 more, -1 less than the family's usual
+ * @property {number} t trait index
+ * @property {number} dir +1 more, -1 less than the group's usual
+ * @property {number} thr the trait value it takes to carry this variation, fixed when offered
  * @property {string} words "webbed feet", for "This one has webbed feet."
- * @property {number[]} carriers every family member who carries this variation
+ * @property {string} group "more webbing between the toes": the group of every animal that carries it
+ * @property {number[]} carriers every group member who carries this variation
  */

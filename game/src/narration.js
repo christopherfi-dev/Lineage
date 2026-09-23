@@ -38,11 +38,12 @@ export function followLine(zone, n) {
 }
 
 /**
- * What the log says about your family after a generation, from real counts.
- * Only for a family that is still alive.
- * @param {import("./bridge.js").FamilyEvents} f
+ * What the log says about your group after a generation, from real counts.
+ * Only for a group that is still alive.
+ * @param {import("./bridge.js").GroupEvents} f
+ * @param {"family"|"group"} noun
  */
-export function familyLines(f) {
+export function groupLines(f, noun) {
   const zones = f.byZone.map((n, z) => (n ? z : -1)).filter((z) => z >= 0);
   const where = zones.length === 1 ? ` ${ZONE_AT[zones[0]]}` : "";
   const lines = [];
@@ -51,11 +52,11 @@ export function familyLines(f) {
   } else if (f.count <= f.before && f.count <= 5) {
     lines.push(`Only ${number(f.count)} of your animals ${f.count === 1 ? "is" : "are"} left${where}.`);
   } else if (f.count < f.before) {
-    lines.push(`Your family is smaller than last generation: ${f.count} animals now.`);
+    lines.push(`Your ${noun} is smaller than last generation: ${f.count} animals now.`);
   } else if (f.count > f.before) {
-    lines.push(`Your family is bigger than last generation: ${f.count} animals now.`);
+    lines.push(`Your ${noun} is bigger than last generation: ${f.count} animals now.`);
   } else {
-    lines.push(`Your family is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
+    lines.push(`Your ${noun} is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
   }
   if (f.mutated.length === 1) {
     lines.push(`One of your babies was born with ${traitChange(f.mutated[0])}.`);
@@ -67,51 +68,74 @@ export function familyLines(f) {
 
 /* ================= the story (scope decision 6) ================= */
 
-export const NOTHING_SPREAD = "Nothing new has spread through your family yet. Keep watching.";
 export const TIMES_UP = "Time's up! This one was picked at random.";
 export const optionLine = (words) => `This one has ${words}.`;
+const fastForward = (skip) => `Fast-forward: ${skip} generations!`;
 
-/** Right after a choice. */
-export function chosenLines(words, n, skip) {
-  return [
-    `Now you follow the ones with ${words}: ${plural(n, "animal", "animals")}.`,
-    `Fast-forward: ${skip} generations!`,
-  ];
+/** A choice point with nothing to choose from passes. */
+export function passedLines(noun, skip) {
+  return [`Nothing new has spread through your ${noun} yet.`, fastForward(skip)];
+}
+
+/** Right after a choice: the group is now every animal with the chosen variation. */
+export function chosenLines(group, n, skip) {
+  return [`Now you follow every animal with ${group}: ${plural(n, "animal", "animals")}.`, fastForward(skip)];
 }
 
 /**
- * After a fast-forward: how big the family is, and what most of it has now
+ * After a fast-forward: how big the group is, and what most of it has now
  * that it didn't before.
  * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
  */
-export function skipDoneLines(skip, n, changed) {
-  const lines = [`${skip} generations later, your family has ${plural(n, "animal", "animals")}.`];
-  if (changed.length) lines.push(`Most of your family now has ${hasWords(changed[0].trait, changed[0].level)}.`);
+export function skipDoneLines(skip, n, changed, noun) {
+  const lines = [`${skip} generations later, your ${noun} has ${plural(n, "animal", "animals")}.`];
+  if (changed.length) lines.push(`Most of your ${noun} now has ${hasWords(changed[0].trait, changed[0].level)}.`);
   return lines;
 }
 
-export const LAST_PASSED = "The last of your family has passed.";
-export const MADE_IT = "Your family made it to the end of the story.";
+/** "grew 50%", "shrank 25%": a group's size now against its size at the choice. */
+export function growth({ now, then }) {
+  if (now === 0) return "died out";
+  const pct = Math.round((100 * (now - then)) / Math.max(1, then));
+  return pct > 0 ? `grew ${pct}%` : pct < 0 ? `shrank ${-pct}%` : "stayed the same size";
+}
 
-export function endingTitle(outcome, n) {
+/** On a tapped animal of a group not chosen: "Their group grew 50%. Yours shrank 25%." */
+export const compareLine = (theirs, yours) => `Their group ${growth(theirs)}. Yours ${growth(yours)}.`;
+
+/**
+ * At the next choice point: how the last choice turned out against the ones not chosen.
+ * @param {{now:number, then:number}} yours
+ * @param {Array<{group:string, now:number, then:number}>} others
+ */
+export function sinceLines(yours, others) {
+  return [
+    `Since your last choice, your group ${growth(yours)}.`,
+    ...others.map((o) => `The ones with ${o.group} ${growth(o)}.`),
+  ];
+}
+
+export const lastPassed = (noun) => `The last of your ${noun} has passed.`;
+export const madeIt = (noun) => `Your ${noun} made it to the end of the story.`;
+
+export function endingTitle(outcome, n, noun) {
   return outcome === "died" ?
     `Their story lasted ${plural(n, "generation", "generations")}.` :
-    `Your family survived ${plural(n, "generation", "generations")}.`;
+    `Your ${noun} survived ${plural(n, "generation", "generations")}.`;
 }
 
-export const QUESTION = {
-  died: "Why do you think your family didn't survive?",
-  survived: "Why do you think your family survived?",
-};
-
-/** @param {{words:string, byChance:boolean}} c */
-export function choiceRecap(c) {
-  return c.byChance ?
-    `Time ran out, and the one with ${c.words} was picked at random.` :
-    `You followed the one with ${c.words}.`;
+export function question(outcome, noun) {
+  return outcome === "died" ? `Why do you think your ${noun} didn't survive?` : `Why do you think your ${noun} survived?`;
 }
 
-export const NO_CHOICES = "Their story ended before the first choice.";
+/** Heading of the ending's list of choices. */
+export const choicesHeading = (n) => (n ? "You followed the ones with" : "Your choices");
+
+/** One item of that list: "a darker coat", or "more curved claws (picked at random)". */
+export const choiceRecap = (c) => (c.byChance ? `${c.group} (picked at random)` : c.group);
+
+export const noChoices = (outcome) =>
+  (outcome === "died" ? "Their story ended before the first choice." : "Nothing new spread far enough to choose from.");
 
 /* ================= labels on tapped animals ================= */
 
@@ -121,7 +145,7 @@ export function notable(genome) {
   return found.length ? `${capital(found.slice(0, 2).join(" and "))}.` : "";
 }
 
-/** Label text for an animal in another family. */
-export function otherLabel(zone, familySize, genome) {
-  return `${capital(ZONE_AT[zone])}. Its family has ${plural(familySize, "animal", "animals")}. ${notable(genome)}`.trim();
+/** Label text for an animal outside your group: where it lives and what stands out. */
+export function otherLabel(zone, genome) {
+  return `${capital(ZONE_AT[zone])}. ${notable(genome)}`.trim();
 }
