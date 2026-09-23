@@ -1,0 +1,9 @@
+{
+  "name": "lineage-game",
+  "private": true,
+  "type": "module",
+  "description": "LINEAGE classroom game. Plain ES modules, no build step; serve the repo root and open /game/.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
