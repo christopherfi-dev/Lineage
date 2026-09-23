@@ -1,0 +1,157 @@
+// @ts-check
+/**
+ * Minimal local static server for the Canvas probe (contract §3).
+ * No dependencies. Serves the project directory over http://localhost:8080.
+ *
+ * SECURITY: this server is intentionally reachable over the local network for
+ * the physical iPad workflow (§22), so containment must be a directory-boundary
+ * test, not a string-prefix test.
+ *
+ * Revision 3 repairs a confirmed traversal defect. The previous check used
+ * `resolved.startsWith(ROOT)`, which admits any sibling path whose name begins
+ * with the project-root string. With root `/.../lineage-m1`, the request
+ * `/..%2flineage-m1-secret.txt` resolved to `/.../lineage-m1-secret.txt`,
+ * passed the prefix test, and returned HTTP 200 with out-of-root content.
+ *
+ * Containment is now decided with path.relative(): a target is inside the root
+ * only when its relative path is non-absolute, is not "..", and does not begin
+ * with a parent segment. Percent-decoding happens exactly once; malformed
+ * encoding, control bytes, NULs, and backslashes are rejected outright. After
+ * stat, the path is re-verified through realpath so a symlink cannot escape.
+ *
+ * Usage: node tools/serve.mjs [port] [--host 127.0.0.1]
+ */
+
+import { createServer } from "node:http";
+import { readFile, stat, realpath } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve, relative, isAbsolute, sep, extname } from "node:path";
+
+const ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), ".."));
+
+const TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
+  ".md": "text/plain; charset=utf-8",
+  ".py": "text/plain; charset=utf-8",
+};
+
+/**
+ * True when `target` is the root itself or lies strictly inside it.
+ * Path arithmetic, not string prefixes, so a sibling directory sharing the
+ * root's name prefix is correctly rejected.
+ * @param {string} root absolute, resolved
+ * @param {string} target absolute, resolved
+ * @returns {boolean}
+ */
+export function isInsideRoot(root, target) {
+  const rel = relative(root, target);
+  if (rel === "") return true;                  // the root itself
+  if (isAbsolute(rel)) return false;            // different root/device
+  if (rel === "..") return false;               // the parent directory
+  if (rel.startsWith(".." + sep)) return false; // escapes upward
+  if (rel.startsWith("../")) return false;      // posix form, belt and braces
+  return true;
+}
+
+/** Control characters and NUL must never reach the filesystem layer. */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+/**
+ * Resolve a request URL to a safe absolute path inside `root`, or null.
+ * Exported so tests can exercise containment without binding a socket.
+ * @param {string} requestUrl raw request URL, may include a query string
+ * @param {string} [root]
+ * @returns {string|null}
+ */
+export function resolveSafePath(requestUrl, root = ROOT) {
+  let pathname;
+  try {
+    // Parsing against a fixed base also strips any query and fragment.
+    pathname = new URL(requestUrl, "http://localhost").pathname;
+  } catch {
+    return null;
+  }
+  if (CONTROL_CHARS.test(pathname)) return null;
+
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname); // exactly one decode pass
+  } catch {
+    return null; // malformed percent encoding
+  }
+  // Re-check after decoding: encoded NULs and control bytes must not survive.
+  if (CONTROL_CHARS.test(decoded)) return null;
+  // Backslash is a separator on some platforms; treat it as hostile everywhere.
+  if (decoded.includes("\\")) return null;
+
+  if (decoded === "/" || decoded === "") decoded = "/index.html";
+  if (!decoded.startsWith("/")) return null;
+
+  // resolve() normalizes "." and ".." segments before containment is judged.
+  const target = resolve(root, "." + decoded);
+  if (!isInsideRoot(root, target)) return null;
+  return target;
+}
+
+/**
+ * Build the static server. Exported for tests.
+ * @param {string} [root]
+ */
+export function createStaticServer(root = ROOT) {
+  return createServer(async (req, res) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, { allow: "GET, HEAD" }).end("method not allowed");
+      return;
+    }
+    const safePath = resolveSafePath(req.url ?? "/", root);
+    if (safePath === null) {
+      res.writeHead(403).end("forbidden");
+      return;
+    }
+    try {
+      const info = await stat(safePath);
+      if (info.isDirectory()) {
+        res.writeHead(403).end("forbidden");
+        return;
+      }
+      // Re-verify after symlink resolution so a symlink cannot escape the root.
+      const realTarget = await realpath(safePath);
+      const realRoot = await realpath(root);
+      if (!isInsideRoot(realRoot, realTarget)) {
+        res.writeHead(403).end("forbidden");
+        return;
+      }
+      const body = await readFile(realTarget);
+      res.writeHead(200, {
+        "content-type": TYPES[extname(realTarget)] ?? "application/octet-stream",
+        "content-length": String(body.length),
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      });
+      if (req.method === "HEAD") res.end();
+      else res.end(body);
+    } catch {
+      res.writeHead(404).end("not found");
+    }
+  });
+}
+
+const isMain =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isMain) {
+  const PORT = Number(process.argv[2]) || 8080;
+  const hostIdx = process.argv.indexOf("--host");
+  const HOST = hostIdx >= 0 ? process.argv[hostIdx + 1] : "0.0.0.0";
+  createStaticServer().listen(PORT, HOST, () => {
+    console.log(`LINEAGE M1 probe: http://localhost:${PORT}/  (bound ${HOST})`);
+    console.log("Serving only files inside:", ROOT);
+  });
+}

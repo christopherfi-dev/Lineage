@@ -1,0 +1,31 @@
+{
+  "name": "lineage-m1",
+  "version": "1.0.0",
+  "description": "LINEAGE Milestone 1 \u2014 truthful world model. Deterministic biological simulation with strict observer separation.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=3600000 test/*.test.js",
+    "fixture": "node tools/runFixture.mjs",
+    "characterize": "node tools/runCharacterization.mjs",
+    "report": "node tools/writeCharacterization.mjs",
+    "serve": "node tools/serve.mjs",
+    "edge-only": "node tools/runEdgeOnlyTraversal.mjs",
+    "audit-evidence": "node tools/writeAuditEvidence.mjs",
+    "audit:desktop": "node tools/measureDesktop.mjs",
+    "report:final": "node tools/writeFinalReport.mjs",
+    "manifest:paths": "node tools/writeManifestPaths.mjs",
+    "audit:tests": "node tools/runTests.mjs",
+    "audit:environment": "node tools/writeBuildEnvironment.mjs",
+    "audit:runtime-matrix": "node tools/runRuntimeMatrix.mjs",
+    "audit:tree-integrity": "node tools/proveTreeIntegrity.mjs",
+    "audit:provenance": "node tools/writeProvenance.mjs",
+    "audit:verify-provenance": "node tools/verifyProvenance.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

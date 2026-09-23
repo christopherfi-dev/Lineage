@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>LINEAGE — pannable world test</title>
+<style>
+  :root{
+    --ink:#2B3026;
+    --ink-soft:#5A6151;
+    --paper:#FAF6EC;
+    --paper-edge:#E7DFCB;
+    --teal:#14657F;
+    --teal-bright:#1E8AAC;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#C9BFA4;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;}
+  #stage{position:fixed;inset:0;touch-action:none;}
+  canvas{display:block;width:100%;height:100%;}
+
+  /* ---- narrative log ---- */
+  #log{
+    position:fixed;left:0;right:0;bottom:0;
+    padding:14px 18px calc(14px + env(safe-area-inset-bottom)) 18px;
+    background:linear-gradient(to top,rgba(28,32,24,.72),rgba(28,32,24,0));
+    color:#F6F2E6;
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    font-size:17px;line-height:1.35;letter-spacing:.1px;
+    pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.5);
+    display:flex;align-items:flex-end;min-height:64px;
+  }
+  #log span{opacity:0;transition:opacity .5s ease;}
+  #log span.on{opacity:1;}
+
+  /* ---- home button ---- */
+  #home{
+    position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom));
+    background:var(--paper);border:1px solid var(--paper-edge);
+    border-radius:999px;padding:10px 16px;
+    font-size:14px;font-weight:600;color:var(--teal);
+    box-shadow:0 3px 10px rgba(0,0,0,.22);
+    display:none;align-items:center;gap:7px;cursor:pointer;
+  }
+  #home.show{display:flex;}
+  #home:active{transform:scale(.96);}
+  #home .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);}
+
+  /* ---- hint ---- */
+  #hint{
+    position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;
+    transform:translateX(-50%);
+    background:rgba(250,246,236,.93);border-radius:999px;
+    padding:9px 18px;font-size:14px;color:var(--ink-soft);
+    box-shadow:0 2px 8px rgba(0,0,0,.14);
+    pointer-events:none;transition:opacity .6s ease;white-space:nowrap;
+  }
+  #hint.gone{opacity:0;}
+
+  /* ---- creature card ---- */
+  #card{
+    position:fixed;left:0;right:0;bottom:0;
+    background:var(--paper);
+    border-radius:22px 22px 0 0;
+    box-shadow:0 -8px 34px rgba(0,0,0,.3);
+    transform:translateY(102%);transition:transform .34s cubic-bezier(.22,.9,.3,1);
+    max-height:86%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:calc(22px + env(safe-area-inset-bottom));
+    z-index:30;
+  }
+  #card.open{transform:translateY(0);}
+  #cardTop{position:relative;background:#EDF1EC;border-radius:22px 22px 0 0;overflow:hidden;}
+  #lens{display:block;width:100%;height:auto;}
+  #close{
+    position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;
+    background:var(--paper);border:none;font-size:19px;color:var(--ink);
+    box-shadow:0 2px 7px rgba(0,0,0,.2);cursor:pointer;line-height:1;
+  }
+  #cardBody{padding:18px 20px 6px 20px;}
+  #famName{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    font-size:29px;font-weight:600;color:var(--ink);margin:0 0 3px 0;letter-spacing:-.2px;
+  }
+  #famMeta{font-size:12.5px;letter-spacing:1.3px;text-transform:uppercase;color:#948B72;margin-bottom:16px;}
+  .newBadge{
+    display:inline-block;background:var(--teal);color:#fff;font-size:11px;font-weight:700;
+    letter-spacing:.7px;text-transform:uppercase;padding:4px 9px;border-radius:999px;
+    margin-bottom:13px;
+  }
+  .traits{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .chip{
+    background:#EFEADA;border:1px solid #E0D8C1;border-radius:999px;
+    padding:8px 14px;font-size:15px;color:var(--ink);
+  }
+  .chip.hot{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600;}
+  .countRow{
+    border-top:1px solid var(--paper-edge);padding-top:14px;
+    font-size:16px;color:var(--ink-soft);
+  }
+  .countRow b{color:var(--ink);font-size:20px;
+    font-family:"Iowan Old Style",Palatino,Georgia,serif;}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+
+<div id="hint">Drag to look around · tap an animal</div>
+
+<button id="home"><span class="dot"></span> Back to my group</button>
+
+<div id="log"><span id="logText"></span></div>
+
+<div id="card">
+  <div id="cardTop">
+    <canvas id="lens" width="720" height="560"></canvas>
+    <button id="close">✕</button>
+  </div>
+  <div id="cardBody">
+    <div id="badgeSlot"></div>
+    <h2 id="famName">—</h2>
+    <div id="famMeta">—</div>
+    <div class="traits" id="traits"></div>
+    <div class="countRow" id="countRow"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   LINEAGE — pannable world prototype
+   Purpose: test whether a Civ-style draggable map fixes the
+   "nowhere to go" boredom of a fixed single screen.
+   ============================================================ */
+
+/* ---------- seeded rng ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rnd = mulberry32(20260802);
+const rr=(a,b)=>a+rnd()*(b-a);
+const ri=(a,b)=>Math.floor(rr(a,b+1));
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* ---------- world ---------- */
+const W = 2900, H = 2050;
+
+/* soft warped bands -> organic zone boundaries, no grid */
+function zoneT(x,y){
+  return (x/W)*0.50 + (y/H)*0.80
+       + 0.115*Math.sin(x/265) + 0.085*Math.sin(y/207)
+       + 0.055*Math.sin((x+y)/430);
+}
+function zoneAt(x,y){
+  const t=zoneT(x,y);
+  if(t<0.60) return "canopy";
+  if(t<1.00) return "floor";
+  if(t<1.26) return "shore";
+  return "water";
+}
+
+const ZONE_LABEL={canopy:"The high leaves",floor:"The open ground",shore:"The water's edge"};
+
+/* palette — habitat-derived, warm, classroom-light */
+const PAL={
+  canopy:["#3F6B45","#4C7C4F","#5B8D57","#6C9E62","#7DAE6E"],
+  floor:["#A8956B","#B7A47A","#C3B189","#CDBC97","#D6C7A6"],
+  shore:["#E4D7B4","#EADFC2","#F0E7D2","#F4EEDF"],
+  water:["#8FBFC9","#7BB0BE","#68A1B2","#5892A6"]
+};
+const TEAL="#14657F", TEAL_HI="#2A94B4";
+
+/* ---------- terrain prerender ---------- */
+const terrain=document.createElement("canvas");
+terrain.width=W; terrain.height=H;
+(function paintTerrain(){
+  const g=terrain.getContext("2d");
+  // base wash by zone, coarse cells
+  const cell=26;
+  for(let y=0;y<H;y+=cell){
+    for(let x=0;x<W;x+=cell){
+      const z=zoneAt(x+cell/2,y+cell/2);
+      const pal=PAL[z];
+      g.fillStyle=pal[Math.floor(rnd()*pal.length)];
+      g.fillRect(x-1,y-1,cell+2,cell+2);
+    }
+  }
+  // painterly blobs — layered translucent irregular polys (gouache feel)
+  for(let i=0;i<2600;i++){
+    const x=rr(0,W), y=rr(0,H), z=zoneAt(x,y), pal=PAL[z];
+    const r=rr(16,74);
+    g.globalAlpha=rr(.05,.19);
+    g.fillStyle=pal[Math.floor(rnd()*pal.length)];
+    g.beginPath();
+    const n=ri(5,8);
+    for(let k=0;k<n;k++){
+      const a=(k/n)*Math.PI*2, rad=r*rr(.6,1.25);
+      const px=x+Math.cos(a)*rad, py=y+Math.sin(a)*rad*.72;
+      k?g.lineTo(px,py):g.moveTo(px,py);
+    }
+    g.closePath(); g.fill();
+  }
+  g.globalAlpha=1;
+
+  // canopy: tree crowns with soft shadow, gives density + shelter read
+  for(let i=0;i<1500;i++){
+    const x=rr(0,W), y=rr(0,H);
+    if(zoneAt(x,y)!=="canopy") continue;
+    const r=rr(20,52);
+    g.globalAlpha=.16; g.fillStyle="#22402A";
+    g.beginPath(); g.ellipse(x+r*.16,y+r*.20,r,r*.82,0,0,7); g.fill();
+    g.globalAlpha=rr(.42,.72);
+    g.fillStyle=PAL.canopy[ri(1,4)];
+    g.beginPath();
+    const n=ri(6,9);
+    for(let k=0;k<n;k++){
+      const a=(k/n)*Math.PI*2, rad=r*rr(.72,1.1);
+      const px=x+Math.cos(a)*rad, py=y+Math.sin(a)*rad*.82;
+      k?g.lineTo(px,py):g.moveTo(px,py);
+    }
+    g.closePath(); g.fill();
+  }
+  g.globalAlpha=1;
+
+  // forest floor: scattered leaf litter + low scrub
+  for(let i=0;i<5200;i++){
+    const x=rr(0,W), y=rr(0,H);
+    if(zoneAt(x,y)!=="floor") continue;
+    g.globalAlpha=rr(.13,.36);
+    g.fillStyle=pick(["#8E7B52","#9C8B62","#7E6E48","#B2A176"]);
+    g.save(); g.translate(x,y); g.rotate(rr(0,7));
+    g.fillRect(0,0,rr(4,13),rr(1.4,3.2)); g.restore();
+  }
+  g.globalAlpha=1;
+
+  // shoreline: sand grain + wet band near the waterline
+  for(let i=0;i<7000;i++){
+    const x=rr(0,W), y=rr(0,H);
+    if(zoneAt(x,y)!=="shore") continue;
+    g.globalAlpha=rr(.08,.22);
+    g.fillStyle=pick(["#D8CBA4","#EFE8D4","#C9BB92"]);
+    g.beginPath(); g.arc(x,y,rr(.8,2.4),0,7); g.fill();
+  }
+  g.globalAlpha=1;
+
+  // water: drifting light bands
+  for(let i=0;i<1700;i++){
+    const x=rr(0,W), y=rr(0,H);
+    if(zoneAt(x,y)!=="water") continue;
+    g.globalAlpha=rr(.08,.24);
+    g.strokeStyle=pick(["#BFE0E6","#A6D2DC","#9ACBD8"]);
+    g.lineWidth=rr(1.4,4);
+    g.beginPath(); g.moveTo(x,y);
+    g.quadraticCurveTo(x+rr(18,52),y+rr(-7,7),x+rr(46,118),y+rr(-4,4));
+    g.stroke();
+  }
+  g.globalAlpha=1;
+
+  // soft boundary haze so zones blend instead of hard-edging
+  for(let i=0;i<9000;i++){
+    const x=rr(0,W), y=rr(0,H);
+    const t=zoneT(x,y);
+    const near=Math.min(Math.abs(t-0.60),Math.abs(t-1.00),Math.abs(t-1.26));
+    if(near>0.030) continue;
+    const z=zoneAt(x,y);
+    g.globalAlpha=rr(.04,.13);
+    g.fillStyle=PAL[z][ri(0,PAL[z].length-1)];
+    g.beginPath(); g.arc(x,y,rr(7,26),0,7); g.fill();
+  }
+  g.globalAlpha=1;
+})();
+
+/* ---------- genome ---------- */
+/* ten inherited body traits, plain-language buckets for kids */
+const TRAITS=[
+  {k:"bodySize",  words:["small","medium","big"],            label:v=>v+" body"},
+  {k:"legLength", words:["short legs","medium legs","long legs"], label:v=>v},
+  {k:"feet",      words:["narrow feet","wide feet","webbed feet"], label:v=>v},
+  {k:"eyes",      words:["small eyes","medium eyes","big eyes"],   label:v=>v},
+  {k:"coat",      words:["thin coat","normal coat","thick coat"],  label:v=>v},
+  {k:"tail",      words:["short tail","medium tail","long tail"],  label:v=>v},
+  {k:"snout",     words:["short nose","medium nose","long nose"],  label:v=>v},
+  {k:"ears",      words:["small ears","medium ears","big ears"],   label:v=>v},
+  {k:"grip",      words:["weak grip","good grip","strong grip"],   label:v=>v},
+  {k:"tint",      words:["pale","warm","dark"],                    label:v=>v+" colour"}
+];
+function newGenome(bias){
+  const g={};
+  for(const t of TRAITS) g[t.k]=ri(0,2);
+  if(bias) Object.assign(g,bias);
+  return g;
+}
+function traitWord(k,v){const t=TRAITS.find(t=>t.k===k);return t.words[v];}
+
+/* family names — warm, nature-flavoured, kid-sayable */
+const NAMES=["Pebble","Fernback","Mosstoe","Driftwood","Acorn","Willow","Thistle",
+  "Bramble","Clover","Hollow","Reed","Birch","Sorrel","Cobble","Tumble","Nettle"];
+
+/* ---------- creatures ---------- */
+const creatures=[];
+let followedFam=null;
+
+function makeCreature(x,y,fam,genome,followed){
+  return {
+    x,y,
+    vx:rr(-.22,.22), vy:rr(-.22,.22),
+    heading:rr(0,7),
+    fam, genome, followed,
+    home:{x,y},
+    wob:rr(0,7),
+    flash:0,           // 0 none, 1 newest, 2 previous
+    newTrait:null
+  };
+}
+
+/* seed the followed lineage as one tight cluster in the canopy */
+(function seedWorld(){
+  // find a canopy spot with room around it
+  let cx=0,cy=0;
+  for(let i=0;i<4000;i++){
+    const x=rr(320,W-320), y=rr(320,H-320);
+    if(zoneAt(x,y)==="canopy"){ cx=x; cy=y; break; }
+  }
+  followedFam={name:pick(NAMES), zone:"canopy", color:TEAL};
+
+  const base=newGenome({grip:2,feet:0,bodySize:1});
+  for(let i=0;i<19;i++){
+    const a=rr(0,7), d=rr(0,215);
+    const x=clamp(cx+Math.cos(a)*d,40,W-40), y=clamp(cy+Math.sin(a)*d*.82,40,H-40);
+    const g=Object.assign({},base);
+    // siblings vary a little — related but not identical
+    for(const t of TRAITS) if(rnd()<0.30) g[t.k]=clamp(g[t.k]+(rnd()<.5?-1:1),0,2);
+    creatures.push(makeCreature(x,y,followedFam,g,true));
+  }
+
+  // the gray world — other families spread across all three zones
+  const others=[];
+  for(let i=0;i<11;i++){
+    let x=0,y=0,z="water",tries=0;
+    while(z==="water"&&tries++<400){x=rr(180,W-180);y=rr(180,H-180);z=zoneAt(x,y);}
+    others.push({name:pick(NAMES),zone:z,cx:x,cy:y,genome:newGenome(
+      z==="shore"?{feet:2,coat:0}:z==="canopy"?{grip:2,tail:2}:{legLength:2}
+    )});
+  }
+  for(const o of others){
+    const n=ri(11,22);
+    for(let i=0;i<n;i++){
+      const a=rr(0,7), d=rr(0,rr(150,300));
+      let x=clamp(o.cx+Math.cos(a)*d,30,W-30), y=clamp(o.cy+Math.sin(a)*d*.82,30,H-30);
+      if(zoneAt(x,y)==="water") continue;
+      const g=Object.assign({},o.genome);
+      for(const t of TRAITS) if(rnd()<0.34) g[t.k]=clamp(g[t.k]+(rnd()<.5?-1:1),0,2);
+      creatures.push(makeCreature(x,y,o,g,false));
+    }
+  }
+})();
+
+/* ---------- camera ---------- */
+const cam={x:0,y:0,z:1};
+function centerOnFollowed(instant){
+  let sx=0,sy=0,n=0;
+  for(const c of creatures) if(c.followed){sx+=c.x;sy+=c.y;n++;}
+  if(!n) return;
+  const tx=sx/n-innerWidth/(2*cam.z), ty=sy/n-innerHeight/(2*cam.z);
+  if(instant){cam.x=tx;cam.y=ty;} else {camTween={x:tx,y:ty,t:0};}
+}
+let camTween=null;
+
+/* ---------- canvas ---------- */
+const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+let DPR=1;
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  cv.width=Math.floor(innerWidth*DPR);
+  cv.height=Math.floor(innerHeight*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener("resize",resize); resize();
+centerOnFollowed(true);
+
+/* ---------- narrative log ---------- */
+const logEl=document.getElementById("logText");
+let logQueue=[], logTimer=0;
+function say(s){ logQueue.push(s); if(logQueue.length>4) logQueue.shift(); }
+function pumpLog(dt){
+  logTimer-=dt;
+  if(logTimer<=0 && logQueue.length){
+    const s=logQueue.shift();
+    logEl.classList.remove("on");
+    setTimeout(()=>{logEl.textContent=s;logEl.classList.add("on");},220);
+    logTimer=5200;
+  }
+}
+say("Your group lives high in the leaves.");
+
+/* ---------- simulation-ish loop ----------
+   NOTE: this is placeholder motion + events for the interaction test.
+   In the real build every event comes from the M1 engine.
+--------------------------------------------- */
+let adaptTimer=8200;
+let popTimer=15000;
+
+function tick(dt){
+  const s=dt/16.7;
+  for(const c of creatures){
+    c.wob+=dt*0.0016;
+    // gentle wander, pulled loosely toward home so families stay clustered
+    c.vx+=(rr(-1,1))*0.012*s + (c.home.x-c.x)*0.000045*s;
+    c.vy+=(rr(-1,1))*0.012*s + (c.home.y-c.y)*0.000045*s;
+    const sp=Math.hypot(c.vx,c.vy), max=c.followed?0.32:0.26;
+    if(sp>max){c.vx=c.vx/sp*max;c.vy=c.vy/sp*max;}
+    c.x+=c.vx*s; c.y+=c.vy*s;
+    // creatures don't walk into deep water
+    if(zoneAt(c.x,c.y)==="water"){c.x-=c.vx*3*s;c.y-=c.vy*3*s;c.vx*=-.6;c.vy*=-.6;}
+    c.x=clamp(c.x,20,W-20); c.y=clamp(c.y,20,H-20);
+    if(sp>0.02) c.heading=Math.atan2(c.vy,c.vx);
+  }
+
+  // new adaptation in the followed lineage
+  adaptTimer-=dt;
+  if(adaptTimer<=0){
+    adaptTimer=rr(9000,14000);
+    const pool=creatures.filter(c=>c.followed);
+    if(pool.length){
+      // demote existing flashes: newest -> previous, previous -> gone
+      for(const c of creatures){ if(c.flash===2) c.flash=0; if(c.flash===1) c.flash=2; }
+      const c=pick(pool);
+      const t=pick(TRAITS);
+      let nv=clamp(c.genome[t.k]+(rnd()<.5?-1:1),0,2);
+      if(nv===c.genome[t.k]) nv=clamp(nv+1,0,2);
+      c.genome[t.k]=nv;
+      c.newTrait=t.k;
+      c.flash=1;
+      say("One of your animals has "+traitWord(t.k,nv)+" now.");
+    }
+  }
+
+  // ambient world news — context, not yours to direct
+  popTimer-=dt;
+  if(popTimer<=0){
+    popTimer=rr(17000,25000);
+    say(pick([
+      "A group down by the water is getting bigger.",
+      "Two of your animals had babies in the leaves.",
+      "A group on the open ground is getting smaller.",
+      "Something new showed up near the sand.",
+      "Your group is still about the same size."
+    ]));
+  }
+
+  if(camTween){
+    camTween.t=Math.min(1,camTween.t+dt/520);
+    const e=1-Math.pow(1-camTween.t,3);
+    cam.x+=(camTween.x-cam.x)*e*0.28;
+    cam.y+=(camTween.y-cam.y)*e*0.28;
+    if(camTween.t>=1){cam.x=camTween.x;cam.y=camTween.y;camTween=null;}
+  }
+}
+
+/* ---------- draw creature at world scale ---------- */
+function drawCreature(c,t){
+  const g=c.genome;
+  const base=c.followed?7.4:6.0;
+  const r=base*(0.80+g.bodySize*0.22);
+  const bob=Math.sin(c.wob*2.1)*0.9;
+
+  ctx.save();
+  ctx.translate(c.x, c.y+bob);
+  ctx.rotate(c.heading);
+
+  if(c.followed){
+    // grounding shadow — reads as "closer / more present"
+    ctx.globalAlpha=.20; ctx.fillStyle="#22331F";
+    ctx.beginPath(); ctx.ellipse(1.6,3.0,r*1.15,r*0.72,0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  const body = c.followed ? TEAL : "#7E7869";
+  const limb = c.followed ? "#0F4F63" : "#6E6859";
+
+  // limbs
+  ctx.strokeStyle=limb;
+  ctx.lineWidth=c.followed?1.9:1.5;
+  ctx.lineCap="round";
+  const ll=r*(0.62+g.legLength*0.26);
+  const sw=Math.sin(c.wob*3.4)*0.42;
+  for(const side of [-1,1]){
+    for(const fx of [0.42,-0.42]){
+      ctx.beginPath();
+      ctx.moveTo(r*fx, side*r*0.42);
+      ctx.lineTo(r*fx+Math.cos(side*sw)*ll*0.5, side*(r*0.42+ll));
+      ctx.stroke();
+    }
+  }
+  // tail
+  ctx.lineWidth=c.followed?1.7:1.3;
+  ctx.beginPath();
+  ctx.moveTo(-r*0.92,0);
+  ctx.lineTo(-r*(0.92+0.55+g.tail*0.45), Math.sin(c.wob*2.6)*r*0.30);
+  ctx.stroke();
+
+  // body
+  ctx.fillStyle=body;
+  ctx.globalAlpha=c.followed?1:0.72;
+  ctx.beginPath(); ctx.ellipse(0,0,r,r*0.74,0,0,7); ctx.fill();
+  // head + directional snout
+  ctx.beginPath(); ctx.ellipse(r*0.80,0,r*0.50,r*0.46,0,0,7); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r*1.10,-r*0.20);
+  ctx.lineTo(r*(1.28+g.snout*0.18),0);
+  ctx.lineTo(r*1.10,r*0.20);
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  // halo ring — the non-colour lineage indicator
+  if(c.followed){
+    ctx.strokeStyle=TEAL_HI;
+    ctx.globalAlpha=.55;
+    ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(c.x,c.y+bob,r*2.0,0,7); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+
+  // adaptation flash — newest bright, previous dim, older gone
+  if(c.flash){
+    const puls=(Math.sin(t*0.0042)+1)/2;
+    const a = c.flash===1 ? 0.34+puls*0.46 : 0.13+puls*0.10;
+    const rad= c.flash===1 ? r*(2.7+puls*1.5) : r*2.6;
+    ctx.strokeStyle="#FFD27A";
+    ctx.globalAlpha=a; ctx.lineWidth=c.flash===1?2.6:1.5;
+    ctx.beginPath(); ctx.arc(c.x,c.y+bob,rad,0,7); ctx.stroke();
+    if(c.flash===1){
+      ctx.globalAlpha=a*0.30;
+      ctx.beginPath(); ctx.arc(c.x,c.y+bob,rad*1.45,0,7); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ---------- render ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(48,now-last); last=now;
+  tick(dt); pumpLog(dt);
+
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle="#B9AF93";
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  ctx.save();
+  ctx.scale(cam.z,cam.z);
+  ctx.translate(-cam.x,-cam.y);
+
+  // terrain: blit only the visible slab
+  const vx=cam.x, vy=cam.y, vw=innerWidth/cam.z, vh=innerHeight/cam.z;
+  const sx=clamp(vx,0,W), sy=clamp(vy,0,H);
+  const sw=clamp(vw+(vx-sx),0,W-sx), sh=clamp(vh+(vy-sy),0,H-sy);
+  if(sw>0&&sh>0) ctx.drawImage(terrain,sx,sy,sw,sh,sx,sy,sw,sh);
+
+  // cull to viewport + margin
+  const m=60;
+  for(const c of creatures){
+    if(c.x<vx-m||c.x>vx+vw+m||c.y<vy-m||c.y>vy+vh+m) continue;
+    drawCreature(c,now);
+  }
+
+  ctx.restore();
+
+  // show "back to my group" only when the cluster is off screen
+  let onScreen=false;
+  for(const c of creatures){
+    if(!c.followed) continue;
+    if(c.x>vx&&c.x<vx+vw&&c.y>vy&&c.y<vy+vh){onScreen=true;break;}
+  }
+  homeBtn.classList.toggle("show",!onScreen);
+
+  requestAnimationFrame(frame);
+}
+
+/* ---------- input: drag to pan, tap to inspect ---------- */
+const stage=document.getElementById("stage");
+const homeBtn=document.getElementById("home");
+let ptrs=new Map(), dragging=false, moved=0, lastMid=null, lastDist=0, startT=0;
+
+function ptPos(e){return{x:e.clientX,y:e.clientY};}
+
+stage.addEventListener("pointerdown",e=>{
+  stage.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,ptPos(e));
+  if(ptrs.size===1){dragging=true;moved=0;startT=performance.now();camTween=null;}
+  if(ptrs.size===2){
+    const p=[...ptrs.values()];
+    lastDist=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+    lastMid={x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};
+  }
+});
+
+stage.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId)) return;
+  const prev=ptrs.get(e.pointerId), now=ptPos(e);
+  ptrs.set(e.pointerId,now);
+
+  if(ptrs.size===1&&dragging){
+    const dx=now.x-prev.x, dy=now.y-prev.y;
+    moved+=Math.hypot(dx,dy);
+    cam.x-=dx/cam.z; cam.y-=dy/cam.z;
+    clampCam();
+    hideHint();
+  } else if(ptrs.size===2){
+    const p=[...ptrs.values()];
+    const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+    const mid={x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};
+    if(lastDist>0){
+      const wx=cam.x+mid.x/cam.z, wy=cam.y+mid.y/cam.z;
+      cam.z=clamp(cam.z*(d/lastDist),0.62,1.55);
+      cam.x=wx-mid.x/cam.z; cam.y=wy-mid.y/cam.z;
+      clampCam();
+    }
+    lastDist=d; lastMid=mid; moved+=99;
+  }
+});
+
+function endPtr(e){
+  if(!ptrs.has(e.pointerId)) return;
+  const p=ptrs.get(e.pointerId);
+  ptrs.delete(e.pointerId);
+  if(ptrs.size===0){
+    const quick=performance.now()-startT<420;
+    if(dragging&&moved<11&&quick) tapAt(p.x,p.y);
+    dragging=false;
+  }
+  if(ptrs.size<2) lastDist=0;
+}
+stage.addEventListener("pointerup",endPtr);
+stage.addEventListener("pointercancel",endPtr);
+
+function clampCam(){
+  const vw=innerWidth/cam.z, vh=innerHeight/cam.z;
+  cam.x=clamp(cam.x,-90,Math.max(-90,W-vw+90));
+  cam.y=clamp(cam.y,-90,Math.max(-90,H-vh+90));
+}
+
+function tapAt(px,py){
+  const wx=cam.x+px/cam.z, wy=cam.y+py/cam.z;
+  let best=null,bd=1e9;
+  for(const c of creatures){
+    const d=Math.hypot(c.x-wx,c.y-wy);
+    if(d<bd){bd=d;best=c;}
+  }
+  // generous touch radius — small silhouettes, fat fingers
+  if(best&&bd<26/cam.z) openCard(best);
+}
+
+homeBtn.addEventListener("click",()=>{centerOnFollowed(false);hideHint();});
+
+let hintGone=false;
+function hideHint(){
+  if(hintGone) return; hintGone=true;
+  const h=document.getElementById("hint");
+  h.classList.add("gone"); setTimeout(()=>h.remove(),900);
+}
+setTimeout(hideHint,9000);
+
+/* ---------- creature card ---------- */
+const card=document.getElementById("card");
+const lens=document.getElementById("lens"), lctx=lens.getContext("2d");
+
+document.getElementById("close").addEventListener("click",()=>card.classList.remove("open"));
+
+function openCard(c){
+  const g=c.genome;
+  document.getElementById("famName").textContent=c.fam.name+" family";
+  document.getElementById("famMeta").textContent=
+    (ZONE_LABEL[zoneAt(c.x,c.y)]||"—")+" · "+(c.followed?"your group":"another group");
+
+  document.getElementById("badgeSlot").innerHTML =
+    (c.followed&&c.newTrait) ? '<div class="newBadge">New: '+traitWord(c.newTrait,g[c.newTrait])+'</div>' : "";
+
+  // show the traits a kid can actually see on the animal
+  const shown=["bodySize","feet","legLength","eyes","coat","tail"];
+  document.getElementById("traits").innerHTML = shown.map(k=>{
+    const hot = c.newTrait===k ? " hot" : "";
+    const t=TRAITS.find(t=>t.k===k);
+    return '<span class="chip'+hot+'">'+t.label(traitWord(k,g[k]))+'</span>';
+  }).join("");
+
+  const n=creatures.filter(x=>x.fam===c.fam).length;
+  document.getElementById("countRow").innerHTML =
+    "Animals in this family right now: <b>"+n+"</b>";
+
+  drawLens(c);
+  card.classList.add("open");
+}
+
+/* painterly creature portrait — layered translucent shapes, visible grain */
+function drawLens(c){
+  const g=c.genome, w=lens.width, h=lens.height;
+  lctx.clearRect(0,0,w,h);
+
+  // paper wash behind the lens
+  lctx.fillStyle="#EDF1EC"; lctx.fillRect(0,0,w,h);
+  for(let i=0;i<520;i++){
+    lctx.globalAlpha=rr(.03,.10);
+    lctx.fillStyle=pick(["#DDE6DC","#E5EBE2","#D3DED4"]);
+    lctx.beginPath();
+    const x=rr(0,w),y=rr(0,h),r=rr(24,90);
+    const n=ri(5,8);
+    for(let k=0;k<n;k++){
+      const a=(k/n)*Math.PI*2, rad=r*rr(.6,1.2);
+      const px=x+Math.cos(a)*rad, py=y+Math.sin(a)*rad*.75;
+      k?lctx.lineTo(px,py):lctx.moveTo(px,py);
+    }
+    lctx.closePath(); lctx.fill();
+  }
+  lctx.globalAlpha=1;
+
+  const cx=w/2, cy=h/2-6;
+  const S=0.95+g.bodySize*0.11;          // overall scale from body size
+  // three genuinely different hue families, not three shades of beige
+  const BODY=["#E0CE9A","#A8B884","#B08974"][g.tint];
+  const DARK=["#BFA871","#7F9463","#8A6353"][g.tint];
+  const LITE=["#F3E9C6","#C8D6A6","#D2AE97"][g.tint];
+  const MARK=["#9A8355","#5E7448","#6B4638"][g.tint];
+
+  lctx.save();
+  lctx.translate(cx,cy); lctx.scale(S,S);
+
+  // ground shadow
+  lctx.globalAlpha=.16; lctx.fillStyle="#4A5546";
+  lctx.beginPath(); lctx.ellipse(6,142,132,26,0,0,7); lctx.fill();
+  lctx.globalAlpha=1;
+
+  const blob=(x,y,rx,ry,col,alpha,rot)=>{
+    lctx.save(); lctx.translate(x,y); lctx.rotate(rot||0);
+    lctx.globalAlpha=alpha; lctx.fillStyle=col;
+    lctx.beginPath();
+    const n=9;
+    for(let k=0;k<n;k++){
+      const a=(k/n)*Math.PI*2;
+      const px=Math.cos(a)*rx*(0.86+((k*37)%13)/48);
+      const py=Math.sin(a)*ry*(0.86+((k*53)%11)/40);
+      k?lctx.lineTo(px,py):lctx.moveTo(px,py);
+    }
+    lctx.closePath(); lctx.fill(); lctx.restore();
+  };
+
+  // tail
+  const tl=40+g.tail*46;
+  lctx.strokeStyle=DARK; lctx.lineWidth=15+g.tail*4; lctx.lineCap="round";
+  lctx.globalAlpha=.92;
+  lctx.beginPath(); lctx.moveTo(-88,52);
+  lctx.quadraticCurveTo(-150-tl*0.5,44,-118-tl,-26-tl*0.28);
+  lctx.stroke(); lctx.globalAlpha=1;
+
+  // hind + front legs, with feet driven by the feet trait
+  const legL=52+g.legLength*30;
+  const drawLeg=(x,dir)=>{
+    lctx.strokeStyle=DARK; lctx.lineWidth=19; lctx.lineCap="round";
+    lctx.beginPath(); lctx.moveTo(x,58); lctx.lineTo(x+dir*12,58+legL); lctx.stroke();
+    const fx=x+dir*12, fy=58+legL;
+    if(g.feet===2){                       // webbed — fan between toes
+      lctx.fillStyle=DARK; lctx.globalAlpha=.95;
+      lctx.beginPath(); lctx.moveTo(fx,fy-6);
+      lctx.lineTo(fx+dir*44,fy+16); lctx.lineTo(fx+dir*36,fy+26);
+      lctx.lineTo(fx-dir*10,fy+22); lctx.closePath(); lctx.fill();
+      lctx.strokeStyle=LITE; lctx.lineWidth=2.4; lctx.globalAlpha=.6;
+      for(let i=1;i<4;i++){
+        lctx.beginPath(); lctx.moveTo(fx,fy-2);
+        lctx.lineTo(fx+dir*(12+i*11),fy+8+i*4); lctx.stroke();
+      }
+      lctx.globalAlpha=1;
+    } else if(g.feet===1){                // wide
+      blob(fx+dir*10,fy+12,30,15,DARK,1,0);
+    } else {                              // narrow
+      blob(fx+dir*6,fy+10,17,12,DARK,1,0);
+      lctx.strokeStyle=DARK; lctx.lineWidth=4;
+      for(let i=-1;i<2;i++){
+        lctx.beginPath(); lctx.moveTo(fx+dir*6,fy+10);
+        lctx.lineTo(fx+dir*24,fy+6+i*11); lctx.stroke();
+      }
+    }
+  };
+  drawLeg(-52,-1); drawLeg(56,1);
+
+  // coat fringe behind the body when the coat is thick
+  if(g.coat===2){
+    lctx.globalAlpha=.55;
+    for(let i=0;i<64;i++){
+      const a=rr(0,7);
+      const rx=Math.cos(a)*118, ry=Math.sin(a)*96;
+      lctx.strokeStyle=LITE; lctx.lineWidth=rr(2,5); lctx.lineCap="round";
+      lctx.beginPath(); lctx.moveTo(rx*0.86,ry*0.86-6);
+      lctx.lineTo(rx*1.16,ry*1.16-6); lctx.stroke();
+    }
+    lctx.globalAlpha=1;
+  }
+
+  // body — layered translucent passes for a gouache build-up
+  blob(0,-4,112,92,DARK,1,0);
+  blob(-6,-12,104,84,BODY,.95,0);
+  blob(-14,-26,72,54,LITE,.55,-0.25);
+  blob(30,20,54,40,DARK,.28,0.4);
+  // markings — a few per animal so siblings look related but individual
+  blob(-46,26,28,20,MARK,.30,0.6);
+  blob(44,-34,22,16,LITE,.55,-0.3);
+  blob(18,44,34,17,MARK,.22,0.2);
+  blob(-62,-24,19,13,LITE,.42,0.5);
+  // belly light
+  blob(-2,44,68,32,LITE,.32,0);
+
+  // head
+  const hy=-96;
+  blob(4,hy,74,64,DARK,1,0);
+  blob(0,hy-6,68,58,BODY,.97,0);
+  blob(-12,hy-20,40,28,LITE,.5,-0.2);
+
+  // ears
+  const er=12+g.ears*13;
+  blob(-44,hy-42,er,er*1.15,DARK,1,-0.4);
+  blob(48,hy-42,er,er*1.15,DARK,1,0.4);
+  blob(-44,hy-42,er*0.55,er*0.7,LITE,.6,-0.4);
+  blob(48,hy-42,er*0.55,er*0.7,LITE,.6,0.4);
+
+  // snout
+  const sl=g.snout*16;
+  blob(6,hy+34+sl*0.4,30+sl*0.3,20+sl*0.5,BODY,1,0);
+  blob(6,hy+44+sl*0.7,11,8,"#5C4C38",1,0);
+
+  // eyes — size is a visible, kid-legible trait
+  const eR=13+g.eyes*7;
+  for(const ex of [-26,30]){
+    lctx.fillStyle="#FBF8EE";
+    lctx.beginPath(); lctx.ellipse(ex,hy-2,eR,eR*1.04,0,0,7); lctx.fill();
+    lctx.fillStyle="#2A2620";
+    lctx.beginPath(); lctx.arc(ex+2,hy,eR*0.56,0,7); lctx.fill();
+    lctx.fillStyle="#FFFFFF"; lctx.globalAlpha=.9;
+    lctx.beginPath(); lctx.arc(ex-eR*0.22,hy-eR*0.32,eR*0.20,0,7); lctx.fill();
+    lctx.globalAlpha=1;
+  }
+  // mouth
+  lctx.strokeStyle="#6B5A44"; lctx.lineWidth=3.4; lctx.lineCap="round";
+  lctx.beginPath(); lctx.arc(6,hy+30,15,0.25,Math.PI-0.25); lctx.stroke();
+
+  lctx.restore();
+
+  // hand-lens ring — you're looking at it through a field glass
+  lctx.save();
+  lctx.strokeStyle="rgba(20,101,127,.42)"; lctx.lineWidth=3;
+  lctx.beginPath(); lctx.arc(cx,cy-10,232,0,7); lctx.stroke();
+  lctx.strokeStyle="rgba(255,255,255,.5)"; lctx.lineWidth=8;
+  lctx.beginPath(); lctx.arc(cx,cy-10,238,0,7); lctx.stroke();
+  lctx.restore();
+
+  // paper grain over everything
+  lctx.globalAlpha=.05;
+  for(let i=0;i<2400;i++){
+    lctx.fillStyle=rnd()<.5?"#000":"#fff";
+    lctx.fillRect(rr(0,w),rr(0,h),1.4,1.4);
+  }
+  lctx.globalAlpha=1;
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
