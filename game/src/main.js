@@ -12,21 +12,25 @@
 import { Bridge } from "./bridge.js";
 import { FIXTURE_URL } from "./engine.js";
 import { World, clamp } from "./world.js";
-import { Herd, drawPortrait, GROUP_COLORS } from "./herd.js";
+import { Herd, GROUP_COLORS } from "./herd.js";
+import { paintCreature } from "./creature.js";
 import {
   Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
 } from "./story.js";
 import { isGoodSeed, goodSeed } from "./seeds.js";
-import { averageOf, changedTraits, traitRows, typicalOf } from "./variations.js";
+import { averageOf, changedTraits, comparedRows } from "./variations.js";
+import { GAP } from "./reveal.js";
 import {
-  START_LINE, followLine, groupLines, otherLabel, notable, TIMES_UP, optionLine, passedLines, chosenLines,
+  START_LINE, followLine, groupLines, TIMES_UP, optionLine, passedLines, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, THEIRS, SINCE_TITLE, theOnesWith, comparisonLines,
+  inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 
 const LOG_MS = 3800;
-const LABEL_MS = 8000;
+/** How long the creature card takes to close (its CSS transition). */
+const CARD_CLOSE_MS = 150;
 /** How long a chosen animal stays highlighted before the fast-forward. */
 const PICKED_MS = 1200;
 /** How long "Time's up!" shows before the fast-forward. */
@@ -43,6 +47,8 @@ const DEFAULT_SEED = 6;
 const MINE_COLOR = "#14657F";
 /** The clue's two sides: the animals with the trait, and the rest. */
 const CLUE_WITH_COLOR = "#D9892B", CLUE_WITHOUT_COLOR = "#9A917C";
+/** On a creature card, an animal in no group on the map. */
+const PLAIN_COLOR = "#B3AA92";
 /**
  * The choice timer stands still while a line is read aloud. This caps how long
  * it can stand still at one choice point, in case a browser's speech gets stuck.
@@ -70,9 +76,11 @@ export class Game {
     this.countsEl = $("counts");
     this.zonesEl = $("zones");
     this.othersEl = $("others");
-    this.labelEl = $("label");
-    this.labelWhoEl = $("label-who");
-    this.labelAboutEl = $("label-about");
+    this.cardEl = $("card");
+    this.cardAnimalEl = /** @type {HTMLCanvasElement} */ ($("card-animal"));
+    this.cardNewEl = $("card-new");
+    this.cardCountsEl = $("card-counts");
+    this.cardTraitsEl = $("card-traits");
     this.choiceEl = $("choice");
     this.choiceCountEl = $("choice-count");
     this.choiceSinceEl = $("choice-since");
@@ -100,7 +108,12 @@ export class Game {
     this.endingEvidence = this.speakable(this.endingEvidenceLineEl);
     this.revealLine = this.speakable($("reveal-line"));
     this.revealWhy = this.speakable($("reveal-why"));
-    this.labelEl.append(speakerButton(doc, () => this.labelSpoken));
+    this.endingLook = this.speakable($("ending-look-line"));
+    this.cardWho = this.speakable($("card-who"));
+    this.cardSwatchEl = Object.assign(doc.createElement("i"), { className: "swatch" });
+    $("card-who").prepend(this.cardSwatchEl);
+    this.cardWhere = this.speakable($("card-where"));
+    this.cardNew = this.speakable(this.cardNewEl);
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
@@ -111,7 +124,8 @@ export class Game {
     this.camTween = null;
     this.logQueue = [];
     this.logTimer = 0;
-    this.label = null;
+    /** @type {null|{id:number, gone:boolean}} the animal whose creature card is open */
+    this.card = null;
     this.last = performance.now();
 
     this.setupCanvas();
@@ -138,7 +152,7 @@ export class Game {
     this.home = null;
     this.homeT = 0;
     this.fastShown = null;
-    this.closeLabel();
+    this.closeCard(true);
     this.choiceEl.classList.remove("open");
     this.choiceEl.hidden = true;
     this.endingEl.hidden = true;
@@ -160,7 +174,7 @@ export class Game {
     const what = this.story.afterGeneration(ev);
     this.syncGroups();
     this.updateHud();
-    if (this.label) this.showLabel(this.label.id, this.label.until); // counts change each generation
+    this.updateCard(); // counts change each generation, and the animal may pass away
     if (what === "ended") this.storyEnded();
     else if (what === "choice") this.openChoice(now);
     else if (what === "passed") this.pointPassed();
@@ -199,17 +213,18 @@ export class Game {
     this.herd.following = true;
     this.herd.resetFlashes();
     this.clock = 0;
-    this.closeLabel();
     this.hideHint();
     this.say([followLine(this.bridge.zoneOf(animal.id), f.members.size)]);
     this.centerOnGroup();
     this.updateHud();
   }
 
-  /** A choice point: the world pauses, and two or three animals are offered. */
+  /**
+   * A choice point: the world pauses, and two or three animals are offered.
+   * An open creature card stays open, and the countdown waits for it.
+   */
   openChoice(now) {
     const s = this.story;
-    this.closeLabel();
     this.choiceCountEl.textContent = `Choice ${s.points} of ${STORY_CHOICES}`;
     // How the last choice turned out, against the ones not chosen, as counts (never
     // percentages). After a neutral trait, it also says that trait made no difference.
@@ -243,7 +258,12 @@ export class Game {
     this.optionsEl.replaceChildren(...this.optionEls);
     clearTimeout(this.choiceHideT);
     this.choiceEl.hidden = false;
-    for (const el of this.optionEls) drawPortrait(el.querySelector("canvas"), this.bridge.get(el.option.id).bodyGenome, el.option.trait);
+    // Each option drawn like its creature card, with a ring on the part the choice is about
+    // (and a close-up of it when it is small), so the difference being chosen shows.
+    for (const el of this.optionEls) {
+      const a = this.bridge.animal(el.option.id);
+      paintCreature(el.querySelector("canvas"), a.genome, { seed: a.id, focus: el.option.trait, closeUp: true, habitat: a.zone });
+    }
     requestAnimationFrame(() => this.choiceEl.classList.add("open"));
     this.choice = { left: CHOICE_SECONDS * 1000, paused: 0, picked: null };
     this.centerOnGroup(0.3);
@@ -268,9 +288,11 @@ export class Game {
       if (now >= c.goAt) this.followChoice(c.picked, c.byChance);
       return;
     }
-    // While any line is being read aloud, the countdown waits.
-    if (isSpeaking() && c.paused < MAX_READING_PAUSE_MS) c.paused += dt;
-    else c.left = Math.max(0, c.left - dt);
+    // The countdown waits while a creature card is open, and while any line is being read aloud.
+    if (!this.card) {
+      if (isSpeaking() && c.paused < MAX_READING_PAUSE_MS) c.paused += dt;
+      else c.left = Math.max(0, c.left - dt);
+    }
     const left = c.left;
     this.choiceBarEl.style.width = `${(100 * left / (CHOICE_SECONDS * 1000)).toFixed(1)}%`;
     if (left === 0) {
@@ -286,6 +308,7 @@ export class Game {
     this.choiceHideT = setTimeout(() => { if (!this.choice) this.choiceEl.hidden = true; }, 450);
     this.story.choose(option, byChance);
     this.syncGroups();
+    this.updateCard();
     this.herd.resetFlashes();
     this.preRoll();
     this.say(chosenLines(option.group, this.herd.followed.size, SKIP_GENERATIONS));
@@ -318,11 +341,14 @@ export class Game {
   /** Every ending is a reflection screen, not a game-over screen. */
   showEnding() {
     const s = this.story, doc = this.doc;
+    this.closeCard(true);
     this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun));
-    // The group's actual average body at the end (the last members alive), not a list of the choices.
+    // The group's actual average body at the end (the last members alive), drawn and in words, not a
+    // list of the choices. Each meaningful trait is compared with the whole world at the start (scope decision 20).
+    const average = averageOf(s.lastAnimals.map((a) => a.genome)).map((a) => a.mean);
+    this.endingLook.set(lookLine(s.outcome));
     this.endingTraitsTitle.set(`Your ${s.noun}'s traits`);
-    const genomes = (animals) => animals.map((a) => a.genome);
-    const rows = traitRows(averageOf(genomes(s.lastAnimals)), averageOf(genomes(s.startAnimals)));
+    const rows = comparedRows(average, s.startWorld, GAP);
     this.traitsSpoken = rows.map((r) => `${r.label}: ${r.value}.`).join(" ");
     this.endingTraitsEl.replaceChildren(...rows.map((r) => {
       const row = doc.createElement("div");
@@ -375,7 +401,7 @@ export class Game {
       this.revealWhy.set(s.reveal.why.join(" ")); // only the sentences whose traits the group has
     }
     this.endingEl.hidden = false;
-    drawPortrait(this.endingAnimalEl, typicalOf(s.lastAnimals).genome);
+    paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
   }
 
   /** Same seed: the same world again from generation 0. */
@@ -415,35 +441,80 @@ export class Game {
     if (!s.running) this.barEl.style.width = "0%";
   }
 
-  /* ================= the label on a tapped animal ================= */
-  /** Any animal can be looked at; only choice points change whom you follow. */
-  showLabel(id, until = performance.now() + LABEL_MS) {
+  /* ================= the creature card (Step 3, scope decision 21) ================= */
+  /**
+   * Any animal can be looked at up close: its drawing from its real genome, its
+   * habitat, its traits against the start, and the trait that is new in it.
+   * Only choice points change whom you follow. The world keeps running behind it.
+   */
+  showCard(id) {
     const ind = this.bridge.get(id);
-    if (!ind) { this.closeLabel(); return; }
-    const s = this.story;
-    const theirs = s.others.find((o) => o.members.has(id));
-    if (this.herd.followed.has(id)) {
-      this.labelWhoEl.textContent = `In your ${s.noun}`;
-      this.labelAboutEl.textContent = notable(ind.bodyGenome);
-    } else if (theirs) {
-      // A group not chosen: how it did since the choice, against yours, as counts with bars.
-      const rows = [this.otherRow(theirs, THEIRS), this.mineRow()];
-      this.labelWhoEl.textContent = theOnesWith(theirs.option.group);
-      this.labelAboutEl.replaceChildren(...this.countRows(rows));
-      this.labelSpoken = [`${this.labelWhoEl.textContent}.`, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ");
-    } else {
-      this.labelWhoEl.textContent = `Not in your ${s.noun}`;
-      this.labelAboutEl.textContent = otherLabel(this.bridge.zoneOf(id), ind.bodyGenome);
+    if (!ind) return;
+    const t0 = performance.now(), doc = this.doc;
+    const zone = this.bridge.zoneOf(id), fresh = this.card?.id !== id, newTrait = this.bridge.newTraitOf(id);
+    this.card = { id, gone: false };
+    this.herd.selected = id;
+    this.cardEl.classList.remove("gone");
+    this.cardWhere.set(livesLine(zone));
+    this.cardNewEl.hidden = !newTrait;
+    if (newTrait) this.cardNew.set(newAtBirthLine(newTrait.trait, newTrait.up));
+    // Every trait in kid language, against the whole world at the start; the new one glows.
+    this.cardTraitsEl.replaceChildren(...comparedRows(ind.bodyGenome, this.story.startWorld, GAP).map((r) => {
+      const row = Object.assign(doc.createElement("div"), { className: r.trait === newTrait?.trait ? "row new" : "row" });
+      const line = `${r.label}: ${r.value}.`;
+      row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
+        Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }), speakerButton(doc, () => line));
+      return row;
+    }));
+    this.updateCard();
+    // Shown before drawing, so the drawing takes its size from the card.
+    clearTimeout(this.cardHideT);
+    this.cardEl.hidden = false;
+    if (fresh) {
+      const glow = newTrait ? [newTrait.trait] : [];
+      this.cardDrawMs = paintCreature(this.cardAnimalEl, ind.bodyGenome, { seed: id, habitat: zone, glow }).ms;
     }
-    if (!theirs || this.herd.followed.has(id)) this.labelSpoken = `${this.labelWhoEl.textContent}. ${this.labelAboutEl.textContent}`;
-    this.labelEl.classList.toggle("marked", !!theirs && !this.herd.followed.has(id));
-    if (theirs) this.labelEl.style.setProperty("--mark", theirs.option.color);
-    this.label = { id, until };
-    this.labelEl.hidden = false;
+    void this.cardEl.offsetWidth; // the opening transition starts from the closed look
+    this.cardEl.classList.add("open");
+    this.cardMs = performance.now() - t0;
+    console.info(`[lineage] card for animal ${id}: ${this.cardMs.toFixed(1)} ms` +
+      (fresh ? ` (drawing ${this.cardDrawMs.toFixed(1)} ms)` : ""));
   }
-  closeLabel() {
-    this.label = null;
-    this.labelEl.hidden = true;
+
+  /** The card's first line and counts follow the story; if the animal passes away, the card says so. */
+  updateCard() {
+    const c = this.card;
+    if (!c || c.gone) return;
+    const s = this.story, mine = this.herd.followed.has(c.id);
+    if (!this.bridge.get(c.id)) {
+      c.gone = true;
+      this.herd.selected = null;
+      this.cardWho.set(PASSED_AWAY);
+      this.cardSwatchEl.style.setProperty("--mark", PLAIN_COLOR);
+      this.cardCountsEl.hidden = true;
+      this.cardEl.classList.add("gone");
+      return;
+    }
+    const theirs = mine ? null : s.others.find((o) => o.members.has(c.id));
+    this.cardWho.set(mine ? inYour(s.noun) : theirs ? theOnesWith(theirs.option.group) : notInYour(s.noun));
+    this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : theirs ? theirs.option.color : PLAIN_COLOR);
+    // A group not chosen: how it did since the choice, against yours, as counts with bars.
+    this.cardCountsEl.hidden = !theirs;
+    if (theirs) {
+      const rows = [this.otherRow(theirs, THEIRS), this.mineRow()];
+      const say = speakerButton(this.doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" "));
+      this.cardCountsEl.replaceChildren(...this.countRows(rows), say);
+    }
+  }
+
+  /** Closes quickly; `now` skips the transition. */
+  closeCard(now = false) {
+    this.card = null;
+    this.herd.selected = null;
+    this.cardEl.classList.remove("open");
+    clearTimeout(this.cardHideT);
+    if (now) this.cardEl.hidden = true;
+    else this.cardHideT = setTimeout(() => { if (!this.card) this.cardEl.hidden = true; }, CARD_CLOSE_MS);
   }
 
   /* ================= counts, never percentages ================= */
@@ -483,14 +554,6 @@ export class Game {
     el.append(text, speakerButton(this.doc, read ?? (() => text.textContent)));
     return { set: (t) => { text.textContent = t; } };
   }
-  placeLabel(now) {
-    if (!this.label) return;
-    const a = this.herd.animals.get(this.label.id);
-    if (!a || now > this.label.until) { this.closeLabel(); return; }
-    const sx = clamp(a.x - this.cam.x, 130, this.vw - 130), sy = Math.max(90, a.y - this.cam.y - 30);
-    this.labelEl.style.transform = `translate(${sx.toFixed(0)}px, ${sy.toFixed(0)}px) translate(-50%, -100%)`;
-  }
-
   /* ================= narration ================= */
   /** Replace whatever is queued: the log only ever speaks about now. */
   say(lines) { this.logQueue = lines.slice(); this.logTimer = 0; }
@@ -572,7 +635,6 @@ export class Game {
       this.clampCam();
     }
     this.render(now);
-    this.placeLabel(performance.now());
   }
 
   render(now) {
@@ -613,7 +675,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #label, #choice, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #ending")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) { this.dragging = true; this.moved = 0; this.startT = performance.now(); this.camTween = null; }
@@ -642,6 +704,8 @@ export class Game {
     s.addEventListener("pointerup", end);
     s.addEventListener("pointercancel", end);
     this.homeEl.addEventListener("click", () => { this.centerOnGroup(); this.hideHint(); });
+    this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
     this.againEl.addEventListener("click", () => this.restart(this.seed));
     this.newWorldEl.addEventListener("click", () => this.newWorld());
   }
@@ -659,10 +723,10 @@ export class Game {
   tapAt(px, py) {
     const rect = this.stage.getBoundingClientRect();
     const a = this.herd.hit(this.cam.x + px - rect.left, this.cam.y + py - rect.top);
-    if (!a) { this.closeLabel(); return; }
-    // Before the story starts, a tap chooses the family to follow. After that, tapping looks.
+    if (!a) { this.closeCard(); return; }
+    // Before the story starts, a tap chooses the family to follow. After that, a tap opens the animal's card.
     if (this.story.phase === "waiting") this.begin(a);
-    else this.showLabel(a.id);
+    else this.showCard(a.id);
   }
 }
 

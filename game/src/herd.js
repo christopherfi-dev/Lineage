@@ -66,6 +66,8 @@ export class Herd {
     this.marks = new Map();
     /** how fast the world moves: 1 while watching, faster in a fast-forward */
     this.pace = 1;
+    /** @type {null|number} the animal whose creature card is open: ringed on the map */
+    this.selected = null;
   }
 
   make(id, zone, genome, x, y, home, bornAt) {
@@ -300,7 +302,16 @@ export class Herd {
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
       const life = lifeOf(c);
-      if (life > 0) drawCreature(x, c, style(c), life, undefined, marksOf(c)?.[0]);
+      if (life > 0) drawCreature(x, c, style(c), life, marksOf(c)?.[0]);
+    }
+    // The animal whose card is open: a ring that breathes, so you can find it on the map.
+    const sel = this.selected !== null ? this.animals.get(this.selected) : null;
+    if (sel && inView(sel)) {
+      const k = (Math.sin(now * 0.005) + 1) / 2, rad = 24 + 3 * k;
+      x.lineWidth = 5; x.strokeStyle = "rgba(38,32,18,0.35)";
+      x.beginPath(); x.ellipse(sel.x, sel.y - 11, rad, rad * 0.92, 0, 0, TAU); x.stroke();
+      x.lineWidth = 2.6; x.strokeStyle = "#FFF3D2";
+      x.beginPath(); x.ellipse(sel.x, sel.y - 11, rad, rad * 0.92, 0, 0, TAU); x.stroke();
     }
   }
 }
@@ -333,16 +344,14 @@ function shade(hex, k) {
  * creature scale 1). Styles: "mine" — your group, larger, sharper and with
  * detail; "other" — a group you did not choose, in its colour; "gray" —
  * everyone else while you follow a group, smaller and faded; "plain" —
- * everyone while you have no group; "portrait" — one animal drawn large on a
- * card, with your group's detail but no halo.
+ * everyone while you have no group. One animal drawn large (the creature
+ * card, the choice options, the ending) is creature.js.
  * @param {CanvasRenderingContext2D} x
- * @param {Object} [parts] filled with where each body part is, for a portrait
  * @param {string} [color] an "other" animal's group colour
  */
-function drawCreature(x, c, style, scale, parts, color) {
+function drawCreature(x, c, style, scale, color) {
   const g = c.looks;
-  const portrait = style === "portrait";
-  const mine = style === "mine" || portrait, gray = style === "gray";
+  const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
   const fade = gray ? 0.9 : 1;
   const A = (a) => a * fade;
@@ -477,25 +486,8 @@ function drawCreature(x, c, style, scale, parts, color) {
   }
   x.restore();
 
-  if (parts) {
-    // Where each part is on the canvas: [centre x, centre y, radius x, radius y].
-    const at = (lx, ly, rx, ry) => [c.x + dir * lx, c.y + ly, rx, ry];
-    Object.assign(parts, {
-      toe_webbing: at(bRX * 0.05, -u * 0.02, bRX * 1.15, u * 0.3),
-      curved_claws: at(bRX * 0.52 + fw * 0.7, u * 0.02, u * 0.32, u * 0.26),
-      dense_fur: at(0, bodyY, bRX * 1.35, bRY * 1.55),
-      long_hindlimbs: at(-bRX * 0.46, (bodyY + bRY * 0.55) / 2, u * 0.4, legL * 0.75),
-      strong_tail: at(-bRX * 0.84 - tl * 0.5, bodyY - tl * 0.3, tl * 0.75 + u * 0.12, tl * 0.6 + u * 0.12),
-      large_eyes: at(headX + hR * 0.3, headY - hR * 0.1, u * 0.3, u * 0.3),
-      streamlined_body: at(headX * 0.45, bodyY, bRX * 1.7, bRY * 1.45),
-      coat_shade: at(0, bodyY, bRX * 1.3, bRY * 1.45),
-      ear_tip_shape: at(headX - hR * 0.03, headY - hR * 0.62 - earH * 0.55, u * 0.42, earH * 0.85),
-      tail_tip_marking: at(tipX, tipY, u * 0.3, u * 0.3),
-    });
-  }
-
   const midY = c.y + bodyY;
-  if (mine && !portrait) {
+  if (mine) {
     /* halo ring — the non-colour lineage indicator */
     x.strokeStyle = "#1E7E9C"; x.globalAlpha = 0.5; x.lineWidth = 1.8;
     x.beginPath(); x.ellipse(c.x, midY, u * 1.58, u * 1.46, 0, 0, TAU); x.stroke();
@@ -518,35 +510,6 @@ function drawCreature(x, c, style, scale, parts, color) {
     x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
   }
   x.globalAlpha = 1;
-}
-
-/**
- * One animal drawn large from its real genome, for the choice cards and the
- * ending. Every portrait on a card row uses the same scale, so differences
- * between animals are real differences. `focus` rings the part a variation is
- * about.
- * @param {HTMLCanvasElement} cv sized by CSS
- * @param {ArrayLike<number>} genome engine body genome
- * @param {string} [focus] engine trait name
- */
-export function drawPortrait(cv, genome, focus) {
-  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
-  const w = cv.clientWidth || 220, h = cv.clientHeight || 150;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  const x = /** @type {CanvasRenderingContext2D} */ (cv.getContext("2d"));
-  x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  x.clearRect(0, 0, w, h);
-  const u = Math.min(0.8 * w / 2.8, 0.8 * h / 2.7);
-  const c = { looks: looksFrom(genome), x: w / 2 + u * 0.15, y: h / 2 + u * 1.25, face: 1, mode: "pause", ph: 0.6, inZone: true, flash: 0 };
-  const parts = {};
-  drawCreature(x, c, "portrait", u / (11.2 * 1.04), parts);
-  const p = focus && parts[focus];
-  if (p) {
-    x.save();
-    x.strokeStyle = "#D9892B"; x.lineWidth = 2.5; x.setLineDash([6, 5]); x.globalAlpha = 0.95;
-    x.beginPath(); x.ellipse(p[0], p[1], p[2], p[3], 0, 0, TAU); x.stroke();
-    x.restore();
-  }
 }
 
 /**

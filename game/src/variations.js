@@ -62,15 +62,8 @@ const HAS = {
 /** "webbed feet": what an animal with this trait at this level has. */
 export const hasWords = (trait, level) => HAS[trait][level];
 
-/** A group's traits as a list: [label, [low, middle, high]] for each trait. */
+/** A neutral trait's label and plain words: [label, [low, middle, high]]. */
 const ROWS = {
-  toe_webbing: ["Feet", ["no webbing", "some webbing", "webbed"]],
-  curved_claws: ["Claws", ["straight", "a bit curved", "curved"]],
-  dense_fur: ["Fur", ["thin", "medium", "thick"]],
-  long_hindlimbs: ["Back legs", ["short", "medium", "long"]],
-  strong_tail: ["Tail", ["weak", "medium", "strong"]],
-  large_eyes: ["Eyes", ["small", "medium", "big"]],
-  streamlined_body: ["Body", ["chunky", "medium", "sleek"]],
   coat_shade: ["Coat", ["dark", "medium", "light"]],
   ear_tip_shape: ["Ear tips", ["round", "a bit pointy", "pointy"]],
   tail_tip_marking: ["Tail tip", ["plain", "a faint mark", "a bright mark"]],
@@ -177,22 +170,39 @@ export function averageOf(genomes) {
   });
 }
 
-/** The member closest to the group's average body, to picture the group. */
-export function typicalOf(members) {
-  const avg = averageOf(members.map((m) => m.genome));
-  const off = (m) => avg.reduce((sum, a, t) => sum + Math.abs(m.genome[t] - a.mean), 0);
-  return members.reduce((best, m) => (off(m) < off(best) ? m : best), members[0]);
-}
+/**
+ * The seven meaningful traits compared with the generation-0 world (scope
+ * decision 20): [label, lower, higher]. The same GAP as the reveal decides
+ * "about the same". The three neutral traits keep their plain words.
+ */
+const COMPARED = {
+  toe_webbing: ["Feet", "Less webbing than at the start", "More webbing than at the start"],
+  curved_claws: ["Claws", "Straighter than at the start", "More curved than at the start"],
+  dense_fur: ["Fur", "Thinner than at the start", "Thicker than at the start"],
+  long_hindlimbs: ["Back legs", "Shorter than at the start", "Longer than at the start"],
+  strong_tail: ["Tail", "Weaker than at the start", "Stronger than at the start"],
+  large_eyes: ["Eyes", "Smaller than at the start", "Bigger than at the start"],
+  streamlined_body: ["Body", "Chunkier than at the start", "Sleeker than at the start"],
+};
+export const ABOUT_THE_SAME = "About the same as at the start";
 
 /**
- * A group's traits in plain words, marking the ones whose word changed since `from`.
- * @param {Array<{level:number}>} form
- * @param {Array<{level:number}>} [from]
+ * A body's traits in kid language: each meaningful trait against the
+ * generation-0 world average (lower, higher or about the same, by `gap`), each
+ * neutral trait in its plain words.
+ * @param {ArrayLike<number>} values the body's value (or a group's mean) for each trait
+ * @param {ArrayLike<number>} base the generation-0 world mean for each trait
+ * @param {number} gap how far from it counts as different (the reveal's GAP)
+ * @returns {Array<{trait:string, label:string, value:string, changed:boolean}>}
  */
-export function traitRows(form, from) {
+export function comparedRows(values, base, gap) {
   return TRAITS.map((trait, t) => {
-    const [label, words] = ROWS[trait];
-    return { label, value: words[form[t].level], changed: !!from && from[t].level !== form[t].level };
+    if (!COMPARED[trait]) {
+      const [label, words] = ROWS[trait];
+      return { trait, label, value: words[levelOf(values[t])], changed: false };
+    }
+    const [label, lower, higher] = COMPARED[trait], d = values[t] - base[t];
+    return { trait, label, value: d >= gap ? higher : d <= -gap ? lower : ABOUT_THE_SAME, changed: Math.abs(d) >= gap };
   });
 }
 
