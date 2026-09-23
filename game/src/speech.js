@@ -33,6 +33,12 @@ export function spoken(text) {
   return text.replace(/(\d+)\s*→\s*(\d+)/g, "from $1 to $2").replace(/\s*·\s*/g, ", ").replace(/\s+/g, " ").trim();
 }
 
+/** True while the browser is reading (or about to read) a line aloud. */
+export function isSpeaking() {
+  const s = synth();
+  return !!s && (s.speaking || s.pending);
+}
+
 let playing = null;
 
 /** Read a line aloud, stopping whatever was being read. */

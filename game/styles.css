@@ -173,7 +173,13 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 /* After a neutral trait: it made no difference to who survived (scope decision 8). */
 #ending-choices .note { display: block; margin-top: 1px; font-size: 14px; font-style: italic; line-height: 1.25; color: #6E6A55; }
 /* One line of real evidence from the world, not the answer. */
-#ending-evidence[hidden] { display: none; }
+#ending-evidence[hidden], #ending-evidence [hidden] { display: none; }
+/* The clue as both sides: a heading, then "With …" and "Without" as count rows with bars. */
+#ending-compare {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-left: 4px solid #D9892B;
+  border-radius: 6px 12px 12px 6px; background: #F3ECDB; font-family: Petrona, Georgia, serif; font-size: 18px;
+}
+#ending-compare .heading { display: flex; align-items: center; gap: 4px; font-weight: 600; }
 #ending-evidence p {
   margin: 0; padding: 10px 14px; border-left: 4px solid #D9892B; border-radius: 6px 12px 12px 6px; background: #F3ECDB;
   font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3;
