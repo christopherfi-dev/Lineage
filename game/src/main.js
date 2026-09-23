@@ -1,29 +1,34 @@
 /**
- * LINEAGE — Milestone 2, Step 1: the bridge.
+ * LINEAGE — Milestone 2: the frozen M1 engine on the designed canvas.
  *
- * The frozen M1 engine runs the biology on the designed canvas. One engine
- * generation happens every GENERATION_SECONDS; between generations the
- * animals only wander. Births, deaths, mutation flashes and every count on
- * screen come from the engine's records.
+ * One engine generation happens every GENERATION_SECONDS; between generations
+ * the animals only wander. Births, deaths, mutation flashes and every count on
+ * screen come from the engine's records. The group you follow is a family, a
+ * mother line (families.js).
  */
 
 import { Bridge } from "./bridge.js";
+import { FIXTURE_URL } from "./engine.js";
 import { World, clamp, TAU } from "./world.js";
 import { Herd } from "./herd.js";
-import { followLine, generationLines } from "./narration.js";
+import {
+  START_LINE, followLine, branchLine, familyLines, otherLabel, memberLabel,
+} from "./narration.js";
 
 /** Real seconds per engine generation. */
 export const GENERATION_SECONDS = 8;
 
 const LOG_MS = 3800;
-const DEFAULT_SEED = 1;
+const LABEL_MS = 8000;
+/** In the defining world, seed 6 lets the webbed canopy family's decline play out over a few generations. */
+const DEFAULT_SEED = 6;
 
 export class Game {
   /**
    * @param {Document} doc
-   * @param {number} seed trajectory seed for the engine's random world
+   * @param {Bridge} bridge the engine world to show
    */
-  constructor(doc, seed) {
+  constructor(doc, bridge) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.stage = $("stage");
     this.cv = /** @type {HTMLCanvasElement} */ ($("world"));
@@ -35,10 +40,14 @@ export class Game {
     this.barEl = $("genbar");
     this.countsEl = $("counts");
     this.zonesEl = $("zones");
+    this.labelEl = $("label");
+    this.labelWhoEl = $("label-who");
+    this.labelAboutEl = $("label-about");
+    this.branchEl = $("branch");
 
     this.world = new World();
-    this.bridge = new Bridge(seed);
-    this.herd = new Herd(this.world, seed * 7919 + 17);
+    this.bridge = bridge;
+    this.herd = new Herd(this.world, 7919);
     this.herd.placeFounders(this.bridge);
 
     this.cam = { x: 0, y: 0 };
@@ -46,19 +55,17 @@ export class Game {
     this.logQueue = [];
     this.logTimer = 0;
     this.clock = 0;
+    this.label = null;
     this.last = performance.now();
 
     this.setupCanvas();
     this.bindInput();
 
-    // Start by following the animals of the high leaves, as the design does.
-    const leafAnimal = this.bridge.living.find((i) => this.bridge.zoneOf(i.id) === 0);
-    if (leafAnimal) {
-      this.bridge.followGroupOf(leafAnimal.id);
-      this.herd.followed = new Set(this.bridge.followedIds());
-    }
-    this.centerOnFollowed(true);
-    this.say(["Your group lives high up in the leaves.", `Your group has ${this.herd.followed.size} animals.`]);
+    // No family yet: the first follow is the player's choice. The camera
+    // opens on the first founding family, high in the leaves.
+    const first = this.herd.centroidOf(this.bridge.families.founding[0].ids);
+    this.cam.x = first.x - this.vw / 2; this.cam.y = first.y - this.vh / 2; this.clampCam();
+    this.say([START_LINE]);
     this.updateHud();
     this.world.paint();
 
@@ -74,29 +81,46 @@ export class Game {
     const ev = this.bridge.step();
     if (!ev) return;
     this.herd.applyGeneration(ev, this.bridge, now);
+    const f = ev.family;
+    if (f && f.count === 0) {
+      // Your group has ended. The world keeps running; any animal can start a new story.
+      this.bridge.stopFollowing();
+      this.herd.following = false;
+      this.herd.resetFlashes();
+    }
     this.herd.followed = new Set(this.bridge.followedIds());
-    this.say(this.bridge.extinct ? ["No animals are left anywhere in the world."] : generationLines(ev));
+    if (this.bridge.extinct) this.say(["No animals are left anywhere in the world."]);
+    else if (f) this.say(familyLines(f));
     this.updateHud();
-    const f = ev.followed;
+    if (this.label) this.showLabel(this.label.id, this.label.until); // counts change each generation
     console.info(
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
-      `${ev.mutations.length} mutations at birth · your group ${f.count} (+${f.born.length} −${f.gone.length}, ` +
-      `${f.mutated.length} new traits)`
+      `${ev.mutations.length} mutations at birth` +
+      (f ? ` · your group ${f.count} (was ${f.before}: +${f.born.length} −${f.gone.length}, ${f.mutated.length} new traits)` : "")
     );
     if (ev.observerErrors.length) console.warn("[lineage] observer errors", ev.observerErrors);
   }
 
-  /** Follow the tapped animal's group (observer state only). */
-  follow(animal) {
-    this.hideHint();
-    if (this.herd.followed.has(animal.id)) {
-      this.say(["That one is already in your group."]);
-      return;
-    }
-    const f = this.bridge.followGroupOf(animal.id);
-    if (!f) return;
+  /* ================= following ================= */
+  /** Follow the family of the tapped animal's ancestor a few generations back. */
+  followFamily(animal) {
+    const f = this.bridge.followFamilyOf(animal.id);
+    this.startGroup(followLine(this.bridge.zoneOf(animal.id), f.members.size));
+  }
+
+  /** Narrow to one member's own line. */
+  followBranch(id) {
+    const f = this.bridge.followBranchOf(id);
+    this.startGroup(branchLine(f.members.size));
+  }
+
+  startGroup(line) {
     this.herd.followed = new Set(this.bridge.followedIds());
-    this.say([followLine(f.zone, this.herd.followed.size)]);
+    this.herd.following = true;
+    this.herd.resetFlashes();
+    this.closeLabel();
+    this.hideHint();
+    this.say([line]);
     this.centerOnFollowed(false);
     this.updateHud();
   }
@@ -104,9 +128,44 @@ export class Game {
   updateHud() {
     const zones = this.bridge.zoneCounts();
     this.genEl.textContent = String(this.bridge.generation);
-    this.countsEl.textContent =
-      `${this.bridge.living.length} animals alive · your group ${this.herd.followed.size}`;
+    this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
+      (this.bridge.follow ? `your group ${this.herd.followed.size}` : "no group");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
+  }
+
+  /* ================= the label on a tapped animal ================= */
+  /** Other families can be looked at but not chosen; a member of yours offers her branch. */
+  showLabel(id, until = performance.now() + LABEL_MS) {
+    const ind = this.bridge.get(id);
+    if (!ind) { this.closeLabel(); return; }
+    const follow = this.bridge.follow;
+    this.branchEl.hidden = true;
+    if (!this.herd.followed.has(id)) {
+      this.labelWhoEl.textContent = "Another family";
+      this.labelAboutEl.textContent = otherLabel(this.bridge.zoneOf(id), this.bridge.familySizeOf(id), ind.bodyGenome);
+    } else if (follow.root === id) {
+      this.labelWhoEl.textContent = "She started this branch";
+      this.labelAboutEl.textContent = memberLabel(ind.bodyGenome);
+    } else {
+      const size = this.bridge.branchSizeOf(id);
+      const narrower = size < follow.members.size;
+      this.labelWhoEl.textContent = "In your family";
+      this.labelAboutEl.textContent = memberLabel(ind.bodyGenome, narrower ? size : undefined);
+      this.branchEl.hidden = !narrower;
+    }
+    this.label = { id, until };
+    this.labelEl.hidden = false;
+  }
+  closeLabel() {
+    this.label = null;
+    this.labelEl.hidden = true;
+  }
+  placeLabel(now) {
+    if (!this.label) return;
+    const a = this.herd.animals.get(this.label.id);
+    if (!a || now > this.label.until) { this.closeLabel(); return; }
+    const sx = clamp(a.x - this.cam.x, 130, this.vw - 130), sy = Math.max(90, a.y - this.cam.y - 30);
+    this.labelEl.style.transform = `translate(${sx.toFixed(0)}px, ${sy.toFixed(0)}px) translate(-50%, -100%)`;
   }
 
   /* ================= narration ================= */
@@ -138,7 +197,7 @@ export class Game {
     this.cam.x = clamp(this.cam.x, 0, Math.max(0, this.world.W - this.vw));
     this.cam.y = clamp(this.cam.y, 0, Math.max(0, this.world.H - this.vh));
   }
-  /** The camera centres on the living descendants of the followed channel. */
+  /** The camera centres on your family. */
   centerOnFollowed(instant) {
     const p = this.herd.followedCentroid(); if (!p) return;
     const tx = p.x - this.vw / 2, ty = p.y - this.vh / 2;
@@ -173,6 +232,7 @@ export class Game {
       this.clampCam();
     }
     this.render(now);
+    this.placeLabel(performance.now());
   }
 
   render(now) {
@@ -223,7 +283,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #label")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) { this.dragging = true; this.moved = 0; this.startT = performance.now(); this.camTween = null; }
@@ -252,6 +312,7 @@ export class Game {
     s.addEventListener("pointerup", end);
     s.addEventListener("pointercancel", end);
     this.homeEl.addEventListener("click", () => { this.centerOnFollowed(false); this.hideHint(); });
+    this.branchEl.addEventListener("click", () => { if (this.label) this.followBranch(this.label.id); });
     this.hintT = setTimeout(() => this.hideHint(), 9000);
   }
   hideHint() {
@@ -262,7 +323,22 @@ export class Game {
   tapAt(px, py) {
     const rect = this.stage.getBoundingClientRect();
     const a = this.herd.hit(this.cam.x + px - rect.left, this.cam.y + py - rect.top);
-    if (a) this.follow(a);
+    if (!a) { this.closeLabel(); return; }
+    // With no family, any animal starts a new one. Otherwise tapping looks.
+    if (!this.bridge.follow) this.followFamily(a);
+    else this.showLabel(a.id);
+  }
+}
+
+/** The defining-experiment world, or the engine's random world if the fixture can't be read. */
+async function loadWorld(seed) {
+  try {
+    const res = await fetch(FIXTURE_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Bridge.fromFixture(await res.json(), seed);
+  } catch (err) {
+    console.warn("[lineage] defining fixture unavailable; using a random world", err);
+    return Bridge.fromRandom(seed);
   }
 }
 
@@ -270,6 +346,7 @@ export class Game {
 if (typeof document !== "undefined") {
   const q = new URLSearchParams(location.search);
   const seed = Number.parseInt(q.get("seed") ?? "", 10);
-  const game = new Game(document, Number.isFinite(seed) && seed > 0 ? seed : DEFAULT_SEED);
-  globalThis.lineageGame = game; // for poking at the live engine from the console
+  loadWorld(Number.isFinite(seed) && seed > 0 ? seed : DEFAULT_SEED).then((bridge) => {
+    globalThis.lineageGame = new Game(document, bridge); // for poking at the live engine from the console
+  });
 }
