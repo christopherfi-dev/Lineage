@@ -59,6 +59,7 @@ That is about 80 seconds per choice and about 19 minutes per story.
 4. **The groups not chosen** stay on the map in their own colours (coloured bodies and a ring on
    the ground), listed in the corner with their sizes. Each is a separate set: the animals with
    its variation but not yours (scope decision 9), so no animal is in your group and theirs.
+   One that starts with fewer than 3 animals is not shown at all.
    Tapping one shows how it did since the choice against yours: "Theirs: 26 → 32. Yours: 29 →
    52.", each beside its bars. A child never sees a percentage (scope decision 12).
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
@@ -68,13 +69,18 @@ That is about 80 seconds per choice and about 19 minutes per story.
    reflection screen shows:
    - the group's actual average traits at the end (a dot marks each trait whose word changed
      since the start);
-   - one question, then **a clue**: one line of real evidence, not the answer, about the group's
-     most distinctive meaningful trait, counted in another habitat when the story began and now
-     ("Animals with webbed feet at the water's edge: 12 then, 25 now."; zero is "none"). A clue
-     that changed by fewer than 3 animals gives way to the next trait. See `src/evidence.js`;
+   - one question, then **a clue**: real evidence, not the answer (`src/evidence.js`). It shows
+     both sides in one other habitat, from the story's start to now: "At the water's edge:",
+     "With webbed feet: 12 → 25", "Without: 28 → 13" (scope decision 14). "With" is a trait's
+     high end and "without" its low end; the middle is on neither side. The pair is the
+     meaningful trait and habitat where both sides started with 3 or more animals and grew most
+     differently. If none qualifies, it is one line about the group's most distinctive trait
+     ("Animals with webbed feet at the water's edge: 12 then, 25 now.");
    - for a surviving group, **the real-animal reveal**: the animal it is most like, from its
      actual average traits and main habitat, with its "why" lines (`src/reveal.js`, following
-     `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`);
+     `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`). Levels are relative to the generation-0 world (GAP
+     0.12), and each animal needs its signature trait, so the reveal reflects what changed. Only
+     the "why" sentences whose trait the group has are shown;
    - the choices made;
    - "Try another family in this world" (same seed, generation 0) and "New world" (another good
      seed), which stay pinned to the bottom of the card.
@@ -85,7 +91,8 @@ That is about 80 seconds per choice and about 19 minutes per story.
 8. **Read-aloud.** Every narration line, choice title, choice option, clue, reveal line and
    ending line has a small speaker. Tapping it reads the text with the browser's own speech
    (`speechSynthesis`, `src/speech.js`), in a calm voice at rate 0.85. "20 → 31" is read as "from
-   20 to 31". Child-facing lines stay under about 12 words.
+   20 to 31". Child-facing lines stay under about 12 words. The 20-second choice timer stands
+   still while anything is being read aloud.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.

@@ -21,9 +21,9 @@ import { averageOf, changedTraits, traitRows, typicalOf } from "./variations.js"
 import {
   START_LINE, followLine, groupLines, otherLabel, notable, TIMES_UP, optionLine, passedLines, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, YOURS, THEIRS, SINCE_TITLE, theOnesWith,
+  evidenceLine, countLine, YOURS, THEIRS, SINCE_TITLE, theOnesWith, comparisonLines,
 } from "./narration.js";
-import { speakerButton } from "./speech.js";
+import { speakerButton, isSpeaking } from "./speech.js";
 
 const LOG_MS = 3800;
 const LABEL_MS = 8000;
@@ -41,6 +41,13 @@ const HOME_MS = 400;
 const DEFAULT_SEED = 6;
 /** Your group's colour, as on the map. */
 const MINE_COLOR = "#14657F";
+/** The clue's two sides: the animals with the trait, and the rest. */
+const CLUE_WITH_COLOR = "#D9892B", CLUE_WITHOUT_COLOR = "#9A917C";
+/**
+ * The choice timer stands still while a line is read aloud. This caps how long
+ * it can stand still at one choice point, in case a browser's speech gets stuck.
+ */
+const MAX_READING_PAUSE_MS = 60000;
 
 export class Game {
   /**
@@ -81,6 +88,7 @@ export class Game {
     this.endingChoicesEl = $("ending-choices");
     this.endingEvidenceEl = $("ending-evidence");
     this.endingEvidenceLineEl = $("ending-evidence-line");
+    this.endingCompareEl = $("ending-compare");
     this.endingQuestionEl = $("ending-question");
     this.revealEl = $("reveal");
     // Read-aloud: a small speaker beside every child-facing line (speech.js).
@@ -237,7 +245,7 @@ export class Game {
     this.choiceEl.hidden = false;
     for (const el of this.optionEls) drawPortrait(el.querySelector("canvas"), this.bridge.get(el.option.id).bodyGenome, el.option.trait);
     requestAnimationFrame(() => this.choiceEl.classList.add("open"));
-    this.choice = { until: now + CHOICE_SECONDS * 1000, picked: null };
+    this.choice = { left: CHOICE_SECONDS * 1000, paused: 0, picked: null };
     this.centerOnGroup(0.3);
   }
 
@@ -253,14 +261,17 @@ export class Game {
   }
 
   /** While the world is paused: the countdown, then the random pick if time runs out. */
-  tickChoice(now) {
+  tickChoice(now, dt) {
     const c = this.choice;
     if (!c) return;
     if (c.picked) {
       if (now >= c.goAt) this.followChoice(c.picked, c.byChance);
       return;
     }
-    const left = Math.max(0, c.until - now);
+    // While any line is being read aloud, the countdown waits.
+    if (isSpeaking() && c.paused < MAX_READING_PAUSE_MS) c.paused += dt;
+    else c.left = Math.max(0, c.left - dt);
+    const left = c.left;
     this.choiceBarEl.style.width = `${(100 * left / (CHOICE_SECONDS * 1000)).toFixed(1)}%`;
     if (left === 0) {
       const options = this.story.options;
@@ -341,15 +352,27 @@ export class Game {
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
     // One line of real evidence from the world, not the answer (evidence.js).
-    this.endingEvidenceEl.hidden = !s.evidence;
-    if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
+    // The clue shows both sides when it can (scope decision 14), else one line.
+    this.endingEvidenceEl.hidden = !s.comparison && !s.evidence;
+    this.endingEvidenceLineEl.hidden = !!s.comparison;
+    this.endingCompareEl.hidden = !s.comparison;
+    if (s.comparison) {
+      const c = comparisonLines(s.comparison);
+      const rows = [
+        { label: c.withLabel, ...s.comparison.with, color: CLUE_WITH_COLOR },
+        { label: c.withoutLabel, ...s.comparison.without, color: CLUE_WITHOUT_COLOR },
+      ];
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: c.heading });
+      heading.append(speakerButton(doc, () => [c.heading, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
+      this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
+    } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
     this.endingQuestion.set(question(s.outcome, s.noun));
     // The real-animal reveal (scope decision 10, docs/LINEAGE_REAL_ANIMAL_REVEAL.md): a surviving
     // group's actual average traits and main habitat, never its choices. Text for now; art comes later.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       this.revealLine.set(s.reveal.animal.reveal);
-      this.revealWhy.set(s.reveal.animal.why.join(" "));
+      this.revealWhy.set(s.reveal.why.join(" ")); // only the sentences whose traits the group has
     }
     this.endingEl.hidden = false;
     drawPortrait(this.endingAnimalEl, typicalOf(s.lastAnimals).genome);
@@ -531,7 +554,7 @@ export class Game {
       this.herd.pace = fastNow ? FAST_PACE : 1;
     }
     // At a choice point the world pauses.
-    if (s.phase === "choice") this.tickChoice(now);
+    if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
     else this.herd.tick(dt, now);
     if (this.endingAt !== null && now >= this.endingAt) { this.endingAt = null; this.showEnding(); }
 

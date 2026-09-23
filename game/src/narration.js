@@ -135,6 +135,15 @@ export function evidenceLine(e) {
   return `Animals with ${what} ${ZONE_AT[e.zone]}: ${n(e.then)} then, ${n(e.now)} now.`;
 }
 
+/**
+ * The clue as both sides: a heading and two count rows (the page adds the bars).
+ * "At the water's edge:" / "With webbed feet: 12 → 25" / "Without: 30 → 18"
+ * @param {import("./evidence.js").Comparison} c
+ */
+export function comparisonLines(c) {
+  return { heading: `${capital(ZONE_AT[c.zone])}:`, withLabel: `With ${hasWords(c.trait, 2)}`, withoutLabel: "Without" };
+}
+
 export const lastPassed = (noun) => `The last of your ${noun} has passed.`;
 export const madeIt = (noun) => `Your ${noun} made it to the end of the story.`;
 

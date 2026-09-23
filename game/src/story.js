@@ -23,7 +23,7 @@
  */
 
 import { APART, averageOf, choiceOptions, formOf, isNeutral } from "./variations.js";
-import { census, evidenceFor, mainZoneOf } from "./evidence.js";
+import { census, comparisonFor, evidenceFor, mainZoneOf } from "./evidence.js";
 import { revealFor } from "./reveal.js";
 
 /** Real seconds per generation while watching. */
@@ -40,6 +40,8 @@ export const SKIP_GENERATIONS = 2;
 export const CHOICE_SECONDS = 20;
 /** Choice points in a story. */
 export const STORY_CHOICES = 15;
+/** An option not chosen is shown as a group of its own only if it starts with at least this many animals. */
+export const MIN_SHOWN = 3;
 /** The generation every story that lasts ends at: 4 + 14 × (2 + 3) + 2 = 76. */
 export const STORY_GENERATIONS =
   FIRST_WATCH_GENERATIONS + (STORY_CHOICES - 1) * (SKIP_GENERATIONS + WATCH_GENERATIONS) + SKIP_GENERATIONS;
@@ -84,13 +86,15 @@ export class Story {
     this.formAtPoint = null;
     /** how many animals had each trait word in each habitat when the story began (evidence.js) */
     this.startCensus = null;
-    /** @type {null|import("./evidence.js").Evidence} the ending's line of evidence */
+    /** @type {null|import("./evidence.js").Comparison} the ending's clue, both sides */
+    this.comparison = null;
+    /** @type {null|import("./evidence.js").Evidence} the ending's one-line clue, when no comparison qualifies */
     this.evidence = null;
     /** the habitat most of the group lived in at the end */
     this.mainZone = null;
     /** the whole world's mean for each trait at the start (generation 0): the base for relative reveal levels */
     this.startWorld = null;
-    /** @type {null|{animal: import("./reveal.js").RevealAnimal, matched:number, checked:number}} a surviving group's real animal */
+    /** @type {null|{animal: import("./reveal.js").RevealAnimal, why:string[], matched:number, checked:number, strength:number}} a surviving group's real animal */
     this.reveal = null;
     /** @type {Map<number, {id:number, genome:ArrayLike<number>, zone:number}>} everyone in the group since it last formed */
     this.segment = new Map();
@@ -169,10 +173,11 @@ export class Story {
       group: option.group, trait: option.trait, neutral: isNeutral(option.t), byChance,
       generation: this.bridge.generation, sizeAtChoice: this.sizeAtChoice, sizeAtEnd: null,
     });
+    // A group that starts with fewer than MIN_SHOWN animals is not shown: no colour, no panel row.
     this.others = this.options.filter((o) => o !== option).map((o) => {
       const members = this.othersOf(o);
       return { option: o, members, sizeAtChoice: members.size };
-    });
+    }).filter((o) => o.sizeAtChoice >= MIN_SHOWN);
     this.options = null;
     this.phase = "skip";
     this.skipped = 0;
@@ -207,7 +212,9 @@ export class Story {
     this.outcome = outcome;
     this.endGeneration = generation;
     this.mainZone = mainZoneOf(this.lastAnimals);
-    this.evidence = evidenceFor([...this.segment.values()], this.bridge.livingAnimals(), this.startCensus);
+    const segment = [...this.segment.values()], living = this.bridge.livingAnimals();
+    this.comparison = comparisonFor(segment, living, this.startCensus);
+    this.evidence = evidenceFor(segment, living, this.startCensus);
     // Scope decision 10: from the group's actual average traits and main habitat, never its choices.
     if (outcome === "survived") {
       this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld);
