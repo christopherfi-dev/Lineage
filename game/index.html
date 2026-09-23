@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LINEAGE</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Karla:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="world"></canvas>
+
+  <div id="hud">
+    <div class="gen">Generation <b id="gen">0</b></div>
+    <div class="bar"><i id="genbar"></i></div>
+    <div class="line" id="counts"></div>
+    <div class="line small" id="zones"></div>
+  </div>
+
+  <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its group</div>
+
+  <button id="home" type="button"><span class="ring"><i></i></span>Back to my group</button>
+
+  <div id="logbar"><span class="ring"></span><span id="log"></span></div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
