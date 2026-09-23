@@ -109,9 +109,17 @@ export class Bridge {
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
 
-  /** Your group's living members with their body genomes. */
+  /** Your group's living members with their body genomes and habitats. */
   followedAnimals() {
-    return this.followedIds().map((id) => ({ id, genome: this.byId.get(id).bodyGenome }));
+    return this.followedIds().map((id) => this.animal(id));
+  }
+
+  /** Every living animal with its body genome and habitat. */
+  livingAnimals() { return this.livingIds().map((id) => this.animal(id)); }
+
+  animal(id) {
+    const ind = this.byId.get(id);
+    return { id, genome: ind.bodyGenome, zone: currentZoneBinIndex(ind) };
   }
 
   /* ================= one generation ================= */

@@ -56,17 +56,29 @@ That is about 80 seconds per choice and about 19 minutes per story.
    that trait, plus or minus 0.12). Earlier choices no longer count. Then the world
    fast-forwards.
 4. **The groups not chosen** stay on the map in their own colours (coloured bodies and a ring on
-   the ground), listed in the corner with their sizes. Tapping one says how it did since the
-   choice against yours: "Their group grew 48%. Yours grew 54%."
+   the ground), listed in the corner with their sizes. Each is a separate set: the animals with
+   its variation but not yours (scope decision 9), so no animal is in your group and theirs.
+   Tapping one says how it did since the choice against yours: "Their group grew 48%. Yours
+   grew 54%."
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
    and "Back to my group" goes to the group's largest cluster.
 6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
    generations.") or after the last choice point ("Your group survived 76 generations."). The
-   reflection screen shows the group's actual average traits at the end (a dot marks each trait
-   whose word changed since the start), the choices made, one question, and "Try another family
-   in this world" (same seed, generation 0) / "New world" (another good seed). A marked
-   placeholder holds the place of the real-animal reveal, which will match the group's actual
-   average traits.
+   reflection screen shows:
+   - the group's actual average traits at the end (a dot marks each trait whose word changed
+     since the start);
+   - one question, then **a clue**: one line of real evidence, not the answer, about the group's
+     most distinctive trait, counted in another habitat when the story began and now ("Animals
+     with webbed feet at the water's edge: 12 then, 25 now."). See `src/evidence.js`;
+   - a marked placeholder for the real-animal reveal, which will match the group's actual
+     average traits and main habitat;
+   - the choices made;
+   - "Try another family in this world" (same seed, generation 0) and "New world" (another good
+     seed), which stay pinned to the bottom of the card.
+7. **Neutral traits.** Coat shade, ear tips and tail tip have no effect on survival in the
+   engine. They are offered like any other variation, and the card never says so (scope decision
+   8). After the child follows one, the next "Since your last choice…" line and the ending add
+   "A darker coat didn't change who survived. Your group grew because of its other traits."
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.

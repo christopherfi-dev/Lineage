@@ -21,7 +21,7 @@ import { averageOf, changedTraits, traitRows, typicalOf } from "./variations.js"
 import {
   START_LINE, followLine, groupLines, otherLabel, notable, TIMES_UP, optionLine, passedLines, chosenLines,
   skipDoneLines, compareLine, sinceLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap,
-  noChoices,
+  noChoices, neutralLines, evidenceLine,
 } from "./narration.js";
 
 const LOG_MS = 3800;
@@ -76,6 +76,8 @@ export class Game {
     this.endingTraitsEl = $("ending-traits");
     this.endingChoicesTitleEl = $("ending-choices-title");
     this.endingChoicesEl = $("ending-choices");
+    this.endingEvidenceEl = $("ending-evidence");
+    this.endingEvidenceLineEl = $("ending-evidence-line");
     this.endingQuestionEl = $("ending-question");
     this.revealEl = $("reveal");
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
@@ -188,9 +190,12 @@ export class Game {
     const s = this.story;
     this.closeLabel();
     this.choiceCountEl.textContent = `Choice ${s.points} of ${STORY_CHOICES}`;
-    // How the last choice turned out, against the ones not chosen.
-    const since = s.choices.length ?
-      sinceLines(s.mine, s.others.map((o) => ({ group: o.option.group, now: o.members.size, then: o.sizeAtChoice }))) : [];
+    // How the last choice turned out, against the ones not chosen. After a neutral
+    // trait, it also says that trait made no difference (scope decision 8).
+    const last = s.choices[s.choices.length - 1];
+    const since = last ?
+      sinceLines(s.mine, s.others.map((o) => ({ group: o.option.group, now: o.members.size, then: o.sizeAtChoice })),
+        last.neutral ? last.group : null) : [];
     this.choiceSinceEl.textContent = since.join(" ");
     this.choiceNoteEl.textContent = "";
     this.choiceBarEl.style.width = "100%";
@@ -296,10 +301,21 @@ export class Game {
       return row;
     }));
     this.endingChoicesTitleEl.textContent = choicesHeading(s.choices.length);
-    const recaps = s.choices.length ? s.choices.map(choiceRecap) : [noChoices(s.outcome)];
-    this.endingChoicesEl.replaceChildren(...recaps.map((t) => Object.assign(doc.createElement("li"), { textContent: t })));
+    const items = s.choices.length ? s.choices.map((c) => {
+      const li = Object.assign(doc.createElement("li"), { textContent: choiceRecap(c) });
+      // A neutral trait the child followed made no difference to who survived (scope decision 8).
+      if (c.neutral) {
+        const note = neutralLines(c.group, { now: c.sizeAtEnd, then: c.sizeAtChoice }).join(" ");
+        li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }));
+      }
+      return li;
+    }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome) })];
+    this.endingChoicesEl.replaceChildren(...items);
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
+    // One line of real evidence from the world, not the answer (evidence.js).
+    this.endingEvidenceEl.hidden = !s.evidence;
+    if (s.evidence) this.endingEvidenceLineEl.textContent = evidenceLine(s.evidence);
     this.endingQuestionEl.textContent = question(s.outcome, s.noun);
     // REAL-ANIMAL REVEAL (placeholder): a surviving group will be revealed as the real
     // animal it most resembles, matched on the group's actual average traits (the same

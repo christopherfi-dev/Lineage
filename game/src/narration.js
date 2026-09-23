@@ -95,9 +95,27 @@ export function skipDoneLines(skip, n, changed, noun) {
 
 /** "grew 50%", "shrank 25%": a group's size now against its size at the choice. */
 export function growth({ now, then }) {
+  // A group not chosen can start empty: every animal with its variation had yours too.
+  if (then === 0) return now === 0 ? "still has no animals" : `grew from 0 to ${now}`;
   if (now === 0) return "died out";
-  const pct = Math.round((100 * (now - then)) / Math.max(1, then));
+  const pct = Math.round((100 * (now - then)) / then);
   return pct > 0 ? `grew ${pct}%` : pct < 0 ? `shrank ${-pct}%` : "stayed the same size";
+}
+
+/** "grew", "shrank": which way a group's size went, without the number. */
+function went({ now, then }) {
+  if (now === 0) return "died out";
+  return now > then ? "grew" : now < then ? "shrank" : "stayed the same size";
+}
+
+/**
+ * After following a neutral trait (scope decision 8): it made no difference to
+ * who survived. The choice card never says so; this comes afterwards.
+ * @param {string} group "a darker coat"
+ * @param {{now:number, then:number}} size the group's size since that choice
+ */
+export function neutralLines(group, size) {
+  return [`${capital(group)} didn't change who survived.`, `Your group ${went(size)} because of its other traits.`];
 }
 
 /** On a tapped animal of a group not chosen: "Their group grew 50%. Yours shrank 25%." */
@@ -107,13 +125,22 @@ export const compareLine = (theirs, yours) => `Their group ${growth(theirs)}. Yo
  * At the next choice point: how the last choice turned out against the ones not chosen.
  * @param {{now:number, then:number}} yours
  * @param {Array<{group:string, now:number, then:number}>} others
+ * @param {null|string} [neutral] the last choice's group, when it was a neutral trait
  */
-export function sinceLines(yours, others) {
+export function sinceLines(yours, others, neutral = null) {
   return [
     `Since your last choice, your group ${growth(yours)}.`,
     ...others.map((o) => `The ones with ${o.group} ${growth(o)}.`),
+    ...(neutral ? neutralLines(neutral, yours) : []),
   ];
 }
+
+/**
+ * The ending's line of evidence: "Animals with webbed feet at the water's edge: 14 then, 22 now."
+ * @param {import("./evidence.js").Evidence} e
+ */
+export const evidenceLine = (e) =>
+  `Animals with ${hasWords(e.trait, e.level)} ${ZONE_AT[e.zone]}: ${e.then} then, ${e.now} now.`;
 
 export const lastPassed = (noun) => `The last of your ${noun} has passed.`;
 export const madeIt = (noun) => `Your ${noun} made it to the end of the story.`;

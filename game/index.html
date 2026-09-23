@@ -56,12 +56,17 @@
           <div class="legend"><span class="dot"></span>changed during the story</div>
         </section>
         <section>
-          <h3 id="ending-choices-title">Your choices</h3>
-          <ol id="ending-choices"></ol>
+          <!-- The reflection first, the story's history after it: a long story only scrolls the list. -->
           <p id="ending-question"></p>
+          <div id="ending-evidence" hidden>
+            <h3>A clue</h3>
+            <p id="ending-evidence-line"></p>
+          </div>
           <!-- REAL-ANIMAL REVEAL PLACEHOLDER: a surviving group will be revealed here as the real animal it
                most resembles, matched on the group's actual average traits (shown on the left), not on the choices. -->
           <div id="reveal" hidden>Coming soon: the real animal your group most resembles, matched on its actual traits.</div>
+          <h3 id="ending-choices-title">Your choices</h3>
+          <ol id="ending-choices"></ol>
         </section>
       </div>
       <div class="buttons">

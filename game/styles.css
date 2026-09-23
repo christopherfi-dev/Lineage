@@ -163,17 +163,29 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #ending-choices li { break-inside: avoid; }
 #ending-choices li + li { margin-top: 3px; }
 #ending-choices.many { columns: 2; column-gap: 34px; }
+/* After a neutral trait: it made no difference to who survived (scope decision 8). */
+#ending-choices .note { display: block; margin-top: 1px; font-size: 14px; font-style: italic; line-height: 1.25; color: #6E6A55; }
+/* One line of real evidence from the world, not the answer. */
+#ending-evidence[hidden] { display: none; }
+#ending-evidence p {
+  margin: 0; padding: 10px 14px; border-left: 4px solid #D9892B; border-radius: 6px 12px 12px 6px; background: #F3ECDB;
+  font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3;
+}
 #ending-choices.none { padding-left: 0; list-style: none; font-style: italic; color: #5C5847; }
 #ending-question {
-  margin: 16px 0 0; padding: 14px 18px; border-radius: 16px; background: #14657F; color: #EFFAFD;
+  margin: 14px 0 0; padding: 14px 18px; border-radius: 16px; background: #14657F; color: #EFFAFD;
   font-family: Petrona, Georgia, serif; font-size: 23px; font-weight: 600; line-height: 1.3;
 }
 #reveal {
-  margin-top: 14px; padding: 16px 18px; border: 2px dashed #C9BC9A; border-radius: 16px; color: #8C8266;
+  margin-top: 12px; padding: 16px 18px; border: 2px dashed #C9BC9A; border-radius: 16px; color: #8C8266;
   font-family: Petrona, Georgia, serif; font-size: 17px; font-style: italic;
 }
 #reveal[hidden] { display: none; }
-#ending .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+/* The buttons stay in view at the bottom of the card, however long the story's list is. */
+#ending .buttons {
+  position: sticky; bottom: -26px; display: flex; flex-wrap: wrap; gap: 12px; margin: 18px -30px -26px; padding: 14px 30px 26px;
+  background: linear-gradient(to bottom, rgba(251, 246, 234, 0), #FBF6EA 14px);
+}
 #ending .buttons button {
   flex: 1 1 240px; padding: 14px 20px; border: 2px solid #14657F; border-radius: 999px; cursor: pointer;
   background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 17px; font-weight: 700;
