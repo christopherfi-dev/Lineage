@@ -4,12 +4,11 @@
  * Biology only ever moves through the engine's own advanceGeneration(). The
  * game never touches simRng, never edits an individual, and never decides who
  * is born or dies. After each generation commits, this module reads the
- * engine's records (birth records, death events, body-mutation events) and
- * hands them to the canvas as plain events.
+ * engine's records (birth records, death events, mating events, body-mutation
+ * events) and hands them to the canvas as plain events.
  *
- * "Follow this group" is observer state only: a tracer channel (contract §16)
- * founded from the animals of the tapped animal's group, propagated through
- * every later birth by the engine's own tracer hooks.
+ * "Your group" is a family — a mother line (families.js). Following is
+ * observer state only and cannot change the biology.
  */
 
 import {
@@ -20,31 +19,44 @@ import {
   TRAITS,
   currentZoneBinIndex,
   zoneBinCounts,
-  createObserverState,
-  createTracerChannel,
-  clearUserChannels,
-  tracerBirthHook,
-  observerAfterGenerationHook,
+  assertFixtureConsistency,
+  hydrateDefiningFixtureV1,
+  applyWebbingOverride,
 } from "./engine.js";
-
-/**
- * The engine's own focal-marker rule (contract §16): an animal with at least
- * half its ancestry from the followed founders is drawn as part of your group.
- * Animals with a smaller share are mixed relatives and are drawn like everyone
- * else for now.
- */
-export const FOCAL_THRESHOLD = 0.5;
+import { Families } from "./families.js";
 
 export class Bridge {
-  /** @param {number} seed trajectory seed for the random M1 world */
-  constructor(seed) {
-    this.seed = seed;
-    this.state = createInitialState(seed, currentModelConfig);
-    this.observer = createObserverState();
-    /** @type {null|{channelId:string, zone:number, founderCount:number, generation:number}} */
-    this.follow = null;
-    this.followSerial = 0;
+  /**
+   * @param {Object} state engine biological state at generation 0
+   * @param {number[][]} [keepTogether] founder groups that are founding families as-is
+   */
+  constructor(state, keepTogether = []) {
+    this.state = state;
     this.index();
+    this.families = new Families(
+      state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
+      keepTogether,
+    );
+    /** @type {null|{roots:Array<number|string>, members:Set<number>}} */
+    this.follow = null;
+  }
+
+  /**
+   * The defining-experiment world: M1's fixture with its webbing override, so
+   * the same webbed feet start in a canopy group and in a shoreline group.
+   * Each of those two groups is a founding family.
+   */
+  static fromFixture(envelope, seed) {
+    assertFixtureConsistency(envelope);
+    const state = hydrateDefiningFixtureV1(envelope, seed, currentModelConfig);
+    applyWebbingOverride(state, envelope.canopyFocalIds, envelope.highWebbing);
+    applyWebbingOverride(state, envelope.shorelineFocalIds, envelope.highWebbing);
+    return new Bridge(state, [envelope.canopyFocalIds, envelope.shorelineFocalIds]);
+  }
+
+  /** The engine's random starting world. */
+  static fromRandom(seed) {
+    return new Bridge(createInitialState(seed, currentModelConfig));
   }
 
   index() {
@@ -54,6 +66,7 @@ export class Bridge {
   get generation() { return this.state.generation; }
   get living() { return this.state.currentIndividuals; }
   get extinct() { return isExtinct(this.state); }
+  livingIds() { return this.state.currentIndividuals.map((i) => i.id); }
 
   /** @param {number} id */
   get(id) { return this.byId.get(id) ?? null; }
@@ -66,43 +79,31 @@ export class Bridge {
 
   zoneCounts() { return zoneBinCounts(this.state.currentIndividuals); }
 
-  /**
-   * Follow the tapped animal's group. Its founders are every animal living in
-   * the tapped animal's habitat right now; they become the founders of a new
-   * tracer channel, and from here on the group is their living descendants.
-   * Observer-only: consumes no simRng and cannot change the biology.
-   * @param {number} id tapped animal
-   */
-  followGroupOf(id) {
-    const tapped = this.byId.get(id);
-    if (!tapped) return null;
-    const zone = currentZoneBinIndex(tapped);
-    const livingIds = this.state.currentIndividuals.map((i) => i.id);
-    const founders = this.state.currentIndividuals
-      .filter((i) => currentZoneBinIndex(i) === zone)
-      .map((i) => i.id);
-    // One followed group at a time; older channels are dropped so tracer work
-    // stays proportional to the living world.
-    clearUserChannels(this.observer);
-    const channelId = `follow-${++this.followSerial}`;
-    createTracerChannel(this.observer, channelId, founders, livingIds);
-    this.observer.activeChannel = channelId;
-    this.follow = { channelId, zone, founderCount: founders.length, generation: this.state.generation };
+  /* ================= following (observer state only) ================= */
+
+  /** Follow the family of this animal's ancestor FAMILY_DEPTH generations back. */
+  followFamilyOf(id) { return this.followLinesOf([this.families.ancestor(id)]); }
+
+  /** Follow these animals' mother lines: each of them and her descendants through the mother line. */
+  followLinesOf(roots) {
+    const living = this.livingIds(), members = new Set();
+    for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
+    this.follow = { roots: [...roots], members };
     return this.follow;
   }
 
-  /** Share of this animal's ancestry that comes from the followed founders. */
-  contribution(id) {
-    if (!this.follow) return 0;
-    const channel = this.observer.channels.get(this.follow.channelId);
-    return channel ? channel.values.get(id) ?? 0 : 0;
+  isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
+  followedIds() { return this.follow ? [...this.follow.members] : []; }
+
+  /** Your family's living members with their body genomes. */
+  followedAnimals() {
+    return this.followedIds().map((id) => ({ id, genome: this.byId.get(id).bodyGenome }));
   }
 
-  isFollowed(id) { return this.contribution(id) >= FOCAL_THRESHOLD; }
+  /** Size of the family a tap on this animal would follow. */
+  familySizeOf(id) { return this.families.members(this.families.ancestor(id), this.livingIds()).size; }
 
-  followedIds() {
-    return this.state.currentIndividuals.filter((i) => this.isFollowed(i.id)).map((i) => i.id);
-  }
+  /* ================= one generation ================= */
 
   /**
    * Run exactly one engine generation and report what the engine recorded.
@@ -110,12 +111,7 @@ export class Bridge {
    */
   step() {
     if (isExtinct(this.state)) return null;
-    const followedBefore = new Set(this.followedIds());
-
-    advanceGeneration(this.state, currentModelConfig, {
-      onBirth: tracerBirthHook(this.observer),
-      afterGeneration: observerAfterGenerationHook(this.observer),
-    });
+    advanceGeneration(this.state, currentModelConfig);
     this.index();
 
     const result = this.state.lastGenerationResult;
@@ -134,20 +130,48 @@ export class Bridge {
         delta: e.requestedDelta,
       }));
 
-    const followedNow = this.followedIds();
+    // Every baby joins its mother's family: the first parent in its birth record.
+    for (const b of births) this.families.addBirth(b.childId, b.parentAId, g);
+    if (g % 50 === 0) this.families.prune(result.livingIds, g);
+
     return {
       generation: g,
       births,
       deaths,
       mutations,
-      followed: {
-        count: followedNow.length,
-        born: births.filter((b) => this.isFollowed(b.childId)).map((b) => b.childId),
-        gone: deaths.filter((d) => followedBefore.has(d.id)).map((d) => d.id),
-        mutated: mutations.filter((m) => this.isFollowed(m.childId)),
-      },
+      family: this.updateFamily(births, deaths, mutations, g),
       observerErrors: result.observerErrors,
     };
+  }
+
+  updateFamily(births, deaths, mutations, g) {
+    const f = this.follow;
+    if (!f) return null;
+    const before = f.members.size;
+    // A mother is always a survivor of this generation, so she is still a member here.
+    const born = births.filter((b) => f.members.has(b.parentAId)).map((b) => b.childId);
+    const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
+    for (const id of born) f.members.add(id);
+    for (const id of gone) f.members.delete(id);
+    const byZone = [0, 0, 0];
+    for (const id of f.members) byZone[this.zoneOf(id)]++;
+    const last = f.members.size === 1 ? [...f.members][0] : null;
+    return {
+      count: f.members.size,
+      before,
+      born,
+      gone,
+      mutated: mutations.filter((m) => f.members.has(m.childId)),
+      byZone,
+      lastCouldNotMate: last !== null && this.foundNoMate(last, g),
+    };
+  }
+
+  /** True when this animal survived the generation, was old enough to mate, and found no mate. */
+  foundNoMate(id, g) {
+    const ind = this.byId.get(id);
+    if (!ind || ind.birthGeneration === g || ind.ageGenerations < 1 || ind.ageGenerations > 5) return false;
+    return !this.state.biologicalMatingEvents.some((e) => e.generation === g && (e.parentAId === id || e.parentBId === id));
   }
 }
 
@@ -157,6 +181,14 @@ export class Bridge {
  * @property {Array<{childId:number, parentAId:number, parentBId:number}>} births engine birth records
  * @property {Array<{id:number, cause:string}>} deaths engine death events
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
- * @property {{count:number, born:number[], gone:number[], mutated:Array<Object>}} followed
+ * @property {null|FamilyEvents} family what happened to your family (null when you have none)
  * @property {ReadonlyArray<Object>} observerErrors
+ *
+ * @typedef {Object} FamilyEvents
+ * @property {number} count members alive now
+ * @property {number} before members alive last generation
+ * @property {number[]} born @property {number[]} gone
+ * @property {Array<Object>} mutated this generation's mutations in your family
+ * @property {number[]} byZone members by engine zone
+ * @property {boolean} lastCouldNotMate one member left, and she found no mate this generation
  */

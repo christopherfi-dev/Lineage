@@ -14,17 +14,59 @@
   <canvas id="world"></canvas>
 
   <div id="hud">
-    <div class="gen">Generation <b id="gen">0</b></div>
+    <div class="gen">Generation <b id="gen">0</b><span id="fast" hidden>Fast-forward</span></div>
     <div class="bar"><i id="genbar"></i></div>
     <div class="line" id="counts"></div>
     <div class="line small" id="zones"></div>
   </div>
 
-  <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its group</div>
+  <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
+
+  <div id="label" hidden>
+    <div id="label-who"></div>
+    <div id="label-about"></div>
+  </div>
 
   <button id="home" type="button"><span class="ring"><i></i></span>Back to my group</button>
 
   <div id="logbar"><span class="ring"></span><span id="log"></span></div>
+
+  <!-- A choice point: the world pauses (scope decision 6). -->
+  <div id="choice" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow" id="choice-count"></div>
+    <h2>Which one will you follow?</h2>
+    <div id="options"></div>
+    <div class="timer"><i id="choice-bar"></i></div>
+    <div id="choice-note"></div>
+  </div>
+
+  <!-- Every ending is a reflection screen, not a game-over screen. -->
+  <div id="ending" hidden>
+    <div class="card">
+      <div class="eyebrow">The end of this story</div>
+      <h2 id="ending-title"></h2>
+      <div class="cols">
+        <section>
+          <canvas id="ending-animal"></canvas>
+          <h3>Your family's traits</h3>
+          <div id="ending-traits"></div>
+          <div class="legend"><span class="dot"></span>changed during the story</div>
+        </section>
+        <section>
+          <h3>Your choices</h3>
+          <ol id="ending-choices"></ol>
+          <p id="ending-question"></p>
+          <!-- REAL-ANIMAL REVEAL PLACEHOLDER: surviving families will be revealed here as the real animal they most resemble. -->
+          <div id="reveal" hidden>Coming soon: the real animal your family most resembles will appear here.</div>
+        </section>
+      </div>
+      <div class="buttons">
+        <button id="again" type="button">Try another family in this world</button>
+        <button id="new-world" type="button">New world</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="module" src="./src/main.js"></script>
 </body>

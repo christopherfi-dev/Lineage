@@ -23,9 +23,6 @@ export function mulberry(s) {
 /** Engine zone index (canopy, forest_floor, shoreline) -> painted band. */
 export const BANDS = ["canopy", "floor", "shore"];
 
-/** Kid words for each engine zone, from the mockup's field labels. */
-export const ZONE_WORDS = ["the high leaves", "the open ground", "the water's edge"];
-
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export class World {
