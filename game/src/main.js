@@ -27,6 +27,9 @@ import {
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
+import {
+  PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
+} from "./journal.js";
 
 const LOG_MS = 3800;
 /** How long the creature card takes to close (its CSS transition). */
@@ -35,6 +38,8 @@ const CARD_CLOSE_MS = 150;
 const CARD_GAP = 12;
 /** How long a chosen animal stays highlighted before the fast-forward. */
 const PICKED_MS = 1200;
+/** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
+const ANSWERED_MS = 2000;
 /** How long "Time's up!" shows before the fast-forward. */
 const TIMES_UP_MS = 2800;
 /** How long the story's last moment shows before the reflection screen. */
@@ -89,6 +94,12 @@ export class Game {
     this.optionsEl = $("options");
     this.choiceBarEl = $("choice-bar");
     this.choiceNoteEl = $("choice-note");
+    this.journalEl = $("journal");
+    this.journalOptionsEl = $("journal-options");
+    this.journalBarEl = $("journal-bar");
+    this.journalNoteEl = $("journal-note");
+    this.endingPredictionsEl = $("ending-predictions");
+    this.endingPredictionsListEl = $("ending-predictions-list");
     this.endingEl = $("ending");
     this.endingTitleEl = $("ending-title");
     this.endingAnimalEl = /** @type {HTMLCanvasElement} */ ($("ending-animal"));
@@ -116,6 +127,8 @@ export class Game {
     $("card-who").prepend(this.cardSwatchEl);
     this.cardWhere = this.speakable($("card-where"));
     this.cardNew = this.speakable(this.cardNewEl);
+    this.journalQuestion = this.speakable($("journal-question"));
+    this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
@@ -128,6 +141,8 @@ export class Game {
     this.logTimer = 0;
     /** @type {null|CardState} the animal whose creature card is open */
     this.card = null;
+    /** @type {null|JournalState} the prediction question on screen */
+    this.journal = null;
     this.last = performance.now();
 
     this.setupCanvas();
@@ -157,6 +172,11 @@ export class Game {
     this.closeCard(true);
     this.choiceEl.classList.remove("open");
     this.choiceEl.hidden = true;
+    this.journal = null;
+    /** @type {import("./journal.js").Prediction[]} this story's predictions */
+    this.predictions = [];
+    this.journalEl.classList.remove("open");
+    this.journalEl.hidden = true;
     this.endingEl.hidden = true;
     // The camera opens on the first founding family, high in the leaves.
     const first = this.herd.centroidOf(bridge.families.founding[0].ids);
@@ -238,6 +258,12 @@ export class Game {
       title.append(speakerButton(this.doc, () => [SINCE_TITLE, ...rows.map((r) => `${countLine(r.label, r)}.`), note].join(" ")));
       this.choiceSinceEl.replaceChildren(title, ...this.countRows(rows),
         ...(note ? [Object.assign(this.doc.createElement("p"), { className: "note", textContent: note })] : []));
+      // The prediction made at the last choice, beside what really happened (Step 6).
+      const p = this.predictions.find((x) => !x.result);
+      if (p) {
+        p.result = resultOf(p, s, this.bridge);
+        this.choiceSinceEl.append(this.predictionBlock(p, PREDICTION_TITLE));
+      }
     } else this.choiceSinceEl.replaceChildren();
     this.choiceNoteEl.replaceChildren();
     this.choiceBarEl.style.width = "100%";
@@ -307,17 +333,108 @@ export class Game {
   /** Your group becomes every animal with the chosen variation; then the world fast-forwards. */
   followChoice(option, byChance) {
     this.choice = null;
-    this.placeCard(); // an open card goes back to the side
     this.choiceEl.classList.remove("open");
     this.choiceHideT = setTimeout(() => { if (!this.choice) this.choiceEl.hidden = true; }, 450);
     this.story.choose(option, byChance);
     this.syncGroups();
     this.updateCard();
     this.herd.resetFlashes();
-    this.preRoll();
-    this.say(chosenLines(option.group, this.herd.followed.size, SKIP_GENERATIONS));
     this.centerOnGroup();
     this.updateHud();
+    // After every third choice, one prediction first (Step 6, scope decision 28).
+    const n = this.story.choices.length;
+    if (PREDICT_AFTER.includes(n)) this.openJournal(questionFor(this.story, this.bridge, option, PREDICT_AFTER.indexOf(n)), option);
+    else this.fastForward(option);
+    this.placeCard(); // an open card goes back to the side, or above the prediction
+  }
+
+  /** The new group is announced, and after a moment to read it the world fast-forwards. */
+  fastForward(option) {
+    this.preRoll();
+    this.say(chosenLines(option.group, this.herd.followed.size, SKIP_GENERATIONS));
+  }
+
+  /* ================= the prediction journal (Step 6, scope decisions 28-31) ================= */
+  /**
+   * One question with three or four answers, right after the choice and before
+   * the fast-forward. The world waits. With no answer within JOURNAL_SECONDS the
+   * story goes on without a prediction; nothing is picked at random.
+   * @param {import("./journal.js").Question} q
+   * @param {import("./variations.js").Option} option the choice it follows
+   */
+  openJournal(q, option) {
+    const doc = this.doc;
+    this.journalQuestion.set(q.text);
+    this.journalNoteEl.replaceChildren();
+    this.journalBarEl.style.width = "100%";
+    // Shown in a random order, so the reasonable answer isn't always in the same place.
+    const shown = q.options.map((a) => ({ a, k: Math.random() })).sort((x, y) => x.k - y.k).map(({ a }) => a);
+    this.journalAnswerEls = shown.map((a) => {
+      const el = Object.assign(doc.createElement("div"), { className: "answer" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: a.text });
+      button.addEventListener("click", () => this.answerJournal(a, performance.now()));
+      el.append(button, speakerButton(doc, () => a.text));
+      return Object.assign(el, { answer: a, button });
+    });
+    this.journalOptionsEl.replaceChildren(...this.journalAnswerEls);
+    clearTimeout(this.journalHideT);
+    this.journalEl.hidden = false;
+    requestAnimationFrame(() => this.journalEl.classList.add("open"));
+    this.journal = { question: q, option, left: JOURNAL_SECONDS * 1000, paused: 0, answer: null, goAt: 0 };
+  }
+
+  /** The child's prediction is kept, to be shown beside what happens. */
+  answerJournal(a, now) {
+    const j = this.journal;
+    if (!j || j.answer) return;
+    Object.assign(j, { answer: a, goAt: now + ANSWERED_MS });
+    for (const el of this.journalAnswerEls) {
+      el.button.disabled = true;
+      el.classList.add(el.answer === a ? "picked" : "not-picked");
+    }
+    this.predictions.push({ question: j.question, answer: a, choice: this.story.choices.length, result: null });
+    this.journalNoteEl.replaceChildren(JOURNAL_NOTE, speakerButton(this.doc, () => JOURNAL_NOTE));
+  }
+
+  /** The countdown waits while a line is read aloud or a card is open, as the choice's does. */
+  tickJournal(now, dt) {
+    const j = this.journal;
+    if (j.answer) {
+      if (now >= j.goAt) this.closeJournal();
+      return;
+    }
+    if (!this.card) {
+      if (isSpeaking() && j.paused < MAX_READING_PAUSE_MS) j.paused += dt;
+      else j.left = Math.max(0, j.left - dt);
+    }
+    this.journalBarEl.style.width = `${(100 * j.left / (JOURNAL_SECONDS * 1000)).toFixed(1)}%`;
+    if (j.left === 0) this.closeJournal(); // no answer: no prediction this time
+  }
+
+  closeJournal() {
+    const j = this.journal;
+    if (!j) return;
+    this.journal = null;
+    this.journalEl.classList.remove("open");
+    this.journalHideT = setTimeout(() => { if (!this.journal) this.journalEl.hidden = true; }, 450);
+    this.placeCard();
+    this.fastForward(j.option);
+  }
+
+  /**
+   * A prediction beside what really happened: the count rows it is about and
+   * its short lines, with one speaker for all of it.
+   * @param {import("./journal.js").Prediction} p resolved
+   * @param {string} title what the block starts with
+   */
+  predictionBlock(p, title) {
+    const doc = this.doc, r = p.result, q = p.question;
+    const rows = r.rows.map((x) => ({ ...x, color: x.mine ? MINE_COLOR : q.subject.option?.color ?? CLUE_WITHOUT_COLOR }));
+    const el = Object.assign(doc.createElement("div"), { className: "prediction" });
+    const head = Object.assign(doc.createElement("div"), { className: "since-title", textContent: title });
+    head.append(speakerButton(doc, () => [title, ...rows.map((x) => `${countLine(x.label, x)}.`), ...r.lines].join(" ")));
+    el.append(head, ...this.countRows(rows), ...r.lines.map((line) => Object.assign(doc.createElement("p"), { className: "line", textContent: line })));
+    return el;
   }
 
   /** Nothing to choose from at this point: say so, then fast-forward anyway. */
@@ -397,6 +514,15 @@ export class Game {
       this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
     } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
     this.endingQuestion.set(question(s.outcome, s.noun));
+    // The story's predictions beside what happened, labelled as a story from the simulation (Step 6).
+    for (const p of this.predictions) if (!p.result) p.result = resultOf(p, s, this.bridge);
+    this.endingPredictionsEl.hidden = !this.predictions.length;
+    this.endingPredictionsLabel.set(SIMULATION_STORY);
+    this.endingPredictionsListEl.replaceChildren(...this.predictions.map((p) => {
+      const li = doc.createElement("li");
+      li.append(this.predictionBlock(p, p.question.text));
+      return li;
+    }));
     // The real-animal reveal (scope decision 10, docs/LINEAGE_REAL_ANIMAL_REVEAL.md): a surviving
     // group's actual average traits and main habitat, never its choices. Text for now; art comes later.
     this.revealEl.hidden = !s.reveal;
@@ -492,10 +618,10 @@ export class Game {
   placeCard() {
     const c = this.card;
     if (!c) return;
-    const above = !!this.choice;
+    const above = !!this.choice || !!this.journal;
     this.cardEl.classList.toggle("above", above);
     if (above) {
-      const panelTop = this.stage.clientHeight - this.choiceEl.offsetHeight;
+      const panelTop = this.stage.clientHeight - (this.journal ? this.journalEl : this.choiceEl).offsetHeight;
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
     }
@@ -626,7 +752,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running) {
+    if (s.running && !this.journal) { // a prediction on screen holds the fast-forward
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000;
       this.clock += Math.min(250, raw);
       if (this.clock >= genMs) {
@@ -636,14 +762,15 @@ export class Game {
       if (s.running) this.barEl.style.width = `${(100 * Math.max(0, this.clock) / genMs).toFixed(1)}%`;
     }
     // A fast-forward shows: the badge is up and the animals hurry.
-    const fastNow = s.fast && this.clock >= 0;
+    const fastNow = s.fast && this.clock >= 0 && !this.journal;
     if (fastNow !== this.fastShown) {
       this.fastShown = fastNow;
       this.fastEl.hidden = !fastNow;
       this.herd.pace = fastNow ? FAST_PACE : 1;
     }
-    // At a choice point the world pauses.
-    if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
+    // At a choice point, and while a prediction is on screen, the world pauses.
+    if (this.journal) this.tickJournal(now, Math.min(250, raw));
+    else if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
     else this.herd.tick(dt, now);
     if (this.endingAt !== null && now >= this.endingAt) { this.endingAt = null; this.showEnding(); }
 
@@ -701,7 +828,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #journal, #ending")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) { this.dragging = true; this.moved = 0; this.startT = performance.now(); this.camTween = null; }
@@ -757,6 +884,14 @@ export class Game {
 }
 
 /**
+ * @typedef {Object} JournalState
+ * @property {import("./journal.js").Question} question
+ * @property {import("./variations.js").Option} option the choice it follows
+ * @property {number} left ms left to answer
+ * @property {number} paused ms stood still for read-aloud
+ * @property {null|import("./journal.js").Answer} answer the child's answer, once given
+ * @property {number} goAt when an answered question closes
+ *
  * @typedef {Object} CardState
  * @property {number} id the animal on the card
  * @property {boolean} gone it has passed away since the card opened

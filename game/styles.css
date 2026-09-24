@@ -278,3 +278,49 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #hud #others .bars i { width: 5px; }
 #ending-choices .count { display: flex; margin-top: 3px; font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
 #ending-choices li > .say { margin-left: 4px; }
+
+/* ---- The prediction journal (Step 6): the choice panel's look, for a question with 3-4 answers. ---- */
+#journal {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 10px 26px calc(20px + env(safe-area-inset-bottom));
+  background: #FBF6EA; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 50px rgba(38, 32, 18, .4);
+  transform: translateY(104%); transition: transform .42s cubic-bezier(.2, .9, .28, 1);
+  max-height: 72%; overflow-y: auto;
+}
+#journal.open { transform: none; }
+#journal[hidden] { display: none; }
+#journal .grab { width: 46px; height: 5px; margin: 0 auto 10px; border-radius: 99px; background: #E0D4B8; }
+#journal h2 {
+  display: flex; align-items: center; margin: 3px 0 0; font-family: Petrona, Georgia, serif; font-size: 30px; font-weight: 600;
+  letter-spacing: -.4px; line-height: 1.15; color: #2B3026;
+}
+#journal-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
+#journal .answer {
+  position: relative; display: flex; align-items: center; border: 2px solid #E7DDC5; border-radius: 18px; background: #F3ECDB;
+  transition: border-color .2s ease, background .2s ease, opacity .3s ease, transform .2s ease;
+}
+#journal .answer .pick {
+  flex: 1; min-height: 58px; padding: 12px 8px 12px 16px; border: 0; background: none; color: #2B3026; cursor: pointer;
+  font-family: Petrona, Georgia, serif; font-size: 19px; font-weight: 500; line-height: 1.25; text-align: left;
+}
+#journal .answer > .say { margin: 0 8px 0 0; }
+#journal .answer:active { transform: scale(.98); }
+#journal .answer.picked { border-color: #14657F; background: #DCEDF2; }
+#journal .answer.not-picked { opacity: .4; }
+#journal .timer { height: 6px; margin-top: 16px; border-radius: 99px; background: #E7DDC5; overflow: hidden; }
+#journal .timer i { display: block; width: 100%; height: 100%; background: #14657F; }
+#journal-note { display: flex; align-items: center; min-height: 1.35em; margin-top: 8px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #14657F; }
+/* A prediction beside what really happened: in the next "Since your last choice" panel, and on the ending. */
+.prediction {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; width: 100%; margin-top: 8px; padding: 8px 12px 10px;
+  border-left: 4px solid #14657F; border-radius: 6px 12px 12px 6px; background: #EEF3EF;
+}
+.prediction .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 16px; font-weight: 600; color: #2B3026; }
+.prediction .line { width: 100%; margin: 0; font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.3; color: #2B3026; }
+#ending-predictions[hidden] { display: none; }
+#ending-predictions-label { display: flex; align-items: center; margin: -4px 0 6px; font-size: 13.5px; font-style: italic; color: #7E765E; }
+#ending-predictions-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+#ending-predictions .prediction { margin-top: 0; font-family: Petrona, Georgia, serif; font-size: 16px; }
+#ending-predictions .prediction .since-title { font-family: Petrona, Georgia, serif; font-size: 16px; }
+#ending-predictions .count { font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
+

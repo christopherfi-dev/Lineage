@@ -51,6 +51,16 @@
     <div id="choice-note"></div>
   </div>
 
+  <!-- The prediction journal (Step 6): one question after every third choice, before the fast-forward. -->
+  <div id="journal" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow">A prediction</div>
+    <h2 id="journal-question"></h2>
+    <div id="journal-options"></div>
+    <div class="timer"><i id="journal-bar"></i></div>
+    <div id="journal-note"></div>
+  </div>
+
   <!-- Every ending is a reflection screen, not a game-over screen. -->
   <div id="ending" hidden>
     <div class="card">
@@ -80,6 +90,12 @@
             <h3>A clue</h3>
             <div id="ending-compare" hidden></div>
             <p id="ending-evidence-line"></p>
+          </div>
+          <!-- The prediction journal (Step 6): each prediction beside what happened. -->
+          <div id="ending-predictions" hidden>
+            <h3>Your predictions</h3>
+            <p id="ending-predictions-label"></p>
+            <ol id="ending-predictions-list"></ol>
           </div>
           <h3 id="ending-choices-title">Your choices</h3>
           <ol id="ending-choices"></ol>

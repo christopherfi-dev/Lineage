@@ -110,6 +110,19 @@ That is about 80 seconds per choice and about 19 minutes per story.
    panel is up it sits in the room above it, wide, so it never covers an option, and the choice
    timer waits for as long as it is open. If the animal passes away while its card is open, the
    card stays and says so. A ring marks the animal on the map.
+10. **The prediction journal** (Step 6, scope decisions 25 and 28–31, `src/journal.js`). After
+    the child's 1st, 4th, 7th, 10th and 13th choice, before the fast-forward, one question comes
+    up and the world waits: "Will your new group grow or shrink?", "Will the ones with pointier
+    ear tips grow or shrink?" or "Where will animals with a stronger tail do best?". It has three or
+    four tappable answers, each with a speaker. They are made from the story's real state
+    through the table in `docs/LINEAGE_PREDICTION_QUESTIONS.md`: one reasonable answer from the
+    engine's own trait effects, and common Grade 3 misconceptions ("Grow. They'll grow webbed
+    feet because they need them."). The child has 15 seconds; the countdown waits for read-aloud
+    and for an open card. Without an answer the story just goes on: nothing is picked at random.
+    The next "Since your last choice…" panel shows the prediction beside what happened, with
+    the same count rows and one short line ("You thought it would shrink. It grew."). The ending
+    lists them all under "Your predictions", "A story from the simulation." Nothing is ever
+    called wrong, and there are no scores.
 
 The child chooses whom to follow, never what mutates: following is observer state only, and the
 random pick uses the browser's `Math.random`, never the engine's generator.
@@ -141,7 +154,7 @@ trait (for example feet: no webbing, some webbing, webbed).
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decision 27). The moments are arrival, generation, variation, grow, shrink, choice, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27 and 31). The moments are arrival, generation, variation, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/`.
 

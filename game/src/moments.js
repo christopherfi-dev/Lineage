@@ -16,7 +16,7 @@ import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 
 /** Every moment, in the order of the moments page. */
-export const MOMENTS = ["arrival", "generation", "variation", "grow", "shrink", "choice", "ending", "extinct", "card"];
+export const MOMENTS = ["arrival", "generation", "variation", "grow", "shrink", "choice", "prediction", "prediction-result", "ending", "extinct", "card"];
 
 /** Founding families to try, in order. Family 0 is the webbed family in the high leaves, which dies out fast. */
 const FROM_WEBBED = [0, 1, 2, 3, 4, 5, 6, 7, 8];
@@ -51,6 +51,10 @@ const MOMENT = {
   shrink: { families: FROM_WEBBED, at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
   /** A choice point with three options. */
   choice: { families: FROM_OTHERS, at: (s, ev, b, what) => what === "choice" && s.options.length === 3 },
+  /** The first choice point: once the child chooses, the prediction journal asks its first question. */
+  prediction: { families: FROM_OTHERS, at: (s, ev, b, what) => what === "choice" && s.choices.length === 0 },
+  /** The next choice point, whose "Since your last choice" panel shows that prediction beside what happened. */
+  "prediction-result": { families: FROM_OTHERS, at: (s, ev, b, what) => what === "choice" && s.choices.length === 1 },
   /** A surviving ending whose reveal names a real animal (not the first mammals). */
   ending: { families: FROM_OTHERS, at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** An ending where the group died out. */
@@ -105,6 +109,18 @@ function wander(game) {
 }
 
 /**
+ * While playing forward, each prediction gets an answer, so the results show:
+ * the first one the "need" misconception when it is offered (to show its
+ * line), the others the reasonable answer.
+ */
+function answer(game) {
+  const q = game.journal.question;
+  const a = (!game.predictions.length && q.options.find((o) => o.tag === "need")) || q.options.find((o) => o.reasonable);
+  game.answerJournal(a, performance.now());
+  game.closeJournal();
+}
+
+/**
  * Play the game forward to the found generation: tap the family, let each
  * generation pass, and make the same choices. Earlier births and deaths are
  * dated a minute back, so they have settled; the last one happens now.
@@ -125,6 +141,7 @@ async function playTo(game, plan) {
       const o = G.story.options.find((x) => x.trait === rec.trait && x.dir === rec.dir) ?? G.story.options[0];
       G.pick(o, false, performance.now());
       G.followChoice(o, false);
+      if (G.journal) answer(G);
       G.clock = hold;
     } else if (G.bridge.generation % 4 === 0) await frame();
   }
@@ -184,8 +201,14 @@ export async function goToMoment(game, moment) {
     if (a) lookAt(G, a.x, a.y);
   } else if (moment === "grow" || moment === "shrink") {
     lookAtGroup(G);
-  } else if (moment === "choice") {
+  } else if (moment === "choice" || moment === "prediction-result") {
     lookAtGroup(G, 0.3); // as the choice itself frames it
+  } else if (moment === "prediction") {
+    // The child chooses (the most carried option), and the first question comes up.
+    const o = G.story.options[0];
+    G.pick(o, false, performance.now());
+    G.followChoice(o, false);
+    lookAtGroup(G, 0.3);
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
