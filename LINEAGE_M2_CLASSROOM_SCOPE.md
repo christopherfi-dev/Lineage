@@ -107,6 +107,19 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - A story that reaches the moment is found by observer runs on throwaway copies of the world. The game itself is then played forward to it: tap, watch, the same choices. The biology, the text and the game rules are unchanged.
    - The links are on `game/moments.html`, which the game does not link to.
    - Screenshots of every moment at iPad landscape and portrait are in `design/current/`, with a README listing each moment's link and the files that draw it.
+28. **When a prediction comes** (Step 6, 2026-09-24). One prediction comes after the child's 1st, 4th, 7th, 10th and 13th choice. It comes right after the choice and before the fast-forward, and the world waits while it is up. A random pick at "Time's up!" counts as a choice; a choice point that passes does not. There is one question with three or four tappable options, in a random order. Every line has a speaker, and there is no typing. After a tap, "Let's see what happens after the fast-forward." shows for 2 seconds, then the fast-forward starts.
+   *Measured on the 270 stories (30 good seeds × 9 founding families, random choices): a median of 5 predictions per story. 203 stories get 5, 11 get 4 and 1 gets 2. 55 get none, because their group ends before the first choice.*
+29. **No answer, no prediction** (2026-09-24). The child has 15 seconds to answer. The countdown stands still while a line is read aloud (at most 60 seconds, as in decision 15) and while a creature card is open. Without an answer, the story goes on without a prediction. Nothing is picked at random, because a random prediction means nothing.
+30. **The question table** (2026-09-24). Questions come from the story's real state, through the table in `docs/LINEAGE_PREDICTION_QUESTIONS.md`.
+   - **Three types, taking turns:** "Will your new group grow or shrink?", "Will the ones with [variation] grow or shrink?" and "Where will animals with [variation] do best?".
+   - **One reasonable answer,** from the engine's own trait effects in the habitat. Two or three common Grade 3 misconceptions are the other options.
+   - **"Need"** is offered wherever it fits, e.g. "Grow. They'll grow webbed feet because they need them." It fits when the group's habitat clearly rewards a trait the animals don't already have. The where question always offers "Anywhere. They'll grow what they need."
+   - **The result:** the next "Since your last choice…" panel shows the prediction beside what happened, with the same count rows and bars and one short line: "You thought it would grow. It grew."
+     - After "need", it adds "Animals can't grow a trait because they need it. Babies are just born different."
+     - After "Grow, because I picked them." (or "They'll disappear, because I didn't pick them."), it adds "Your choice doesn't change the animals. It picks who you follow."
+   - **Nothing is ever called wrong.** There are no scores or points.
+   *Measured on the same 270 stories: 1,061 questions. "Need" is offered in 986 of them (93%). 855 have four options and 206 three. The reasonable answer is what happened for 301 of 472 questions about your group and 235 of 418 about the ones not chosen. For where, it is 64 of 171, about chance.*
+31. **Your predictions at the ending** (2026-09-24). The ending lists the story's predictions beside what happened, under a small heading, "Your predictions", labelled "A story from the simulation." `?moment=prediction` (the question) and `?moment=prediction-result` (the next choice point, with the result) join the moment shortcuts (decision 27). Screenshots of both are in `design/current/`.
 
 ## What the engine already gives you (do not rebuild these)
 
