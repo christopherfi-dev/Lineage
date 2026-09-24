@@ -99,6 +99,10 @@ export const SPREAD_GONE = "It disappeared. Most new traits do.";
 export const SPREAD_SHORT = "It didn't spread far enough.";
 /** Too few here are without it for a fair test: most of the habitat has it already. */
 export const SPREAD_COMMON = "Most here have it. Too few others for a fair test.";
+/** The child's group fell to DANGER_SIZE or fewer during a spread: back to the usual pace (scope decision 44). */
+export const dangerLine = (noun) => `Wait! Your ${noun} is getting very small.`;
+/** On a glowing baby's card, instead of a spread, while the child's group is that small. */
+export const needsYou = (noun) => `Your ${noun} needs you. Stay with them?`;
 
 /*
  * Growth is never a percentage (scope decision 12): a child sees counts,

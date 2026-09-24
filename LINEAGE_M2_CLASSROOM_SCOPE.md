@@ -42,7 +42,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
 9. **Unchosen groups are separate sets** (2026-09-23). An unchosen group is the animals with its variation but not the child's current variation. The map (rings and colours), the corner panel and the growth readout ("Theirs: 18 → 12. Yours: 20 → 31.") all use these sets.
    *Measured with the game's own story code (270 stories, 6,215 unchosen groups): right after a choice an unchosen group has a median of 38 animals (middle half 24–69), against 93 when it overlapped the child's group. 2 start empty, 10 under 3 and 208 under 10.*
    *Replaced (2026-09-24) by decision 33: the fair test's "others here". No group is made from an option not chosen.*
-10. **Real-animal reveal** (2026-09-23). A surviving story ends with a real-animal reveal based on the group's actual average traits and main habitat, using the table and matching rule in `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`. Text for now; art comes later. The file's "why" lines were checked against the zone weights; the changes and the reasons are listed at its bottom.
+10. **Real-animal reveal** (2026-09-23). A surviving story ends with a real-animal reveal based on the group's actual average traits and main habitat, using the table and matching rule in `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`. Text for now; art comes later. The file's "why" lines were checked against the zone weights; the changes and the reasons are listed at its bottom. *Extended to every ending by decision 40, and to seventeen animals with "Did you know?" facts by decisions 45 and 46 (2026-09-24).*
 11. **Reveal trait levels stay absolute** (2026-09-23; replaced by decision 13 the same day). A meaningful trait is high at a group average of 0.6 or more and low at 0.4 or less. With these levels the fallback ("the first mammals") is 29% of reveals across the 270 measurement stories, under the 40% at which relative levels (against the generation-0 world average) were allowed. So relative levels are not used.
    *Reveals across the 213 surviving measurement stories: Squirrel 100, the first mammals 61, Hare 30, Capybara 17, River otter 2, Bushbaby 2, Beaver 1, Sloth 0, Meerkat 0.*
 12. **No percentages; read-aloud on every line** (2026-09-23). A child never sees a percentage. Growth is shown as counts beside two small bars, then and now, in the group's colour ("Yours: 20 → 31. Theirs: 18 → 12."). This applies on the choice panel, the unchosen-group readout, the corner panel, the neutral note and the ending. Every narration line, choice title, choice option, clue, reveal line and ending line has a small speaker. Tapping it reads the text with the browser's own speech (speechSynthesis), in a calm voice at a slightly slow rate (0.85). The reveal's "why" lines are read as one passage. Child-facing lines stay under about 12 words.
@@ -262,11 +262,49 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      | webbed tries starting in the high leaves | 110 | 114 | 123 |
 
      *SPREAD_MAX stays 10 (for Marc to confirm). A longer cap barely lowers the fizzles, starts no more tests, and lets more stories end in a skip.*
+   - *Confirmed by Marc (2026-09-24): SPREAD_MAX stays 10; "Most here have it. Too few others for a fair test." stays; the balance of watching and fast-forward is fine. Spreads that end with the group dying out were changed by decision 44.*
 43. **Keep looking** (2026-09-24, replaces "Not this one" in decisions 32 and 42). On a glowing baby's card, "Keep looking" replaces "Not this one".
    - It closes the card and leaves the glow on, so a child can look at several babies and come back to one.
    - The glow still ends on its own after its usual generations (GLOW_GENERATIONS, 2), under the calm rule (decision 32).
    - The card still closes with ×, a tap on empty ground, or Escape.
    - The simulated child never used "Not this one", so no measurement changes. The `follow` and `card` screenshots in `design/current/` were shot again.
+44. **A spread stops when the child's group gets very small** (2026-09-24, changes decision 42).
+   - **During a spread:** if the child's own group falls to DANGER_SIZE (5) or fewer, the fast-forward stops at once.
+     - The line: "Wait! Your group is getting very small." (read-aloud as usual; "family" instead of "group" before the first follow).
+     - The spread is cancelled and does not count as a follow. The camera goes to the group, and the world goes back to normal watching, so the child sees what happens to their group in normal time.
+   - **Before a spread:** with the group already at DANGER_SIZE or fewer, a glowing baby whose trait would need a spread starts none. Its card says "Your group needs you. Stay with them?" with only "Keep looking". A trait that can start a fair test right away is offered as usual.
+   *Measured with the simulated child of decision 42, which now looks at the next glowing baby when a card says "Stay with them?". Before and after, on the same stories:*
+   - *540 stories (60 good seeds × 9 founding families):*
+     - *the rule stops 257 of 1,133 spreads, and blocks the first glowing baby's card 122 times;*
+     - *stories ending during a spread drop from 182 to 33, and only 3 of them end with the group dying out (143 before); the other 30 reach generation 76 mid-spread;*
+     - *4 groups still die during a follow's 2-generation fast-forward (5 before);*
+     - *median story: 37 generations both times, 5.8 → 6.2 minutes of generations and pre-rolls; stories reaching 76: 104 → 110.*
+   - *The last round's 270 stories: 135 of 574 spreads stopped; stories ending during a spread 85 → 14 (the group died out in 70 → 2); median story 37 → 41 generations, 5.6 → 6.5 minutes; 51 → 55 reach generation 76.*
+45. **Seventeen real animals** (2026-09-24, extends decision 10; the table is in `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`).
+   - **By habitat:**
+     - water's edge: river otter, beaver, capybara, platypus, seal, fishing cat;
+     - high leaves: squirrel, sloth, bushbaby, koala, tarsier, slow loris;
+     - open ground: hare, meerkat, lynx, bear, arctic fox.
+   - **The eight earlier animals stay.** The capybara gains "thin fur", which is true of its sparse, coarse hair.
+   - **Same rules as before:**
+     - only the seven meaningful traits and the main habitat;
+     - relative levels (GAP 0.12), a signature, and the strongest match;
+     - each real animal has every profile trait in the direction given, and profiles differ within a habitat.
+   - **"Why" lines** credit only traits the engine rewards in that habitat, in both tenses. The two trade-off lines from the balance round stay: the beaver's thick fur and the capybara's long legs, each naming its cost.
+   - **The fallbacks stay:** "Your animals didn't have time to change." for a group that died out, and the tree shrew for a survivor that barely changed.
+   - **Rejected, with reasons in the reveal doc:** kangaroo, mole, red panda, lemur, mink, muskrat, jerboa, cheetah, deer, red fox, mongoose, manatee, hippopotamus, flying squirrel and sugar glider, spider monkey, hedgehog and armadillo.
+   *Measured on 540 stories (60 good seeds × 9 founding families, the simulated child of decisions 42 and 44), survived and died-out endings together:*
+   - *Water's edge: platypus 12.4%, river otter 5.7%, capybara 3.5%, seal 3.5%, beaver 2.8%, fishing cat 1.1%.*
+   - *High leaves: squirrel 11.1%, bushbaby 7.8%, koala 6.5%, tarsier 3.3%, sloth 2.0%, slow loris 1.1%.*
+   - *Open ground: hare 8.9%, bear 2.8%, meerkat 2.6%, lynx 2.6%, arctic fox 1.1%.*
+   - *Fallbacks: "No time to change" 19.1% and the tree shrew 2.0%, 21.1% together (36.5% with the eight animals on the same stories).*
+   - *Targets met: every animal at least 1.1%, none above 12.4%, fallbacks under 30%.*
+46. **"Did you know?"** (2026-09-24).
+   - **Every animal gets one** true, kid-level fact, 11 words or fewer, shown after the "why" lines with its own speaker.
+   - **Every water's-edge animal adds a second:** "Did you know? Whales' ancestors were land animals that started swimming."
+   - **The fallbacks:** the tree shrew has one; "No time to change" names no animal and has none.
+   - **Tense:** the facts are about the real animal, so they stay in the present tense on died-out endings.
+   - **For checking:** every fact is listed under "Facts for Marc to check" in the reveal doc.
 
 ## What the engine already gives you (do not rebuild these)
 

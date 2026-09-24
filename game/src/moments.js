@@ -53,11 +53,12 @@ const POLICIES = {
   /**
    * The measurement's simulated child (scope decision 42): taps the first meaningful glowing variation after at
    * least 40 s of watching, whether or not it can start a fair test right away. If not, the world fast-forwards to
-   * see if it spreads.
+   * see if it spreads. While its group is very small (scope decision 44) such a card offers only "Keep looking",
+   * so it looks at the next one.
    */
   tapper: (s) => {
     if (!s.followOpen || s.quiet < 40) return null;
-    const g = s.glowing.find((x) => !x.v.neutral);
+    const g = s.glowing.find((x) => !x.v.neutral && (s.canStartFor(x) || !s.inDanger));
     return g ? { kind: s.canStartFor(g) ? "follow" : "spread", id: g.id } : null;
   },
 };
@@ -83,11 +84,16 @@ const MOMENT = {
       return c.length >= 4 && c.at(-3) < c.at(-2) && c.at(-2) < c.at(-1) && { id: s.spread.id, trait: s.spread.v.trait, counts: c.slice() };
     },
   },
-  /** The spread stopped, a few generations in, because none carry the variation any more: "It disappeared. Most new traits do." */
+  /**
+   * The spread stopped, a few generations in, because none carry the variation any more: "It disappeared. Most new
+   * traits do." A world with no such spread falls back to one that disappeared after a single generation.
+   */
   fizzled: {
     families: FROM_OTHERS,
     policies: ["tapper"],
     at: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" && s.lastSpread.counts.length >= 3 &&
+      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
+    relaxed: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" &&
       { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
   },
   /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
@@ -133,10 +139,11 @@ function copyOf(game) {
 /**
  * A story in this world that reaches the moment: which family, what the child
  * did and when, and at which generation. Observer runs on throwaway copies.
+ * `relaxed` uses the moment's looser test, when it has one.
  * @returns {Promise<null|{family:number, actions:Action[], generation:number, follows:number, hit:any}>}
  */
-async function findStory(game, moment) {
-  const { families, policies, at } = MOMENT[moment];
+async function findStory(game, moment, relaxed = false) {
+  const { families, policies } = MOMENT[moment], at = relaxed ? MOMENT[moment].relaxed : MOMENT[moment].at;
   for (const family of families) {
     for (const name of policies) {
       const { bridge, story, step } = copyOf(game), policy = POLICIES[name], actions = [];
@@ -272,7 +279,7 @@ export async function goToMoment(game, moment) {
   if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself
   const note = badge(doc, `Moment: ${moment} · getting there…`);
   await frame();
-  const plan = await findStory(game, moment);
+  const plan = (await findStory(game, moment)) ?? (MOMENT[moment].relaxed ? await findStory(game, moment, true) : null);
   if (!plan) {
     note.set(`No "${moment}" moment in this world (seed ${game.seed}).`);
     setTimeout(() => note.remove(), 4000);
