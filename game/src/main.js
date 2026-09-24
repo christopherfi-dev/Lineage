@@ -796,5 +796,8 @@ if (typeof document !== "undefined") {
       history.replaceState(null, "", `?seed=${seed}`);
     }
     globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld }); // for poking at the live engine from the console
+    // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.
+    const moment = q.get("moment");
+    if (moment) import("./moments.js").then((m) => m.goToMoment(globalThis.lineageGame, moment));
   });
 }
