@@ -237,29 +237,125 @@ Each was considered and left out, with the reason. "Tried" means it was added to
 
 ## Facts for Marc to check (2026-09-24, scope decision 46)
 
-Every animal's "Did you know?" line, to check before class. Each is one true, kid-level fact, 11 words or fewer.
+Every animal as a child sees it on the ending: its reveal line, its "why" sentences (shown together as one paragraph), and its "Did you know?" fact or facts, each with a speaker. The first "why" sentence always shows; the others show only when the group has that trait. A group that died out sees the past-tense lines instead; the facts stay the same. Each fact is one true, kid-level fact, 11 words or fewer.
 
-| Animal | Fact |
-|---|---|
-| River otter | Did you know? River otters slide down snowy and muddy banks. |
-| Beaver | Did you know? Beaver teeth are orange and never stop growing. |
-| Capybara | Did you know? Capybaras are the world's biggest rodents. |
-| Platypus | Did you know? Platypuses are mammals that lay eggs. |
-| Seal | Did you know? A seal's nose shuts tight when it dives. |
-| Fishing cat | Did you know? Fishing cats dive into water to catch fish. |
-| Squirrel | Did you know? Squirrels plant trees by forgetting buried nuts. |
-| Sloth | Did you know? Sloths are surprisingly good swimmers. |
-| Bushbaby | Did you know? A bushbaby's call sounds like a crying baby. |
-| Koala | Did you know? Koalas sleep up to 20 hours a day. |
-| Tarsier | Did you know? Tarsiers have eyes as big as their brains. |
-| Slow loris | Did you know? A slow loris has a venomous bite. |
-| Hare | Did you know? Baby hares are born furry, with open eyes. |
-| Meerkat | Did you know? Meerkats take turns standing guard for their group. |
-| Lynx | Did you know? A lynx's big furry paws work like snowshoes. |
-| Bear | Did you know? Bears can go all winter without eating. |
-| Arctic fox | Did you know? Most arctic foxes turn white in winter. |
-| Tree shrew (the first mammals) | Did you know? Tree shrews are cousins of monkeys and apes. |
-| Every water's-edge animal, as a second line | Did you know? Whales' ancestors were land animals that started swimming. |
+**River otter** · water's edge
+- Your animals became swimmers, a lot like a river otter.
+- Webbed feet push through water. A strong tail helps them swim. A sleek body slides through the water easily.
+- Did you know? River otters slide down snowy and muddy banks.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a river otter. Webbed feet pushed them through water. A strong tail helped them swim. A sleek body slid through the water easily.
+
+**Beaver** · water's edge
+- Your animals became paddlers, a lot like a beaver.
+- Webbed feet and a strong tail push them through water. Thick fur keeps them warm, but it slows their swimming.
+- Did you know? Beaver teeth are orange and never stop growing.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a beaver. Webbed feet and a strong tail pushed them through water. Thick fur kept them warm, but it slowed their swimming.
+
+**Capybara** · water's edge
+- Your animals live between land and water, a lot like a capybara.
+- Webbed toes help them swim. Long back legs help on land, but slow them in water. Thin fur doesn't slow them in water.
+- Did you know? Capybaras are the world's biggest rodents.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a capybara. Webbed toes helped them swim. Long back legs helped on land, but slowed them in water. Thin fur didn't slow them in water.
+
+**Platypus** · water's edge
+- Your animals became river divers, a lot like a platypus.
+- Webbed feet push them through water. A strong tail helps them swim. Short legs don't drag in the water. Small eyes save them energy.
+- Did you know? Platypuses are mammals that lay eggs.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a platypus. Webbed feet pushed them through water. A strong tail helped them swim. Short legs didn't drag in the water. Small eyes saved them energy.
+
+**Seal** · water's edge
+- Your animals became sleek swimmers, a lot like a seal.
+- Webbed flippers push them through water. A sleek body slides through the water easily. Short back legs don't drag in the water. Thin fur doesn't slow their swimming.
+- Did you know? A seal's nose shuts tight when it dives.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a seal. Webbed flippers pushed them through water. A sleek body slid through the water easily. Short back legs didn't drag in the water. Thin fur didn't slow their swimming.
+
+**Fishing cat** · water's edge
+- Your animals became waders, a lot like a fishing cat.
+- Webbed feet help them swim. Short legs don't drag in the water.
+- Did you know? Fishing cats dive into water to catch fish.
+- Did you know? Whales' ancestors were land animals that started swimming.
+- *If the group died out:* Your animals were becoming a lot like a fishing cat. Webbed feet helped them swim. Short legs didn't drag in the water.
+
+**Squirrel** · high leaves
+- Your animals became climbers, a lot like a squirrel.
+- Curved claws grip the branches. Toes without webbing hold on tight.
+- Did you know? Squirrels plant trees by forgetting buried nuts.
+- *If the group died out:* Your animals were becoming a lot like a squirrel. Curved claws gripped the branches. Toes without webbing held on tight.
+
+**Sloth** · high leaves
+- Your animals became slow, careful climbers, a lot like a sloth.
+- Big curved claws hold on to branches. Thick fur keeps them warm.
+- Did you know? Sloths are surprisingly good swimmers.
+- *If the group died out:* Your animals were becoming a lot like a sloth. Big curved claws held on to branches. Thick fur kept them warm.
+
+**Bushbaby** · high leaves
+- Your animals became night leapers, a lot like a bushbaby.
+- Big eyes help them see well. Long back legs help them move fast.
+- Did you know? A bushbaby's call sounds like a crying baby.
+- *If the group died out:* Your animals were becoming a lot like a bushbaby. Big eyes helped them see well. Long back legs helped them move fast.
+
+**Koala** · high leaves
+- Your animals became sleepy climbers, a lot like a koala.
+- Curved claws grip the branches. Thick fur keeps them warm. A tiny tail doesn't get in their way. A round body helps them hold on.
+- Did you know? Koalas sleep up to 20 hours a day.
+- *If the group died out:* Your animals were becoming a lot like a koala. Curved claws gripped the branches. Thick fur kept them warm. A tiny tail didn't get in their way. A round body helped them hold on.
+
+**Tarsier** · high leaves
+- Your animals became big-eyed leapers, a lot like a tarsier.
+- Huge eyes help them see well. Long back legs help them move fast. A thin tail doesn't slow them down.
+- Did you know? Tarsiers have eyes as big as their brains.
+- *If the group died out:* Your animals were becoming a lot like a tarsier. Huge eyes helped them see well. Long back legs helped them move fast. A thin tail didn't slow them down.
+
+**Slow loris** · high leaves
+- Your animals became night climbers, a lot like a slow loris.
+- Big eyes help them see well. Thick fur keeps them warm. A tiny tail doesn't get in their way. A round body helps them hold on.
+- Did you know? A slow loris has a venomous bite.
+- *If the group died out:* Your animals were becoming a lot like a slow loris. Big eyes helped them see well. Thick fur kept them warm. A tiny tail didn't get in their way. A round body helped them hold on.
+
+**Hare** · open ground
+- Your animals became runners, a lot like a hare.
+- Long back legs help them run fast. Big eyes help them see well. A small tail doesn't slow them down.
+- Did you know? Baby hares are born furry, with open eyes.
+- *If the group died out:* Your animals were becoming a lot like a hare. Long back legs helped them run fast. Big eyes helped them see well. A small tail didn't slow them down.
+
+**Meerkat** · open ground
+- Your animals became lookouts, a lot like a meerkat.
+- Big eyes help them see well across open ground.
+- Did you know? Meerkats take turns standing guard for their group.
+- *If the group died out:* Your animals were becoming a lot like a meerkat. Big eyes helped them see well across open ground.
+
+**Lynx** · open ground
+- Your animals became snow walkers, a lot like a lynx.
+- Long back legs help them run fast. Thick fur keeps them warm. A short tail doesn't slow them down.
+- Did you know? A lynx's big furry paws work like snowshoes.
+- *If the group died out:* Your animals were becoming a lot like a lynx. Long back legs helped them run fast. Thick fur kept them warm. A short tail didn't slow them down.
+
+**Bear** · open ground
+- Your animals became forest wanderers, a lot like a bear.
+- Curved claws give them a good grip. Thick fur keeps them warm. A short tail doesn't slow them down.
+- Did you know? Bears can go all winter without eating.
+- *If the group died out:* Your animals were becoming a lot like a bear. Curved claws gave them a good grip. Thick fur kept them warm. A short tail didn't slow them down.
+
+**Arctic fox** · open ground
+- Your animals became cold-weather experts, a lot like an arctic fox.
+- Thick fur keeps them warm.
+- Did you know? Most arctic foxes turn white in winter.
+- *If the group died out:* Your animals were becoming a lot like an arctic fox. Thick fur kept them warm.
+
+**The first mammals (tree shrew)** · any habitat, a surviving group that barely changed
+- Your animals stayed like the very first mammals, like a tree shrew.
+- Their bodies didn't change much, and that worked. Some animals today still look a lot like their ancient relatives.
+- Did you know? Tree shrews are cousins of monkeys and apes.
+
+**No time to change** · any habitat, a group that died out and matches no animal
+- Your animals didn't have time to change.
+- Their story ended before new traits could spread.
+- (No fact: it names no animal.)
 
 ## Check results (Claude Code, 2026-09-24, scope decisions 45 and 46)
 

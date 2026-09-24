@@ -193,7 +193,7 @@ trait (for example feet: no webbing, some webbing, webbed).
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34 and 42). The moments are arrival, generation, variation, follow, spreading, fizzled, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/`.
 
