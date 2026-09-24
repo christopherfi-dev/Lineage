@@ -86,9 +86,9 @@ export const ANIMALS = [
     revealPast: "Your animals were becoming a lot like a platypus.",
     why: [
       { text: "Webbed feet push them through water.", past: "Webbed feet pushed them through water.", credits: { toe_webbing: "high" } },
-      { text: "A strong tail helps them swim.", past: "A strong tail helped them swim.", credits: { strong_tail: "high" } },
+      { text: "A strong tail helps them steer.", past: "A strong tail helped them steer.", credits: { strong_tail: "high" } },
       { text: "Short legs don't drag in the water.", past: "Short legs didn't drag in the water.", credits: { long_hindlimbs: "low" } },
-      { text: "Small eyes save them energy.", past: "Small eyes saved them energy.", credits: { large_eyes: "low" } },
+      { text: "Small eyes use less energy to grow.", past: "Small eyes used less energy to grow.", credits: { large_eyes: "low" } },
     ],
     facts: ["Did you know? Platypuses are mammals that lay eggs."],
   },
@@ -237,14 +237,14 @@ export const ANIMALS = [
     name: "Bear", zone: GROUND,
     profile: { curved_claws: "high", dense_fur: "high", strong_tail: "low", streamlined_body: "low" },
     signature: { curved_claws: "high" },
-    reveal: "Your animals became forest wanderers, a lot like a bear.",
+    reveal: "Your animals became big wanderers, a lot like a bear.",
     revealPast: "Your animals were becoming a lot like a bear.",
     why: [
       { text: "Curved claws give them a good grip.", past: "Curved claws gave them a good grip.", credits: { curved_claws: "high" } },
       { text: "Thick fur keeps them warm.", past: "Thick fur kept them warm.", credits: { dense_fur: "high" } },
       { text: "A short tail doesn't slow them down.", past: "A short tail didn't slow them down.", credits: { strong_tail: "low" } },
     ],
-    facts: ["Did you know? Bears can go all winter without eating."],
+    facts: ["Did you know? Many bears sleep all winter without eating."],
   },
   {
     name: "Arctic fox", zone: GROUND,

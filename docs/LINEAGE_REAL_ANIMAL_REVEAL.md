@@ -4,6 +4,8 @@ Purpose: on every ending (scope decision 40), the game shows which real animal t
 
 Principle: there is no correct answer. Every group becomes something. Each "why" line only credits what the engine actually rewards in that habitat, so the reveal never claims a trait helped for a reason the simulation did not model: no digging, gliding, hunting, darkness or danger.
 
+*2026-09-24, Marc's wording fixes after checking every fact: the bear became "big wanderers" (it is an open-ground animal here), its fact became "Many bears sleep all winter without eating.", and the platypus's small eyes "use less energy to grow" and its strong tail "helps them steer".*
+
 *2026-09-24, scope decisions 45 and 46: seventeen animals instead of eight (six at the water's edge, six in the high leaves, five on open ground), and a "Did you know?" fact for each. The eight earlier animals stay; the capybara's profile gains "dense fur low" (thin fur, true of its sparse, coarse hair), with a "why" line for it.*
 
 ## Trait levels
@@ -71,8 +73,8 @@ Platypus
 - Profile: toe webbing high, strong tail high, long back legs low, large eyes low, dense fur high.
 - Signature: toe webbing high.
 - Reveal: "Your animals became river divers, a lot like a platypus." Died out: "Your animals were becoming a lot like a platypus."
-- Why: "Webbed feet push them through water." "A strong tail helps them swim." "Short legs don't drag in the water." "Small eyes save them energy."
-- Why, died out: "Webbed feet pushed them through water." "A strong tail helped them swim." "Short legs didn't drag in the water." "Small eyes saved them energy."
+- Why: "Webbed feet push them through water." "A strong tail helps them steer." "Short legs don't drag in the water." "Small eyes use less energy to grow."
+- Why, died out: "Webbed feet pushed them through water." "A strong tail helped them steer." "Short legs didn't drag in the water." "Small eyes used less energy to grow."
 - Did you know: "Did you know? Platypuses are mammals that lay eggs." "Did you know? Whales' ancestors were land animals that started swimming."
 
 Seal
@@ -170,10 +172,10 @@ Lynx
 Bear
 - Profile: curved claws high, dense fur high, strong tail low, streamlined body low.
 - Signature: curved claws high.
-- Reveal: "Your animals became forest wanderers, a lot like a bear." Died out: "Your animals were becoming a lot like a bear."
+- Reveal: "Your animals became big wanderers, a lot like a bear." Died out: "Your animals were becoming a lot like a bear."
 - Why: "Curved claws give them a good grip." "Thick fur keeps them warm." "A short tail doesn't slow them down."
 - Why, died out: "Curved claws gave them a good grip." "Thick fur kept them warm." "A short tail didn't slow them down."
-- Did you know: "Did you know? Bears can go all winter without eating."
+- Did you know: "Did you know? Many bears sleep all winter without eating."
 
 Arctic fox
 - Profile: dense fur high, long back legs low, strong tail high.
@@ -262,10 +264,10 @@ Every animal as a child sees it on the ending: its reveal line, its "why" senten
 
 **Platypus** · water's edge
 - Your animals became river divers, a lot like a platypus.
-- Webbed feet push them through water. A strong tail helps them swim. Short legs don't drag in the water. Small eyes save them energy.
+- Webbed feet push them through water. A strong tail helps them steer. Short legs don't drag in the water. Small eyes use less energy to grow.
 - Did you know? Platypuses are mammals that lay eggs.
 - Did you know? Whales' ancestors were land animals that started swimming.
-- *If the group died out:* Your animals were becoming a lot like a platypus. Webbed feet pushed them through water. A strong tail helped them swim. Short legs didn't drag in the water. Small eyes saved them energy.
+- *If the group died out:* Your animals were becoming a lot like a platypus. Webbed feet pushed them through water. A strong tail helped them steer. Short legs didn't drag in the water. Small eyes used less energy to grow.
 
 **Seal** · water's edge
 - Your animals became sleek swimmers, a lot like a seal.
@@ -336,9 +338,9 @@ Every animal as a child sees it on the ending: its reveal line, its "why" senten
 - *If the group died out:* Your animals were becoming a lot like a lynx. Long back legs helped them run fast. Thick fur kept them warm. A short tail didn't slow them down.
 
 **Bear** · open ground
-- Your animals became forest wanderers, a lot like a bear.
+- Your animals became big wanderers, a lot like a bear.
 - Curved claws give them a good grip. Thick fur keeps them warm. A short tail doesn't slow them down.
-- Did you know? Bears can go all winter without eating.
+- Did you know? Many bears sleep all winter without eating.
 - *If the group died out:* Your animals were becoming a lot like a bear. Curved claws gave them a good grip. Thick fur kept them warm. A short tail didn't slow them down.
 
 **Arctic fox** · open ground
@@ -367,7 +369,7 @@ The game implements this table in `game/src/reveal.js`, which must match this fi
   - Beaver: "Thick fur keeps them warm, but it slows their swimming." (net −0.70: warmth +0.80, drag −1.20).
   - Capybara: "Long back legs help on land, but slow them in water." (net −1.07: movement +0.48, drag −1.20).
 - **The new animals:** the trait-level credits are these.
-  - Water's edge: short legs "don't drag in the water" (drag); thin fur "doesn't slow their swimming" (drag); small eyes "save them energy" (they cost energy and give no sight there).
+  - Water's edge: short legs "don't drag in the water" (drag); thin fur "doesn't slow their swimming" (drag); small eyes "use less energy to grow" (they cost energy and give no sight there); the platypus's strong tail "helps them steer" (propulsion).
   - High leaves: a tiny tail "doesn't get in their way" (movement); a round body "helps them hold on" (grip).
   - Open ground: curved claws "give them a good grip" (grip +0.48, net +0.17, a small reward).
 - **The signature's line** always shows: every animal has a "why" line whose credits are part of its signature.
