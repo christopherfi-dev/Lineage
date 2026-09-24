@@ -280,6 +280,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - *4 groups still die during a follow's 2-generation fast-forward (5 before);*
      - *median story: 37 generations both times, 5.8 → 6.2 minutes of generations and pre-rolls; stories reaching 76: 104 → 110.*
    - *The last round's 270 stories: 135 of 574 spreads stopped; stories ending during a spread 85 → 14 (the group died out in 70 → 2); median story 37 → 41 generations, 5.6 → 6.5 minutes; 51 → 55 reach generation 76.*
+   - **Moments** (2026-09-24): `?moment=danger` (the "Wait!" stop mid-spread) and `?moment=blocked` (a card saying "Stay with them?") join the moment shortcuts (decision 27), with screenshots in `design/current/`.
 45. **Seventeen real animals** (2026-09-24, extends decision 10; the table is in `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`).
    - **By habitat:**
      - water's edge: river otter, beaver, capybara, platypus, seal, fishing cat;
@@ -299,12 +300,13 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - *Open ground: hare 8.9%, bear 2.8%, meerkat 2.6%, lynx 2.6%, arctic fox 1.1%.*
    - *Fallbacks: "No time to change" 19.1% and the tree shrew 2.0%, 21.1% together (36.5% with the eight animals on the same stories).*
    - *Targets met: every animal at least 1.1%, none above 12.4%, fallbacks under 30%.*
+   - *Confirmed by Marc (2026-09-24): the two trade-off "why" lines stay (the beaver's thick fur, the capybara's long legs), and so do the fishing cat, the slow loris and the arctic fox.*
 46. **"Did you know?"** (2026-09-24).
    - **Every animal gets one** true, kid-level fact, 11 words or fewer, shown after the "why" lines with its own speaker.
    - **Every water's-edge animal adds a second:** "Did you know? Whales' ancestors were land animals that started swimming."
    - **The fallbacks:** the tree shrew has one; "No time to change" names no animal and has none.
    - **Tense:** the facts are about the real animal, so they stay in the present tense on died-out endings.
-   - **For checking:** every fact is listed under "Facts for Marc to check" in the reveal doc.
+   - **For checking:** "Facts for Marc to check" in the reveal doc lists every animal as a child sees it: its reveal line, its "why" lines in both tenses, and its facts.
 
 ## What the engine already gives you (do not rebuild these)
 

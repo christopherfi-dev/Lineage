@@ -21,7 +21,7 @@ import { netEffect } from "./journal.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "generation", "variation", "follow", "spreading", "fizzled", "fairtest", "grow", "shrink",
+  "arrival", "generation", "variation", "follow", "spreading", "fizzled", "danger", "blocked", "fairtest", "grow", "shrink",
   "choice", "prediction", "prediction-result", "ending", "extinct", "card",
 ];
 
@@ -95,6 +95,27 @@ const MOMENT = {
       { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
     relaxed: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" &&
       { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
+  },
+  /** A spread stopped because the child's group fell to DANGER_SIZE or fewer: "Wait! Your group is getting very small." */
+  danger: {
+    families: FROM_OTHERS,
+    policies: ["tapper"],
+    at: (s, ev, b, what) => what === "spread-danger" &&
+      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice(), size: s.mine.now },
+  },
+  /**
+   * The child's group is at DANGER_SIZE or fewer, and a glowing baby's trait would need a spread: its card says
+   * "Your group needs you. Stay with them?" with only "Keep looking" (a meaningful trait when there is one).
+   */
+  blocked: {
+    families: FROM_WEBBED,
+    policies: ["passive", "tapper"],
+    at: (s, ev, b, what) => {
+      if (what !== null || !s.followOpen || !s.inDanger) return null;
+      const stay = s.glowing.filter((x) => !s.canStartFor(x));
+      const g = stay.find((x) => !x.v.neutral) ?? stay[0];
+      return g ? { id: g.id, size: s.mine.now } : null;
+    },
   },
   /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
   fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 10 && s.theirs.now >= 10 },
@@ -304,7 +325,7 @@ export async function goToMoment(game, moment) {
     // The world fast-forwards, the counter rising; the camera stays where the child tapped the newborn.
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y); else lookAtGroup(G);
-  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "fairtest") {
+  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "danger" || moment === "fairtest") {
     lookAtGroup(G);
   } else if (moment === "choice") {
     lookAtGroup(G, 0.3); // as the panel itself frames it
@@ -316,7 +337,7 @@ export async function goToMoment(game, moment) {
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
-  } else if (moment === "card") {
+  } else if (moment === "card" || moment === "blocked") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
