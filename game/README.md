@@ -94,7 +94,8 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
      differently. If none qualifies, it is one line about the group's most distinctive trait
      ("Animals with webbed feet at the water's edge: 12 then, 25 now.");
    - on every ending, **the real-animal reveal** (under the drawing; scope decision 40), in the past
-     tense when the group died out ("Your animals were becoming a lot like a sloth."): the animal it is most like, from its
+     tense when the group died out ("Your animals were becoming a lot like a sloth."; with no match,
+     "Your animals didn't have time to change.", scope decision 41): the animal it is most like, from its
      actual average traits and main habitat, with its "why" lines (`src/reveal.js`, following
      `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`). Levels are relative to the generation-0 world (GAP
      0.12), and each animal needs its signature trait, so the reveal reflects what changed. Only

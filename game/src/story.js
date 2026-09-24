@@ -326,9 +326,11 @@ export class Story {
     const segment = [...this.segment.values()], living = this.bridge.livingAnimals();
     this.comparison = comparisonFor(segment, living, this.startCensus);
     this.evidence = evidenceFor(segment, living, this.startCensus);
-    // Scope decisions 10 and 40: on every ending, from the group's actual average traits and main habitat
-    // when the story ended (its last living members), never its choices.
-    this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld);
+    // Scope decisions 10, 40 and 41: on every ending, from the group's actual average traits and main habitat
+    // when the story ended (its last living members), never its choices. A group that died out and matches no
+    // animal is told it didn't have time to change, never the first mammals.
+    this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld,
+      undefined, outcome === "died");
     return "ended";
   }
 }

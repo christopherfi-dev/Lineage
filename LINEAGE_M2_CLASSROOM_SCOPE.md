@@ -219,6 +219,8 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - *Survived: Bushbaby 12, Sloth 5, Hare 5, first mammals 5, Squirrel 4, River otter 3, Capybara 2, Beaver 0, Meerkat 0.*
    - *Died out: first mammals 99, Squirrel 37, River otter 19, Beaver 19, Bushbaby 18, Hare 16, Capybara 10, Meerkat 9, Sloth 7.*
    - *A died-out ending gets the fallback in 99 of 234 (42%), and 33 of the 40 families that die before any follow (83%).*
+41. **No tree shrew on a died-out ending** (2026-09-24, changes decision 40's fallback). A group that died out never gets the first mammals. If it matches no animal, the reveal is "Your animals didn't have time to change.", with one "why" line: "Their story ended before new traits could spread." A surviving group keeps the first mammals as its fallback, as it is. The reveal stays after the fair test on died-out endings (confirmed).
+   *With the same simulated child on the 270 stories: 99 of 234 died-out endings (42%) get the new line, including 33 of the 40 families that die before any follow. No died-out ending gets the first mammals; 5 of 36 surviving endings still do.*
 
 ## What the engine already gives you (do not rebuild these)
 

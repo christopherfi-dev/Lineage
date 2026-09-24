@@ -79,7 +79,7 @@ Meerkat
 
 ## Any habitat — fallback
 
-The first mammals (tree shrew)
+The first mammals (tree shrew), for a surviving group only
 - Profile: no animal above qualifies.
 - Reveal: "Your animals stayed like the very first mammals, like a tree shrew."
 - Why: "Their bodies didn't change much, and that worked. Some animals today still look a lot like their ancient relatives."
@@ -98,7 +98,7 @@ Every ending gets a reveal, not only a surviving one. It uses the group's actual
 | Bushbaby | "Your animals were becoming a lot like a bushbaby." |
 | Hare | "Your animals were becoming a lot like a hare." |
 | Meerkat | "Your animals were becoming a lot like a meerkat." |
-| The first mammals | "Your animals stayed like the very first mammals, like a tree shrew." (already past) |
+| No animal matches | "Your animals didn't have time to change." (never the first mammals; see below) |
 
 The "why" lines about the group's animals are in the past tense too:
 - "Webbed feet pushed them through water."
@@ -118,7 +118,7 @@ The "why" lines about the group's animals are in the past tense too:
 - "A small tail didn't slow them down."
 - "Big eyes helped them see well across open ground."
 
-The fallback's first line becomes "Their bodies didn't change much.", because "and that worked" is not true of a group that died out. "Some animals today still look a lot like their ancient relatives." stays as it is.
+**No time to change** (2026-09-24, scope decision 41). A group that died out never gets the first mammals. If it matches no animal, the reveal is "Your animals didn't have time to change.", with one "why" line: "Their story ended before new traits could spread." A surviving group keeps the first mammals as its fallback, unchanged.
 
 ## Matching rule
 1. Only animals from the group's end habitat are considered, plus the fallback.
@@ -176,9 +176,10 @@ With active choosing and the adaptive fair test (scope decisions 32–40), measu
 | Bushbaby | 12 | 18 |
 | Hare | 5 | 16 |
 | Meerkat | 0 | 9 |
-| The first mammals (tree shrew) | 5 | 99 |
+| The first mammals (tree shrew) | 5 | 0 |
+| No time to change | — | 99 |
 
-- A died-out ending gets the fallback in 99 of 234 (42%).
+- A died-out ending matches no animal in 99 of 234 (42%). Since scope decision 41 it gets "Your animals didn't have time to change." instead of the first mammals.
 - Of the families that die before any follow, 33 of 40 get it (83%): their bodies barely changed.
 - Every reveal line and "why" line shown is 12 words or fewer (46 lines).
 
