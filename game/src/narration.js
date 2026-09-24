@@ -86,7 +86,8 @@ export const GLOW_HINT = "Tap a glowing baby to see what's new.";
 export const followButton = (n, group) => `Follow ${n} animals with ${group}`;
 /** Too few here to start a fair test right away: following it first fast-forwards to see if it spreads (scope decision 42). */
 export const followSpread = (group) => `Follow animals with ${group}`;
-export const NOT_THIS = "Not this one";
+/** Closes the card and leaves the glow on, so the child can look at other babies and come back (scope decision 43). */
+export const KEEP_LOOKING = "Keep looking";
 /** How many of the latest counts the spread's line shows. */
 const SPREAD_COUNTS = 3;
 /** The spread's live counter, updated each generation: "Will it spread? Animals with smaller eyes: 3… 7… 12…" */

@@ -27,7 +27,7 @@ import {
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
-  GLOW_HINT, followButton, followSpread, NOT_THIS, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON,
+  GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import {
@@ -493,10 +493,12 @@ export class Game {
     this.updateCard(); // follow buttons again
   }
 
-  /** "Not this one": it stops glowing. No group is made. */
-  notThis(g) {
-    this.story.dismiss(g.id);
-    this.syncGroups();
+  /**
+   * "Keep looking": the card closes and the baby keeps glowing, so the child can
+   * look at others and come back to it (scope decision 43). Its glow still ends
+   * on its own after GLOW_GENERATIONS.
+   */
+  keepLooking() {
     this.closeCard();
   }
 
@@ -828,11 +830,11 @@ export class Game {
 
   /**
    * A glowing newborn's card always offers to follow its new variation (scope
-   * decisions 32, 36 and 42), and "Not this one". When both sides have at least
-   * MIN_SIZE animals in its habitat, the button says the fair test's real size:
-   * "Follow 14 animals with smaller eyes". Otherwise "Follow animals with
-   * smaller eyes", and the world first fast-forwards to see if it spreads. Only
-   * while the world is watched and follows are left.
+   * decisions 32, 36 and 42), and "Keep looking" (decision 43). When both sides
+   * have at least MIN_SIZE animals in its habitat, the button says the fair
+   * test's real size: "Follow 14 animals with smaller eyes". Otherwise "Follow
+   * animals with smaller eyes", and the world first fast-forwards to see if it
+   * spreads. Only while the world is watched and follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -852,7 +854,7 @@ export class Game {
       row.append(b, speakerButton(doc, () => text));
       return row;
     };
-    this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), button(NOT_THIS, "no", () => this.notThis(g)));
+    this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), button(KEEP_LOOKING, "keep", () => this.keepLooking()));
   }
 
   /** Closes quickly; `now` skips the transition. */

@@ -80,7 +80,7 @@ export class Story {
     this.glowing = [];
     /** @type {Glow[]} recent newborns with a new variation, glowing or not */
     this.fresh = [];
-    /** @type {Set<number>} newborns the child said "Not this one" to, or tried to follow */
+    /** @type {Set<number>} newborns the child tried to follow with a spread: they stop glowing */
     this.dismissed = new Set();
     /** @type {null|Spread} a variation being fast-forwarded to see if it spreads */
     this.spread = null;
@@ -227,12 +227,6 @@ export class Story {
 
   /** How big a fair test on this variation would be now: the smaller side, at most MAX_SIZE. */
   sizeFor(x) { return testSize(this.sidesFor(x), this.maxSize); }
-
-  /** "Not this one": it stops glowing, and nothing else happens. */
-  dismiss(id) {
-    this.dismissed.add(id);
-    this.refreshGlow();
-  }
 
   /**
    * Too few carry the variation here to start a fair test right away, so the

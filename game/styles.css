@@ -326,7 +326,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 
 
 /* ---- Active choosing (scope decisions 32–34): follow a glowing newborn's variation as a fair test. ---- */
-/* A glowing newborn's card: follow, or not this one. */
+/* A glowing newborn's card: follow, or keep looking. */
 #card-follow { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
 #card-follow[hidden] { display: none; }
 #card-follow .follow-row { display: flex; align-items: center; gap: 4px; }
@@ -334,7 +334,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
   flex: 1; min-height: 46px; padding: 10px 14px; border: 2px solid #14657F; border-radius: 999px; cursor: pointer;
   background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.2;
 }
-#card-follow .no button:not(.say) { background: #FBF6EA; border-color: #D8CDB1; color: #5A6151; }
+#card-follow .keep button:not(.say) { background: #FBF6EA; border-color: #D8CDB1; color: #5A6151; }
 #card.above #card-follow { grid-column: 2; }
 /* "Since your last choice", before a new follow: the choice panel's look. */
 #since {

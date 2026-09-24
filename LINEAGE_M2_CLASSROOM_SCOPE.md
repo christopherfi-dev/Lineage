@@ -126,7 +126,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **The glow (calm rule):** a newborn in the child's group glows when the trait new in it at birth (a body mutation of 0.12 or more) takes it past the group's usual. The line is the replacement rule's threshold: the group's median, plus or minus 0.12.
      - At most 3 glow at a time: meaningful traits first, then the newest, one per variation.
      - A newborn glows in the generation it is born and the next one. Nothing else flashes any more.
-   - **The card:** tapping a glowing newborn opens its card with "Follow animals with [trait]" and "Not this one". The buttons show only while the world is watched (not during a fast-forward or a panel) and follows are left. "Not this one" stops the glow and makes no group.
+   - **The card:** tapping a glowing newborn opens its card with "Follow animals with [trait]" and "Not this one". The buttons show only while the world is watched (not during a fast-forward or a panel) and follows are left. "Not this one" stops the glow and makes no group. *"Not this one" was replaced by "Keep looking" in decision 43 (2026-09-24): it closes the card and the glow stays.*
    - **A follow counts as a choice.** "Since your last choice" comes first (decision 34), then a prediction after every third follow (decision 28), then the usual 2-generation fast-forward.
    - **Limits:** at most STORY_CHOICES (15) follows. There are no fixed choice points. A story ends at generation 76, or when the child's group dies out.
 33. **The fair test** (2026-09-24, replaces the unchosen groups in decision 9).
@@ -224,7 +224,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
 41. **No tree shrew on a died-out ending** (2026-09-24, changes decision 40's fallback). A group that died out never gets the first mammals. If it matches no animal, the reveal is "Your animals didn't have time to change.", with one "why" line: "Their story ended before new traits could spread." A surviving group keeps the first mammals as its fallback, as it is. The reveal stays after the fair test on died-out endings (confirmed).
    *With the same simulated child on the 270 stories: 99 of 234 died-out endings (42%) get the new line, including 33 of the 40 families that die before any follow. No died-out ending gets the first mammals; 5 of 36 surviving endings still do.*
 42. **Will it spread? A fast-forward instead of "Watch it?"** (2026-09-24, replaces the watching path in decisions 33 and 36 and the watched options in decision 34). Fast-forwarding never changes the biology.
-   - **The card** on a glowing newborn always offers "Follow animals with [trait]" and "Not this one". "Watch it?", the Watching list and the gentle line are gone.
+   - **The card** on a glowing newborn always offers "Follow animals with [trait]" and "Not this one" ("Keep looking" since decision 43). "Watch it?", the Watching list and the gentle line are gone.
      - When both sides have at least MIN_SIZE (10) in the habitat, the fair test starts right away, as before, and the button says its real size: "Follow 14 animals with smaller eyes" (decision 36).
      - Otherwise the button has no number, and the world fast-forwards to see if the variation spreads.
    - **The spread:** the world speeds up (2 s a generation, with the Fast-forward badge), and one line in the log counts the animals with it in that habitat, the latest three counts: "Will it spread? Animals with smaller eyes: 3… 7… 12…". The count changes in place each generation. The line has a speaker ("3, 7, 12.").
@@ -262,6 +262,11 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      | webbed tries starting in the high leaves | 110 | 114 | 123 |
 
      *SPREAD_MAX stays 10 (for Marc to confirm). A longer cap barely lowers the fizzles, starts no more tests, and lets more stories end in a skip.*
+43. **Keep looking** (2026-09-24, replaces "Not this one" in decisions 32 and 42). On a glowing baby's card, "Keep looking" replaces "Not this one".
+   - It closes the card and leaves the glow on, so a child can look at several babies and come back to one.
+   - The glow still ends on its own after its usual generations (GLOW_GENERATIONS, 2), under the calm rule (decision 32).
+   - The card still closes with ×, a tap on empty ground, or Escape.
+   - The simulated child never used "Not this one", so no measurement changes. The `follow` and `card` screenshots in `design/current/` were shot again.
 
 ## What the engine already gives you (do not rebuild these)
 

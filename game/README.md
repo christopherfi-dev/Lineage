@@ -54,7 +54,9 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    group's median for that trait, plus or minus 0.12). At most three glow at once, meaningful
    traits first, then the newest, one per variation; nothing else flashes. The first glow of a
    story says "Tap a glowing baby to see what's new." Tapping one opens its card with "Follow
-   animals with smaller eyes" and "Not this one".
+   animals with smaller eyes" and "Keep looking" (scope decision 43). "Keep looking" closes the
+   card and leaves the glow on, so a child can look at several babies and come back to one; the
+   glow still ends on its own after `GLOW_GENERATIONS`.
 3. **The fair test** (scope decisions 33, 36 and 37). Following makes two groups of the same
    size in the newborn's habitat: the animals there that carry the variation, the newborn and
    the ones nearest it, and for each of them the nearest one there that doesn't, its twin: "the
