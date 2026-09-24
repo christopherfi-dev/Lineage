@@ -18,14 +18,13 @@ import { paintCreature } from "./creature.js";
 import {
   Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
 } from "./story.js";
-import { START_SIZE, canStart } from "./cohorts.js";
 import { isGoodSeed, goodSeed } from "./seeds.js";
 import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
 import {
   START_LINE, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading,
+  evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
   GLOW_HINT, followButton, NOT_THIS, tooFew, TOO_MANY, watchingLine, readyLine, WATCHING, watchRow,
 } from "./narration.js";
@@ -111,6 +110,8 @@ export class Game {
     this.sinceBarEl = $("since-bar");
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
+    this.endingFairLineEl = $("ending-fair-line");
+    this.endingLeadEl = $("ending-lead");
     this.journalEl = $("journal");
     this.journalOptionsEl = $("journal-options");
     this.journalBarEl = $("journal-bar");
@@ -146,6 +147,7 @@ export class Game {
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
     this.readyLine = this.speakable($("ready-line"));
+    this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
@@ -230,7 +232,8 @@ export class Game {
     else if (what === "skip-done") this.fastForwardDone();
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
-      const lines = groupLines(ev.group, s.noun);
+      // The log names only the babies that glow this generation (the calm rule), never more.
+      const lines = groupLines(ev.group, s.noun, s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v));
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
@@ -366,7 +369,7 @@ export class Game {
   }
 
   /**
-   * Follow as a fair test (story.js): two groups of START_SIZE from the
+   * Follow as a fair test (story.js): two groups of the same size from the
    * habitat, yours and the others here. Every third follow, a prediction
    * first; then the world fast-forwards.
    */
@@ -636,8 +639,18 @@ export class Game {
     } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
     this.endingQuestion.set(question(s.outcome, s.noun));
     // The last fair test: your group beside the others here, from the follow to the end (scope decision 33).
+    // When your group died out, the ending leads with it, then the question (scope decision 37).
     const last = s.choices[s.choices.length - 1];
+    const lead = s.outcome === "died" && !!last;
+    if (lead) this.endingLeadEl.append(this.endingFairEl, this.endingQuestionEl);
+    else {
+      this.endingEvidenceEl.parentElement.prepend(this.endingQuestionEl);
+      this.endingPredictionsEl.before(this.endingFairEl);
+    }
+    this.endingLeadEl.hidden = !lead;
     this.endingFairEl.hidden = !last;
+    this.endingFairLineEl.hidden = !lead;
+    if (lead) this.endingFairLine.set(last.othersAtEnd === 0 ? OTHERS_DIED_TOO : OTHERS_ALIVE);
     if (last) {
       const rows = [
         { label: yoursWith(last.group), then: last.sizeAtChoice, now: last.sizeAtEnd, color: MINE_COLOR },
@@ -802,10 +815,11 @@ export class Game {
   }
 
   /**
-   * A glowing newborn's card offers its new variation (scope decisions 32–33):
-   * "Follow animals with smaller eyes" when both sides have START_SIZE animals
-   * in its habitat, else "Only 7 here have this. Watch it?"; and "Not this one".
-   * Only while the world is watched and follows are left.
+   * A glowing newborn's card offers its new variation (scope decisions 32–33,
+   * 36): "Follow 14 animals with smaller eyes" when both sides have at least
+   * MIN_SIZE animals in its habitat (the number is the fair test's real size),
+   * else "Only 7 here have this. Watch it?"; and "Not this one". Only while
+   * the world is watched and follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -813,8 +827,8 @@ export class Game {
     const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice;
     this.cardFollowEl.hidden = !open;
     if (!open) { this.followKey = ""; return; }
-    const sides = s.sidesFor(g), ok = canStart(sides);
-    const key = `${g.id}:${ok}:${sides.carriers.length}`;
+    const sides = s.sidesFor(g), size = s.sizeFor(g), ok = size >= s.minSize;
+    const key = `${g.id}:${size}:${sides.carriers.length}`;
     if (key === this.followKey) return;
     this.followKey = key;
     const doc = this.doc;
@@ -825,8 +839,8 @@ export class Game {
       row.append(b, speakerButton(doc, () => text));
       return row;
     };
-    const first = ok ? button(followButton(g.v.group), "go", () => this.followFromMap(g)) :
-      button(sides.carriers.length < START_SIZE ? tooFew(sides.carriers.length) : TOO_MANY, "watch", () => this.watchFromCard(g));
+    const first = ok ? button(followButton(size, g.v.group), "go", () => this.followFromMap(g)) :
+      button(sides.carriers.length < s.minSize ? tooFew(sides.carriers.length) : TOO_MANY, "watch", () => this.watchFromCard(g));
     this.cardFollowEl.replaceChildren(first, button(NOT_THIS, "no", () => this.notThis(g)));
   }
 

@@ -4,7 +4,7 @@ Purpose: after some follows, the child predicts what will happen next. The game 
 
 Principle: nothing is ever called wrong, and there are no scores or points. Each question has one reasonable answer and two or three common Grade 3 misconceptions. The result only says what the child thought and what happened. After two of the misconceptions, one short line says why. Everything happens inside the game. There are no network calls, and no student data leaves the device (scope decision 25).
 
-*Updated 2026-09-24 for active choosing (scope decisions 32–35). A choice is now a follow, which starts a fair test: your group and "the others here", each START_SIZE animals from the same habitat. The question types changed to match.*
+*Updated 2026-09-24 for active choosing (scope decisions 32–35). A choice is now a follow, which starts a fair test: your group and "the others here", the same number of animals from the same habitat (10 to 20; scope decision 36). The question types changed to match.*
 
 ## When
 
@@ -17,12 +17,12 @@ Principle: nothing is ever called wrong, and there are no scores or points. Each
 
 ## The question types
 
-The two types take turns: the 1st, 3rd and 5th prediction are about your group, the 2nd and 4th about the fair test. If the fair test has no other group (it never happens with START_SIZE animals on each side), the question is about your group.
+The two types take turns: the 1st, 3rd and 5th prediction are about your group, the 2nd and 4th about the fair test. If the fair test has no other group (it never happens: a fair test starts with at least 10 on each side), the question is about your group.
 
 | Type | Question | What is measured |
 |---|---|---|
-| Your group | "Will your new group grow or shrink?" | your group's size at the follow (START_SIZE) and at the next follow |
-| The fair test | "Which will do better: yours or the others here?" | both groups' sizes at the next follow; both started at START_SIZE, so the bigger one did better |
+| Your group | "Will your new group grow or shrink?" | your group's size at the follow (the fair test's size) and at the next follow |
+| The fair test | "Which will do better: yours or the others here?" | both groups' sizes at the next follow; both started at the same size, so the bigger one did better |
 
 The variation words are the game's own ("more webbing between the toes", "a stronger tail"). The habitat is the fair test's. The ending resolves a prediction whose story ends before the next follow.
 

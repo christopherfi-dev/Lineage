@@ -5,7 +5,7 @@
 
 ## The one sentence that defines done
 
-> A third grader follows their animals through a series of adaptations, notices when a choice helped or hurt compared with the groups they did not choose, and can say why at the end.
+> A third grader follows their animals through a series of adaptations, notices when a choice helped or hurt compared with the others here, and can say why at the end.
 
 Every step below either moves toward that sentence or it is out of scope.
 
@@ -130,7 +130,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **A follow counts as a choice.** "Since your last choice" comes first (decision 34), then a prediction after every third follow (decision 28), then the usual 2-generation fast-forward.
    - **Limits:** at most STORY_CHOICES (15) follows. There are no fixed choice points. A story ends at generation 76, or when the child's group dies out.
 33. **The fair test** (2026-09-24, replaces the unchosen groups in decision 9).
-   - **Two groups the same size:** following makes the child's group START_SIZE (20) living animals in the tapped newborn's habitat that carry the variation (the same threshold): the newborn, then the carriers nearest it. At the same moment, START_SIZE animals there that don't carry it, again the nearest, become "the others here", in their own colour.
+   - **Two groups the same size:** following makes the child's group START_SIZE (20) living animals in the tapped newborn's habitat that carry the variation (the same threshold): the newborn, then the carriers nearest it. At the same moment, START_SIZE animals there that don't carry it, again the nearest, become "the others here", in their own colour. *The fixed size and the choice of the others were replaced by decisions 36 and 37 (2026-09-24).*
      - "Nearest" is measured between the animals' home spots on the map, which are placed the same way in the game and in a measurement. It is observer state only.
    - **Tracked the same way:** both groups grow only by babies whose mother is in them, and shrink by deaths.
    - **Shown side by side as counts with bars:** "Yours (smaller eyes): 20 → 27" and "The others here: 20 → 19". They appear in the corner panel, on the card of any of the others, in "Since your last choice" and at the ending ("Your last fair test").
@@ -173,6 +173,43 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - "About the same. It's all luck." (or "Yours. A darker coat will help them." for a neutral trait).
    - **Its result:** "You thought yours would do better. Yours did.", with both groups' rows. Everything else in decisions 28–31 stands, with "choice" read as "follow".
    *With the same simulated child: a median of 2 predictions per story (mean 2.4). "Need" is offered in 604 of 636 questions (95%). The reasonable answer came true in 229 of 375 grow-or-shrink questions and 147 of 261 fair-test questions.*
+
+36. **The fair test's size adapts** (2026-09-24, replaces START_SIZE in decision 33).
+   - **The size** is the smallest of: the carriers in the habitat, the non-carriers there, and MAX_SIZE (20). Both groups always start at exactly that size.
+   - **A follow needs at least MIN_SIZE (10).** The card shows the real number: "Follow 14 animals with smaller eyes".
+   - **Below MIN_SIZE** the card keeps "Only N here have this. Watch it?". The gentle line for a watched variation appears when both sides reach MIN_SIZE.
+37. **Twins, and an ending that leads with the fair test** (2026-09-24).
+   - **Yours:** the child's carriers are chosen as before, the newborn first and then the nearest.
+   - **The others here:** for each of yours in turn, the nearest non-carrier not already taken, its twin, so the two groups stand side by side on the map.
+   - **When the child's group dies out after a follow,** the story ends as before. The ending leads with the fair test, under the title: yours and the others here as count rows with bars, then the question.
+     - If both died out, one line follows: "The others here died out too."
+     - If only yours did: "The others here are still alive."
+   - **The moment:** `?moment=extinct` now shows a group that died out after a follow, so the new ending can be seen.
+38. **The log names only babies that glow** (2026-09-24). "One of your babies was born with …" is only said about a glowing baby. With several, it says how many glow ("Two of your babies were born with something new."), never more than the map shows.
+39. **Confirmed** (2026-09-24):
+   - the journal's two question types (decision 35);
+   - a backup panel with a single option;
+   - the done sentence now reads "…compared with the others here…".
+   *Measured with the same simulated child on the 270 stories (30 good seeds × 9 founding families; it follows the first meaningful glowing variation that can start a fair test, after at least 40 s of watching, and takes the first option on the backup panel):*
+   - *Glowing variations that can start a fair test: 6,064 of 9,780 (62%; meaningful ones 61%).*
+   - *Fair-test sizes at the 1,565 follows: median 19. 10–12: 328; 13–15: 253; 16–19: 233; 20: 751.*
+   - *Story length: median 30 generations, about 7.4 minutes of generations and pre-rolls (panels add more). 36 of 270 stories (13%) reach generation 76.*
+   - *Follows followed by the group dying out: 194 of 1,565 (12%). That ends 194 stories (72%); 40 more end before any follow.*
+   - *Follows per story: median 5 (mean 5.8). The push panel gave 215 of 1,565 follows (14%) and was needed in 140 of 270 stories (52%).*
+   - *Twins: at the follow, each of yours has one of the others a median of 16 px away (90% within 43 px). Your carriers can still be spread across the habitat (the farthest is a median 1,057 px from the newborn), each with its twin.*
+   - *The webbed-feet fair test (more webbing than usual in the habitat against the others there; 30 seeds × start generations 0, 10, 20, 30 and 40):*
+     - *In the high leaves, 80 of 150 tries could start (median size 12). After 5 generations the webbed group did worse in 56 of 80 (median 5 against 14). After 10, worse in 48 (median 1 against 17).*
+     - *At the water's edge, 146 of 150 could start (median size 18). After 5 generations the webbed group did better in 99 of 146 (median 24 against 14). After 10, better in 96 (27 against 13).*
+   - *For comparison (not needed, since under a quarter of follows end in the group dying out):*
+
+     | MIN_SIZE | 10 | 12 | 15 |
+     |---|---|---|---|
+     | can start | 62% | 55% | 46% |
+     | follows then dying out | 12% | 11% | 10% |
+     | stories reaching 76 | 13% | 16% | 19% |
+     | story length (median generations) | 30 | 36 | 43 |
+     | push needed (stories) | 52% | 60% | 70% |
+     | webbed tries in the high leaves; webbed worse after 5 | 80; 56 | 69; 53 | 20; 12 |
 
 ## What the engine already gives you (do not rebuild these)
 

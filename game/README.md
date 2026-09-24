@@ -34,7 +34,8 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `GENERATION_SECONDS` | 20 | real seconds per generation while watching |
 | `SKIP_GENERATIONS` | 2 | generations fast-forwarded after each follow |
 | `FAST_SECONDS` | 2 | real seconds per generation in a fast-forward |
-| `START_SIZE` | 20 | animals in each group of a fair test |
+| `MAX_SIZE` | 20 | animals in each group of a fair test, at most |
+| `MIN_SIZE` | 10 | a fair test needs at least this many on each side |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
 | `WATCH_MAX` | 3 | variations on the watching list, at most |
@@ -54,15 +55,17 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    traits first, then the newest, one per variation; nothing else flashes. The first glow of a
    story says "Tap a glowing baby to see what's new." Tapping one opens its card with "Follow
    animals with smaller eyes" and "Not this one".
-3. **The fair test** (scope decision 33). Following makes two groups of `START_SIZE` in the
-   newborn's habitat: the animals there that carry the variation, the newborn and the ones
-   nearest it, and the ones there that don't, "the others here", in orange. Both grow only by
+3. **The fair test** (scope decisions 33, 36 and 37). Following makes two groups of the same
+   size in the newborn's habitat: the animals there that carry the variation, the newborn and
+   the ones nearest it, and for each of them the nearest one there that doesn't, its twin: "the
+   others here", in orange. The size is the smaller side, at most `MAX_SIZE`, and the card says
+   it: "Follow 14 animals with smaller eyes". Both grow only by
    babies of their own mothers and shrink by deaths, so their counts compare fairly: "Yours
    (smaller eyes): 20 → 27", "The others here: 20 → 19", in the corner panel. "Nearest" is
    between the animals' home spots on the map; newborns get theirs from a generator of their
    own (`src/herd.js`), so a measurement run and the game pick the same animals. After a
    follow the world fast-forwards 2 generations.
-4. **Too rare yet** (scope decision 33). If fewer than `START_SIZE` in that habitat carry it,
+4. **Too rare yet** (scope decisions 33 and 36). If fewer than `MIN_SIZE` in that habitat carry it,
    the card says "Only 7 here have this. Watch it?". A watched variation goes on the corner
    panel's "Watching" list with its count; when it can start a fair test, a gentle line offers
    it: "Your animals with smaller eyes: now 21. Follow them?"
