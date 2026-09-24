@@ -35,11 +35,13 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Endings:** the story ends when no living animal fits the group, or after the last choice point. Every ending is a reflection screen, not a game-over screen: the group's actual average traits at the end, one line of evidence from the world (not the answer), the choices made, one question, and "Try another family in this world" / "New world". A surviving group is revealed as the real animal it most resembles (decision 10); there is no single correct line.
    - **The clue** shows both sides when it can (decision 14). Otherwise it is **the evidence line** (confirmed 2026-09-23). The evidence line looks only at the seven meaningful traits, over everyone in the group since it last formed. It counts the trait's far-end word in the group's direction ("webbed feet"), in the other habitat where that count changed most. "Then" is the story's start, and a count of zero is "none". If the count changed by fewer than 3 animals, the next most distinctive trait that changed by 3 or more is used; if none did, the one that changed most.
    *Measured on 30 good seeds × 9 starting families with random choices, and checked again with the game's own story code: median story 19.3 minutes, 79% of stories reach 10 choices, and the median group after each choice is 27–123. A group's webbed members are gone from the high leaves 2 generations after the choice but still at the water's edge at the next choice in every seed.*
+   *Replaced in part (2026-09-24) by decisions 32–34: the choice points, the replacement rule for the group, the unchosen options and the fixed pace. The start, the curated worlds, the camera, the endings and the clue stand.*
 
 7. **The opening family stays** (2026-09-23). The camera keeps opening on the webbed family in the high leaves. Its quick ending (before any choice in 93% of seeds, at a median of generation 3) is the first lesson.
 8. **Neutral traits stay as choice options** (2026-09-23). Coat shade, ear tips and tail tip can be offered like any other variation, and the choice card never marks them as neutral. The lesson is "not every difference is an adaptation": after the child follows one, the next "Since your last choice…" line and the ending add "[Trait] didn't change who survived. Your group grew/shrank because of its other traits."
 9. **Unchosen groups are separate sets** (2026-09-23). An unchosen group is the animals with its variation but not the child's current variation. The map (rings and colours), the corner panel and the growth readout ("Theirs: 18 → 12. Yours: 20 → 31.") all use these sets.
    *Measured with the game's own story code (270 stories, 6,215 unchosen groups): right after a choice an unchosen group has a median of 38 animals (middle half 24–69), against 93 when it overlapped the child's group. 2 start empty, 10 under 3 and 208 under 10.*
+   *Replaced (2026-09-24) by decision 33: the fair test's "others here". No group is made from an option not chosen.*
 10. **Real-animal reveal** (2026-09-23). A surviving story ends with a real-animal reveal based on the group's actual average traits and main habitat, using the table and matching rule in `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`. Text for now; art comes later. The file's "why" lines were checked against the zone weights; the changes and the reasons are listed at its bottom.
 11. **Reveal trait levels stay absolute** (2026-09-23; replaced by decision 13 the same day). A meaningful trait is high at a group average of 0.6 or more and low at 0.4 or less. With these levels the fallback ("the first mammals") is 29% of reveals across the 270 measurement stories, under the 40% at which relative levels (against the generation-0 world average) were allowed. So relative levels are not used.
    *Reveals across the 213 surviving measurement stories: Squirrel 100, the first mammals 61, Hare 30, Capybara 17, River otter 2, Bushbaby 2, Beaver 1, Sloth 0, Meerkat 0.*
@@ -68,7 +70,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    *Measured on the 270 stories: both sides on 270 of 270 endings. Every clue is about webbing, because in the defining world it is the only meaningful trait that varies at generation 0 (every other trait starts at the middle word for every founder).*
    *The clue points the way the engine rewards (the side the habitat favours grew more) in 215 of 270. That is 28 of 30 for the webbed family in the high leaves, and 160 of 214 for stories that reach generation 76. Counting "without" as everyone else gave 10 of 30 and 178 of 214.*
 15. **The choice timer waits for read-aloud** (2026-09-23). The 20-second countdown stands still while any line is being read aloud and resumes when the reading ends. At most 60 seconds of standing still per choice point, in case a browser's speech gets stuck.
-16. **Tiny unchosen groups are not shown** (2026-09-23). An option not chosen that starts with fewer than 3 animals (with its variation but not the child's) gets no colour and no panel row. *10 of 6,215 in the measurement stories.*
+16. **Tiny unchosen groups are not shown** (2026-09-23). An option not chosen that starts with fewer than 3 animals (with its variation but not the child's) gets no colour and no panel row. *10 of 6,215 in the measurement stories.* *No longer applies (2026-09-24): there are no unchosen groups (decision 33).*
 17. **The default world stays seed 6** (2026-09-23). After the rebalance, seed 6 no longer gives mostly the fallback. Its webbed family in the high leaves still ends before its first choice, at generation 5.
    *Measured on seed 6, 9 families × 5 random-choice runs: 40 runs survive; Bushbaby 14, the first mammals 13 (33%), Beaver 9, River otter 2, Squirrel 2.*
 18. **Confirmed by the architect** (2026-09-23): the three interpretations in decisions 13 and 14 stand.
@@ -120,6 +122,57 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Nothing is ever called wrong.** There are no scores or points.
    *Measured on the same 270 stories: 1,061 questions. "Need" is offered in 986 of them (93%). 855 have four options and 206 three. The reasonable answer is what happened for 301 of 472 questions about your group and 235 of 418 about the ones not chosen. For where, it is 64 of 171, about chance.*
 31. **Your predictions at the ending** (2026-09-24). The ending lists the story's predictions beside what happened, under a small heading, "Your predictions", labelled "A story from the simulation." `?moment=prediction` (the question) and `?moment=prediction-result` (the next choice point, with the result) join the moment shortcuts (decision 27). Screenshots of both are in `design/current/`.
+32. **Following a new variation** (2026-09-24, replaces the fixed choice schedule in decision 6). Between follows the child is active. The first tap still follows a family (decision 5).
+   - **The glow (calm rule):** a newborn in the child's group glows when the trait new in it at birth (a body mutation of 0.12 or more) takes it past the group's usual. The line is the replacement rule's threshold: the group's median, plus or minus 0.12.
+     - At most 3 glow at a time: meaningful traits first, then the newest, one per variation.
+     - A newborn glows in the generation it is born and the next one. Nothing else flashes any more.
+   - **The card:** tapping a glowing newborn opens its card with "Follow animals with [trait]" and "Not this one". The buttons show only while the world is watched (not during a fast-forward or a panel) and follows are left. "Not this one" stops the glow and makes no group.
+   - **A follow counts as a choice.** "Since your last choice" comes first (decision 34), then a prediction after every third follow (decision 28), then the usual 2-generation fast-forward.
+   - **Limits:** at most STORY_CHOICES (15) follows. There are no fixed choice points. A story ends at generation 76, or when the child's group dies out.
+33. **The fair test** (2026-09-24, replaces the unchosen groups in decision 9).
+   - **Two groups the same size:** following makes the child's group START_SIZE (20) living animals in the tapped newborn's habitat that carry the variation (the same threshold): the newborn, then the carriers nearest it. At the same moment, START_SIZE animals there that don't carry it, again the nearest, become "the others here", in their own colour.
+     - "Nearest" is measured between the animals' home spots on the map, which are placed the same way in the game and in a measurement. It is observer state only.
+   - **Tracked the same way:** both groups grow only by babies whose mother is in them, and shrink by deaths.
+   - **Shown side by side as counts with bars:** "Yours (smaller eyes): 20 → 27" and "The others here: 20 → 19". They appear in the corner panel, on the card of any of the others, in "Since your last choice" and at the ending ("Your last fair test").
+   - **Not enough yet:** when fewer than START_SIZE animals in the habitat carry the variation, the card's button says "Only N here have this. Watch it?". When fewer than START_SIZE don't carry it, it says "Almost all here have this. Watch it?".
+     - Watching puts the variation on a small "Watching" list (at most 3) with its count in that habitat.
+     - When both sides reach START_SIZE, a gentle line appears once: "Your animals with [trait]: now N. Follow them?", with a "Follow them" button.
+34. **The push, and "Since your last choice"** (2026-09-24).
+   - **The push:** with no follow for PUSH_SECONDS (120) of story time, the choice panel opens as a backup. It offers up to 3 variations that can start a fair test: watched ones first, then glowing ones, then others the group has spread (at least 3 members carry them).
+     - It keeps the 20-second timer, the random pick and "Time's up!". The options not picked make no group.
+     - If nothing can start a fair test, the push waits and checks again each generation.
+   - **"Since your last choice"** shows the last fair test at the next follow: in the backup panel, or as its own sheet after a follow from a card or the gentle line. It holds the neutral note (decision 8) and the prediction beside what happened (decision 30).
+     - The sheet waits while a line is read aloud or a card is open. "Next", or 15 seconds, goes on to the new follow.
+   - **Moments:** `?moment=follow` (a glowing newborn's card), `?moment=watching` (a watched variation ready to follow) and `?moment=fairtest` (both groups five generations after a follow) join the moment shortcuts (decision 27). All moments were shot again in `design/current/`.
+   *Measured with a simulated child on 270 stories (30 good seeds × 9 founding families, the game's own code). The child follows the first meaningful glowing variation that can start a fair test, after at least 40 s of watching, and takes the first option on the backup panel.*
+   - *Glowing newborns whose variation can already start a group: 4,442 of 13,731 (32%; meaningful ones 32%). The median count of carriers in the habitat is 14 (middle half 7–23).*
+   - *Stories:*
+     - *Median length 41 generations; 63 of 270 reach generation 76.*
+     - *Follows per story: median 6 (mean 6.2). 46 stories have none, because their family ended before a follow.*
+     - *The backup panel gave 481 of 1,670 follows (29%) and was needed in 205 of 270 stories (76%).*
+   - *The child's group died out before the next follow after 161 of 1,670 follows (10%), which ended 161 stories (60%).*
+   - *Other values of START_SIZE, each measured on its own stories:*
+
+     | START_SIZE | 10 | 12 | 15 | 20 |
+     |---|---|---|---|---|
+     | Glowing variations that can start a group | 49% | 46% | 41% | 32% |
+     | Stories reaching generation 76 | 2% | 5% | 9% | 23% |
+     | Follows followed by the group dying out | 23% | 18% | 16% | 10% |
+     | Follows per story (median) | 3 | 3 | 4 | 6 |
+
+   - *The webbed-feet lesson as a fair test. A group with more webbing than usual there faces the others there, formed at generations 0, 10, 20, 30 and 40 in the 30 seeds:*
+     - *In the high leaves, 20 carriers exist in only 6 of 150 tries. The webbed family is under 20, and later "more webbing" there means only 0.20–0.26 (hardly any webbing). After 5 generations the webbed group did better 3 times, worse once and the same twice.*
+     - *At the water's edge, a test could start in 63 of 150 tries. After 5 generations the webbed group did better in 40 of 63 (median 22 against 17). After 10, it did better in 38 of 63 (22 against 14).*
+     - *At START_SIZE 12, for comparison: in the high leaves 69 tries could start, and the webbed group did worse in 53 of 69 after 5 generations (median 1 against 14). At the water's edge it did better in 83 of 139.*
+35. **Predictions with fair tests** (2026-09-24, changes the question types in decision 30).
+   - **Two types take turns:** "Will your new group grow or shrink?" and "Which will do better: yours or the others here?". The "ones not chosen" and "where" types went with the groups they were about.
+   - **The fair-test question's options:**
+     - the reasonable answer from the engine's trait effects ("Yours. A sleeker body helps at the water's edge." / "The others. …doesn't help…"; for a neutral trait, "About the same. A darker coat won't matter.");
+     - "Yours, because I picked them.";
+     - "need" wherever it fits;
+     - "About the same. It's all luck." (or "Yours. A darker coat will help them." for a neutral trait).
+   - **Its result:** "You thought yours would do better. Yours did.", with both groups' rows. Everything else in decisions 28–31 stands, with "choice" read as "follow".
+   *With the same simulated child: a median of 2 predictions per story (mean 2.4). "Need" is offered in 604 of 636 questions (95%). The reasonable answer came true in 229 of 375 grow-or-shrink questions and 147 of 261 fair-test questions.*
 
 ## What the engine already gives you (do not rebuild these)
 

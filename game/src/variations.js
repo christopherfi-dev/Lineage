@@ -15,11 +15,8 @@ import { TRAITS, NEUTRAL_TRAIT_INDICES } from "./engine.js";
 /** How far from the group's median a member's trait must be to carry a variation. */
 export const APART = 0.12;
 
-/** A variation can be chosen once this many group members carry it (scope decision 6). */
+/** A group has spread a variation once this many of its members carry it. */
 export const MIN_CARRIERS = 3;
-
-/** At most this many animals to choose from. */
-export const MAX_OPTIONS = 3;
 
 /**
  * True for the engine's three neutral traits (coat shade, ear tips, tail tip):
@@ -113,39 +110,6 @@ export function variationWords(trait, dir, value, usualLevel) {
 }
 
 /**
- * The choice at a choice point: up to MAX_OPTIONS group members, each
- * carrying a different variation (different traits) that at least
- * MIN_CARRIERS members carry. Each option's animal is the carrier who shows
- * it most. Fewer than two options means there is no choice at this point.
- * @param {Array<{id:number, genome:ArrayLike<number>}>} members
- * @param {number} [apart] for measuring other values of APART
- * @returns {Option[]}
- */
-export function choiceOptions(members, apart = APART) {
-  const options = [], usedTraits = new Set(), usedAnimals = new Set();
-  for (const v of variationsOf(members, apart)) {
-    if (options.length === MAX_OPTIONS) break;
-    if (usedTraits.has(v.trait)) continue;
-    const shows = (m) => (m.genome[v.t] - v.usual.median) * v.dir;
-    const animal = v.carriers.filter((m) => !usedAnimals.has(m.id)).sort((a, b) => shows(b) - shows(a))[0];
-    if (!animal) continue;
-    usedTraits.add(v.trait);
-    usedAnimals.add(animal.id);
-    options.push({
-      id: animal.id,
-      trait: v.trait,
-      t: v.t,
-      dir: v.dir,
-      thr: v.usual.median + v.dir * apart,
-      words: variationWords(v.trait, v.dir, animal.genome[v.t], v.usual.level),
-      group: TRAIT_WORDS[v.trait][v.dir > 0 ? 1 : 0],
-      carriers: v.carriers.map((m) => m.id),
-    });
-  }
-  return options;
-}
-
-/**
  * Traits whose usual word changed from one form to another, where the median
  * also moved at least `minMove` (so a median sitting on a word's edge doesn't count).
  * @returns {Array<{trait:string, level:number}>}
@@ -234,12 +198,7 @@ export function plainRows(values) {
 
 /**
  * @typedef {Object} Option
- * @property {number} id the animal to show
- * @property {string} trait engine trait name
  * @property {number} t trait index
  * @property {number} dir +1 more, -1 less than the group's usual
- * @property {number} thr the trait value it takes to carry this variation, fixed when offered
- * @property {string} words "webbed feet", for "This one has webbed feet."
- * @property {string} group "more webbing between the toes": the group of every animal that carries it
- * @property {number[]} carriers every group member who carries this variation
+ * @property {number} thr the trait value it takes to carry this variation, fixed when found
  */

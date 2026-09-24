@@ -17,11 +17,9 @@ const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
 const FADE_MS = 700;   // a death shrinks away
 
-/** Colours for the groups not chosen at a choice point, in the order the options are shown. */
+/** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
 
-/** Flash states. Your group keeps two: its newest flash bright, the one before dim. */
-const FLASH_NEWEST = 1, FLASH_PREVIOUS = 2, FLASH_OTHER = 3;
 
 /**
  * The mockup's drawing reads traits on a 0..2 scale. The engine's traits are
@@ -54,6 +52,12 @@ export class Herd {
     this.world = world;
     this.rnd = mulberry(seed);
     this.rr = (a, b) => a + this.rnd() * (b - a);
+    /**
+     * Where each newborn makes its home, from its own generator: wandering never
+     * draws from it, so every animal's home spot is the same in the game and in
+     * a measurement run (fair-test cohorts are the animals nearest a home spot).
+     */
+    this.placeRnd = mulberry(seed ^ 0x5bd1e995);
     /** @type {Map<number, Animal>} */
     this.animals = new Map();
     /** @type {Animal[]} dead animals shrinking away */
@@ -62,8 +66,10 @@ export class Herd {
     this.followed = new Set();
     /** false while you have no group: everyone is drawn plainly */
     this.following = false;
-    /** @type {Map<number, string[]>} members of the groups not chosen, and their colours */
+    /** @type {Map<number, string[]>} members of "the others here", and their colour */
     this.marks = new Map();
+    /** @type {Set<number>} newborns with a new variation that glow now (the calm rule, story.js) */
+    this.glowing = new Set();
     /** how fast the world moves: 1 while watching, faster in a fast-forward */
     this.pace = 1;
     /** @type {null|number} the animal whose creature card is open: ringed on the map */
@@ -77,7 +83,6 @@ export class Herd {
       home, inZone: this.world.zoneAt(x, y) === BANDS[zone],
       ph: this.rr(0, TAU), face: this.rnd() < .5 ? -1 : 1,
       mode: "walk", modeT: this.rr(600, 4200),
-      flash: 0, flashT: 0,
       bornAt, diedAt: null, growMs: GROW_MS / this.pace, fadeMs: FADE_MS,
     };
   }
@@ -129,39 +134,21 @@ export class Herd {
       a.wasMarked = this.marks.get(a.id) ?? null;
       this.fading.push(a);
     }
-    // Real births: each newborn appears beside its mother (the first parent in its birth record).
+    // Real births: each newborn appears beside its mother (the first parent in its birth record),
+    // and makes its home near hers.
     for (const b of ev.births) {
       const child = bridge.get(b.childId);
       if (!child) continue;
       const zone = bridge.zoneOf(b.childId);
       const mother = this.animals.get(b.parentAId) ?? null;
-      const at = mother ?? this.world.pointIn(zone, this.rnd);
-      const home = this.world.pointIn(zone, this.rnd, { x: at.x, y: at.y, radius: 46 });
+      const near = mother ? mother.home : this.world.pointIn(zone, this.placeRnd);
+      const home = this.world.pointIn(zone, this.placeRnd, { x: near.x, y: near.y, radius: 46 });
+      const at = mother ?? home;
       const a = this.make(b.childId, zone, child.bodyGenome, at.x + this.rr(-4, 4), at.y + this.rr(-3, 3), home, now);
       if (mother) a.face = mother.face;
       this.animals.set(b.childId, a);
     }
-    // Real mutations at birth. In your group: newest bright, the one before dim, older gone.
-    // Elsewhere a newborn with a mutation glows faintly for its first generation.
-    for (const a of this.animals.values()) if (a.flash === FLASH_OTHER) a.flash = 0;
-    const mine = ev.mutations.filter((m) => bridge.isFollowed(m.childId));
-    if (mine.length) {
-      for (const a of this.animals.values()) {
-        if (a.flash === FLASH_PREVIOUS) a.flash = 0;
-        else if (a.flash === FLASH_NEWEST) a.flash = FLASH_PREVIOUS;
-      }
-    }
-    for (const m of ev.mutations) {
-      const a = this.animals.get(m.childId);
-      if (!a) continue;
-      a.flash = bridge.isFollowed(m.childId) ? FLASH_NEWEST : FLASH_OTHER;
-      a.flashT = 0;
-    }
-  }
-
-  /** A newly followed group starts with no flash history of its own. */
-  resetFlashes() {
-    for (const a of this.animals.values()) if (a.flash === FLASH_NEWEST || a.flash === FLASH_PREVIOUS) a.flash = 0;
+    // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.
   }
 
   /** Centre of a set of animals on the map, or null when none are alive. */
@@ -193,7 +180,7 @@ export class Herd {
   hit(wx, wy) {
     let best = null, bd = 1e9;
     for (const a of this.animals.values()) {
-      const d = Math.hypot(a.x - wx, (a.y - 11) - wy) - (this.followed.has(a.id) ? 6 : 0);
+      const d = Math.hypot(a.x - wx, (a.y - 11) - wy) - (this.glowing.has(a.id) ? 12 : this.followed.has(a.id) ? 6 : 0);
       if (d < bd) { bd = d; best = a; }
     }
     return best && bd < 34 ? best : null;
@@ -250,7 +237,6 @@ export class Herd {
       c.x = clamp(c.x, 20, W - 20); c.y = clamp(c.y, 20, H - 20);
       if (Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
-    for (const c of this.animals.values()) if (c.flash) c.flashT += dt;
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
   }
 
@@ -298,11 +284,12 @@ export class Herd {
       });
       x.globalAlpha = 1;
     }
-    const rank = { gray: 0, plain: 1, other: 1, mine: 2 };
+    // The others here live among your animals (a fair test), so the two are drawn together by depth.
+    const rank = { gray: 0, plain: 1, other: 2, mine: 2 };
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
       const life = lifeOf(c);
-      if (life > 0) drawCreature(x, c, style(c), life, marksOf(c)?.[0]);
+      if (life > 0) drawCreature(x, c, style(c), life, marksOf(c)?.[0], this.glowing.has(c.id) && c.diedAt === null ? now : null);
     }
     // The animal whose card is open: a ring that breathes, so you can find it on the map.
     const sel = this.selected !== null ? this.animals.get(this.selected) : null;
@@ -348,8 +335,9 @@ function shade(hex, k) {
  * card, the choice options, the ending) is creature.js.
  * @param {CanvasRenderingContext2D} x
  * @param {string} [color] an "other" animal's group colour
+ * @param {null|number} [glowAt] the clock, when this newborn glows: a new variation you can follow
  */
-function drawCreature(x, c, style, scale, color) {
+function drawCreature(x, c, style, scale, color, glowAt = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
@@ -493,20 +481,16 @@ function drawCreature(x, c, style, scale, color) {
     x.beginPath(); x.ellipse(c.x, midY, u * 1.58, u * 1.46, 0, 0, TAU); x.stroke();
   }
 
-  /* mutation flash: your group's newest bright, the one before dim; others faint */
-  if (c.flash) {
-    const puls = (Math.sin((c.flashT || 0) * 0.0042) + 1) / 2;
-    const newest = c.flash === FLASH_NEWEST;
-    const a = newest ? 0.36 + puls * 0.44 : c.flash === FLASH_PREVIOUS ? 0.12 + puls * 0.08 : 0.16 + puls * 0.1;
-    const rad = newest ? u * (2.0 + puls * 1.2) : u * 1.95;
-    if (newest) {
-      const grd = x.createRadialGradient(c.x, midY, 0, c.x, midY, rad * 1.7);
-      grd.addColorStop(0, "rgba(255,214,138," + (0.24 * a).toFixed(3) + ")");
-      grd.addColorStop(1, "rgba(255,214,138,0)");
-      x.fillStyle = grd; x.globalAlpha = 1;
-      x.beginPath(); x.arc(c.x, midY, rad * 1.7, 0, TAU); x.fill();
-    }
-    x.strokeStyle = "#FFCE70"; x.globalAlpha = a; x.lineWidth = newest ? 2.8 : 1.4;
+  /* a newborn with a new variation you can follow: a soft ring of light that breathes */
+  if (glowAt !== null) {
+    const puls = (Math.sin((glowAt + c.id * 97) * 0.0042) + 1) / 2;
+    const a = 0.36 + puls * 0.44, rad = u * (2.0 + puls * 1.2);
+    const grd = x.createRadialGradient(c.x, midY, 0, c.x, midY, rad * 1.7);
+    grd.addColorStop(0, "rgba(255,214,138," + (0.24 * a).toFixed(3) + ")");
+    grd.addColorStop(1, "rgba(255,214,138,0)");
+    x.fillStyle = grd; x.globalAlpha = 1;
+    x.beginPath(); x.arc(c.x, midY, rad * 1.7, 0, TAU); x.fill();
+    x.strokeStyle = "#FFCE70"; x.globalAlpha = a; x.lineWidth = 2.8;
     x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
   }
   x.globalAlpha = 1;

@@ -61,26 +61,43 @@ export const TIMES_UP = "Time's up! This one was picked at random.";
 export const optionLine = (words) => `This one has ${words}.`;
 const fastForward = (skip) => `Fast-forward: ${skip} generations!`;
 
-/** A choice point with nothing to choose from passes. */
-export function passedLines(noun, skip) {
-  return [`Nothing new has spread through your ${noun} yet.`, fastForward(skip)];
-}
-
-/** Right after a choice: the group is now every animal with the chosen variation. */
-export function chosenLines(group, n, skip) {
-  return [`You now follow ${plural(n, "animal", "animals")} with ${group}.`, fastForward(skip)];
+/** Right after a follow: two groups of the same size, for a fair test (scope decision 33). */
+export function chosenLines(group, n, others, zone, skip) {
+  return [
+    `You now follow ${plural(n, "animal", "animals")} with ${group}.`,
+    `And ${others} others ${ZONE_AT[zone]}, for a fair test.`,
+    fastForward(skip),
+  ];
 }
 
 /**
- * After a fast-forward: how big the group is, and what most of it has now
+ * After a fast-forward: both groups' sizes, and what most of yours has now
  * that it didn't before.
  * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
  */
-export function skipDoneLines(skip, n, changed, noun) {
-  const lines = [`${skip} generations later, your ${noun} has ${plural(n, "animal", "animals")}.`];
+export function skipDoneLines(skip, n, others, changed, noun) {
+  const lines = [`${skip} generations later: yours ${n}, the others here ${others}.`];
   if (changed.length) lines.push(`Most of your ${noun} now has ${hasWords(changed[0].trait, changed[0].level)}.`);
   return lines;
 }
+
+/* ================= following a new variation (scope decisions 32–34) ================= */
+
+/** The first time a newborn glows in a story. */
+export const GLOW_HINT = "Tap a glowing baby to see what's new.";
+export const followButton = (group) => `Follow animals with ${group}`;
+export const NOT_THIS = "Not this one";
+/** Too few carry it in its habitat to start a fair test yet. */
+export const tooFew = (n) => `Only ${n} here ${n === 1 ? "has" : "have"} this. Watch it?`;
+/** Too few here are without it to start a fair test. */
+export const TOO_MANY = "Almost all here have this. Watch it?";
+export const watchingLine = (group, n, zone) => `Watching animals with ${group}. ${n} ${ZONE_AT[zone]} so far.`;
+/** A watched variation is common enough to start a fair test. */
+export const readyLine = (group, n) => `Your animals with ${group}: now ${n}. Follow them?`;
+export const FOLLOW_THEM = "Follow them";
+export const WATCHING = "Watching";
+/** "smaller eyes: 7" on the watching list */
+export const watchRow = (group, n) => `${group}: ${n}`;
 
 /*
  * Growth is never a percentage (scope decision 12): a child sees counts,
@@ -91,10 +108,13 @@ export function skipDoneLines(skip, n, changed, noun) {
 export const countLine = (label, { then, now }) => `${label}: ${then} → ${now}`;
 
 export const YOURS = "Yours";
-export const THEIRS = "Theirs";
+/** The fair test's other group: the same number of animals from the same habitat, without the variation. */
+export const OTHERS_HERE = "The others here";
+/** "Yours (smaller eyes)" */
+export const yoursWith = (group) => `${YOURS} (${group})`;
+/** The ending's last fair test: "On the open ground:" */
+export const fairHeading = (zone) => `${capital(ZONE_AT[zone])}:`;
 export const SINCE_TITLE = "Since your last choice:";
-/** "The ones with a sleeker body" */
-export const theOnesWith = (group) => `The ones with ${group}`;
 
 /** "grew", "shrank": which way a group's size went, without the number. */
 function went({ now, then }) {
@@ -152,7 +172,7 @@ export const choicesHeading = (n) => (n ? "You followed the ones with" : "Your c
 export const choiceRecap = (c) => (c.byChance ? `${c.group} (picked at random)` : c.group);
 
 export const noChoices = (outcome) =>
-  (outcome === "died" ? "Their story ended before the first choice." : "Nothing new spread far enough to choose from.");
+  (outcome === "died" ? "Their story ended before the first choice." : "You followed your family the whole story.");
 
 /* ================= the creature card (Step 3) ================= */
 

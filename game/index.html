@@ -19,9 +19,18 @@
     <div class="line" id="counts"></div>
     <div class="line small" id="zones"></div>
     <div class="line small" id="others" hidden></div>
+    <!-- Variations too rare to start a fair test yet, with how many carry them (scope decision 33). -->
+    <div class="line small" id="watching" hidden></div>
   </div>
 
   <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
+
+  <!-- A watched variation is common enough now: a gentle offer to follow it (scope decision 33). -->
+  <div id="ready" hidden>
+    <p id="ready-line"></p>
+    <button id="ready-follow" type="button">Follow them</button>
+    <button id="ready-close" type="button" aria-label="Close">&times;</button>
+  </div>
 
   <!-- The creature card (Step 3): tap any animal to see it up close. The world keeps running behind it. -->
   <div id="card" hidden>
@@ -33,6 +42,8 @@
     <p id="card-where"></p>
     <p id="card-new" hidden></p>
     <div id="card-counts" hidden></div>
+    <!-- A glowing newborn: follow its new variation, watch it, or not (scope decision 32). -->
+    <div id="card-follow" hidden></div>
     <div id="card-traits"></div>
   </div>
 
@@ -40,7 +51,7 @@
 
   <div id="logbar"><span class="ring"></span><span id="log"></span></div>
 
-  <!-- A choice point: the world pauses (scope decision 6). -->
+  <!-- The backup choice panel: after a while with no follow, the world pauses (scope decision 34). -->
   <div id="choice" hidden>
     <div class="grab"></div>
     <div class="eyebrow" id="choice-count"></div>
@@ -51,7 +62,16 @@
     <div id="choice-note"></div>
   </div>
 
-  <!-- The prediction journal (Step 6): one question after every third choice, before the fast-forward. -->
+  <!-- Since your last choice: at the next follow, how the last fair test went (scope decision 34). -->
+  <div id="since" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow" id="since-count"></div>
+    <div id="since-body"></div>
+    <button id="since-next" type="button">Next</button>
+    <div class="timer"><i id="since-bar"></i></div>
+  </div>
+
+  <!-- The prediction journal (Step 6): one question after every third follow, before the fast-forward. -->
   <div id="journal" hidden>
     <div class="grab"></div>
     <div class="eyebrow">A prediction</div>
@@ -90,6 +110,11 @@
             <h3>A clue</h3>
             <div id="ending-compare" hidden></div>
             <p id="ending-evidence-line"></p>
+          </div>
+          <!-- The last fair test: your group beside the others here (scope decision 33). -->
+          <div id="ending-fair" hidden>
+            <h3>Your last fair test</h3>
+            <div id="ending-fair-rows"></div>
           </div>
           <!-- The prediction journal (Step 6): each prediction beside what happened. -->
           <div id="ending-predictions" hidden>
