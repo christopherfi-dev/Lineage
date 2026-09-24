@@ -1,5 +1,5 @@
 /**
- * The story loop (scope decisions 6, 32–34 and 42). DOM-free: the page, the
+ * The story loop (scope decisions 6, 32–34, 42 and 44). DOM-free: the page, the
  * moment shortcuts and the measurement scripts drive the same rules.
  *
  * waiting ─tap─▶ watch ─follow─▶ skip ─▶ watch ─▶ … ─▶ ended
@@ -22,6 +22,10 @@
  * with what there is, if that is at least MIN_SIZE; otherwise the child keeps
  * the group they have, and the try is not one of their follows. A variation
  * most of the habitat already has (too few without it) is not fast-forwarded.
+ * If the child's own group falls to DANGER_SIZE or fewer during that
+ * fast-forward, it stops at once and the world goes back to its usual pace, so
+ * the child sees what happens to their group (scope decision 44). A group that
+ * small already can't start one.
  *
  * If the child follows nothing for PUSH_SECONDS, a choice panel offers
  * variations that can start a test, as a backup. At most STORY_CHOICES
@@ -54,6 +58,8 @@ export const STORY_GENERATIONS = 76;
 export const PUSH_SECONDS = 120;
 /** A variation too rare to start a fair test is fast-forwarded at most this many generations to see if it spreads. */
 export const SPREAD_MAX = 10;
+/** The child's group this small or smaller stops a spread's fast-forward, and keeps one from starting (scope decision 44). */
+export const DANGER_SIZE = 5;
 
 export class Story {
   /**
@@ -130,6 +136,8 @@ export class Story {
   get canFollow() { return this.choices.length < STORY_CHOICES; }
   /** The child can follow right now: while watching, never during a fast-forward or a panel. */
   get followOpen() { return this.phase === "watch" && this.canFollow; }
+  /** The child's own group is very small: no spread starts or goes on (scope decision 44). */
+  get inDanger() { return this.bridge.followedIds().length <= DANGER_SIZE; }
 
   /** Your group's size now against when it last formed. */
   get mine() { return { now: this.bridge.followedIds().length, then: this.sizeAtChoice }; }
@@ -159,7 +167,7 @@ export class Story {
   /**
    * After each engine generation.
    * @param {import("./bridge.js").GenerationEvents} ev
-   * @returns {"ended"|"skip-done"|"spreading"|"spread-ready"|"spread-failed"|"choice"|null} what the story did
+   * @returns {"ended"|"skip-done"|"spreading"|"spread-ready"|"spread-failed"|"spread-danger"|"choice"|null} what the story did
    */
   afterGeneration(ev) {
     const g = ev.group;
@@ -233,11 +241,13 @@ export class Story {
    * world fast-forwards to see if it spreads (scope decision 42). The newborn
    * stops glowing; the child's group lives on meanwhile, as usual. When MAX_SIZE
    * or more carry it already, the test is short of animals without it, which
-   * no spread can fix: it stops at once.
+   * no spread can fix: it stops at once. With the child's group at DANGER_SIZE
+   * or fewer, none starts (the card offers only "Keep looking").
    * @param {Glow} x
-   * @returns {"spreading"|"spread-failed"}
+   * @returns {null|"spreading"|"spread-failed"}
    */
   trySpread(x) {
+    if (this.inDanger) return null;
     this.dismissed.add(x.id);
     this.refreshGlow();
     const n = this.sidesFor(x).carriers.length;
@@ -251,11 +261,13 @@ export class Story {
    * One generation of a spread: count the carriers, and stop when they reach
    * MAX_SIZE, when none are left, or after SPREAD_MAX generations. "reached"
    * and "enough" can start the fair test; "gone", "short" and "common" cannot,
-   * and the child keeps the group they have (not counted as a follow).
+   * and the child keeps the group they have (not counted as a follow). Before
+   * all that, "danger": the child's own group fell to DANGER_SIZE or fewer.
    */
   spreadGeneration() {
     const sp = this.spread, sides = this.sidesFor(sp), n = sides.carriers.length;
     sp.counts.push(n);
+    if (this.inDanger) return this.stopSpread("danger");
     const generations = sp.counts.length - 1, ok = canStart(sides, this.minSize, this.maxSize);
     // Enough carriers but too few without it is "common": most here have it.
     const notOk = n >= this.minSize ? "common" : "short";
@@ -265,7 +277,7 @@ export class Story {
     return "spreading";
   }
 
-  /** @returns {"spread-ready"|"spread-failed"} */
+  /** @returns {"spread-ready"|"spread-failed"|"spread-danger"} */
   stopSpread(outcome) {
     const sp = this.spread;
     sp.outcome = outcome;
@@ -275,7 +287,7 @@ export class Story {
     if (outcome === "reached" || outcome === "enough") return "spread-ready";
     this.idle = 0; // the child just tried: the backup panel waits again
     this.quiet = 0;
-    return "spread-failed";
+    return outcome === "danger" ? "spread-danger" : "spread-failed";
   }
 
   /**
@@ -375,9 +387,9 @@ export class Story {
  * @property {number} id the newborn it was seen in @property {null|{x:number,y:number}} home that newborn's home spot
  * @property {number} generation when it started
  * @property {number[]} counts carriers in the habitat at the start and after each generation
- * @property {null|"reached"|"enough"|"gone"|"short"|"common"|"ended"} outcome why it stopped: MAX_SIZE reached,
- *   MIN_SIZE or more at SPREAD_MAX, none left, still too few at SPREAD_MAX, too few without it (most here have it),
- *   or the story ended meanwhile
+ * @property {null|"reached"|"enough"|"gone"|"short"|"common"|"danger"|"ended"} outcome why it stopped: MAX_SIZE
+ *   reached, MIN_SIZE or more at SPREAD_MAX, none left, still too few at SPREAD_MAX, too few without it (most here
+ *   have it), the child's group at DANGER_SIZE or fewer, or the story ended meanwhile
  *
  * @typedef {Object} Offer an option on the backup choice panel
  * @property {import("./cohorts.js").Variation} v @property {number} id the animal shown

@@ -39,6 +39,7 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
 | `SPREAD_MAX` | 10 | generations a variation too rare to start a fair test is fast-forwarded, at most, to see if it spreads |
+| `DANGER_SIZE` | 5 | your group this small or smaller stops a spread's fast-forward, and keeps one from starting |
 | `PUSH_SECONDS` | 120 | story time with no follow before the backup choice panel opens |
 | `CHOICE_SECONDS` | 20 | time to choose on that panel before one option is picked at random |
 | `STORY_CHOICES` | 15 | follows in a story, at most |
@@ -82,6 +83,12 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
      once, with no fast-forward.
    - The child's group lives on meanwhile; if it dies out, the story ends as usual. The skipped
      generations count toward the story's 76.
+   - **Danger** (scope decision 44): if the child's group falls to `DANGER_SIZE` or fewer during
+     the spread, it stops at once, "Wait! Your group is getting very small." is said (read-aloud
+     as usual), the camera goes to the group, and the world goes back to its usual pace. It is
+     not a follow. While the group is that small, a glowing baby whose trait would need a spread
+     has a card that says "Your group needs you. Stay with them?" with only "Keep looking".
+     ("family" instead of "group" before the first follow.)
 
    **The push** (scope decisions 34 and 42). After `PUSH_SECONDS` with no follow, the world
    pauses and the choice panel offers up to three variations that can start a fair test right
@@ -112,9 +119,12 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
      tense when the group died out ("Your animals were becoming a lot like a sloth."; with no match,
      "Your animals didn't have time to change.", scope decision 41): the animal it is most like, from its
      actual average traits and main habitat, with its "why" lines (`src/reveal.js`, following
-     `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`). Levels are relative to the generation-0 world (GAP
-     0.12), and each animal needs its signature trait, so the reveal reflects what changed. Only
-     the "why" sentences whose trait the group has are shown;
+     `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`). Seventeen animals, five or six per habitat (scope
+     decision 45). Levels are relative to the generation-0 world (GAP 0.12), and each animal
+     needs its signature trait, so the reveal reflects what changed. Only the "why" sentences
+     whose trait the group has are shown. Then one "Did you know?" fact about the real animal,
+     with its own speaker; every water's-edge animal adds "Did you know? Whales' ancestors were
+     land animals that started swimming." (scope decision 46);
    - "Your last fair test": both groups of the last follow, from then to the end;
    - the choices made;
    - "Try another family in this world" (same seed, generation 0) and "New world" (another good

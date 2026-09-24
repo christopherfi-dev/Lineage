@@ -244,6 +244,9 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #reveal-line { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.25; }
 #reveal-why { margin: 6px 0 0; font-size: 17px; line-height: 1.35; }
 #reveal[hidden] { display: none; }
+/* "Did you know?" facts about the real animal (scope decision 46). */
+#reveal-facts .fact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 8px 0 0; padding-top: 7px; border-top: 1px solid #C6DDE1; font-size: 16px; font-style: italic; line-height: 1.3; color: #2E5058; }
+#reveal-facts .fact + .fact { margin-top: 4px; padding-top: 0; border-top: 0; }
 /* The buttons stay in view at the bottom of the card, however long the story's list is. */
 #ending .buttons {
   position: sticky; bottom: -26px; display: flex; flex-wrap: wrap; gap: 12px; margin: 18px -30px -26px; padding: 14px 30px 26px;
@@ -336,6 +339,12 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 }
 #card-follow .keep button:not(.say) { background: #FBF6EA; border-color: #D8CDB1; color: #5A6151; }
 #card.above #card-follow { grid-column: 2; }
+/* The child's group is very small: no spread, only "Keep looking" (scope decision 44). */
+#card-follow .follow-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; padding: 7px 4px 7px 12px;
+  border-radius: 12px; background: #FBE3D0; box-shadow: inset 0 0 0 2px #E8A36B;
+  font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.25; color: #5B2E12;
+}
 /* "Since your last choice", before a new follow: the choice panel's look. */
 #since {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;

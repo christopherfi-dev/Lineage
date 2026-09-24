@@ -27,7 +27,7 @@ import {
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
-  GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON,
+  GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON, dangerLine, needsYou,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import {
@@ -128,6 +128,7 @@ export class Game {
     this.endingCompareEl = $("ending-compare");
     this.endingQuestionEl = $("ending-question");
     this.revealEl = $("reveal");
+    this.revealFactsEl = $("reveal-facts");
     // Read-aloud: a small speaker beside every child-facing line (speech.js).
     this.log = this.speakable(this.logEl);
     this.speakable(/** @type {HTMLElement} */ (this.choiceEl.querySelector("h2")));
@@ -228,6 +229,7 @@ export class Game {
     else if (what === "spreading") this.spreadCounter();
     else if (what === "spread-ready") this.spreadReady();
     else if (what === "spread-failed") this.spreadFailed();
+    else if (what === "spread-danger") this.spreadDanger();
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
       // The log names only the babies that glow this generation (the calm rule), never more.
@@ -235,7 +237,7 @@ export class Game {
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
-    const g = ev.group, sp = s.spread ?? (what === "spread-ready" || what === "spread-failed" ? s.lastSpread : null);
+    const g = ev.group, sp = s.spread ?? (what?.startsWith("spread-") ? s.lastSpread : null);
     console.info(
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
       `${ev.mutations.length} mutations at birth` +
@@ -350,13 +352,15 @@ export class Game {
   /**
    * The child follows a glowing newborn's variation. When too few have it here
    * to start a fair test right away, the world first fast-forwards to see if it
-   * spreads (scope decision 42). When there is a fair test to look back on,
+   * spreads (scope decision 42), unless the child's group is very small
+   * (scope decision 44). When there is a fair test to look back on,
    * "Since your last choice" comes before the new one.
    * @param {import("./story.js").Glow} x
    */
   followFromMap(x) {
     const s = this.story;
     if (!s.followOpen || this.since || this.journal || this.choice) return;
+    if (!s.canStartFor(x) && s.inDanger) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
     else if (s.choices.length) this.openSince(x);
@@ -453,6 +457,7 @@ export class Game {
    */
   startSpread(x) {
     const what = this.story.trySpread(x);
+    if (!what) return; // the child's group is very small: no spread starts
     this.syncGroups(); // the tapped newborn stops glowing
     this.updateHud();
     // Most here have it already: too few others for a fair test, and no spread can change that.
@@ -473,6 +478,17 @@ export class Game {
     this.logQueue = [];
     this.logTimer = LOG_MS;
     return line;
+  }
+
+  /**
+   * The child's group fell to DANGER_SIZE or fewer during a spread: it stops at
+   * once, and the world goes back to its usual pace, so the child sees what
+   * happens to their group (scope decision 44). This was not a follow.
+   */
+  spreadDanger() {
+    this.say([dangerLine(this.story.noun)]);
+    this.centerOnGroup();
+    this.updateCard(); // follow buttons again, or "Stay with them?"
   }
 
   /** It spread: the fair test starts, with "Since your last choice" first when there is a last test. */
@@ -696,6 +712,12 @@ export class Game {
       const died = s.outcome === "died";
       this.revealLine.set(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal);
       this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" ")); // only the sentences whose traits the group has
+      // Then "Did you know?": true facts about the real animal, each with its own speaker (scope decision 46).
+      this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
+        const p = Object.assign(doc.createElement("p"), { className: "fact" });
+        p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: fact }), speakerButton(doc, () => fact));
+        return p;
+      }));
     }
     this.endingEl.hidden = false;
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
@@ -834,7 +856,10 @@ export class Game {
    * have at least MIN_SIZE animals in its habitat, the button says the fair
    * test's real size: "Follow 14 animals with smaller eyes". Otherwise "Follow
    * animals with smaller eyes", and the world first fast-forwards to see if it
-   * spreads. Only while the world is watched and follows are left.
+   * spreads. While the child's group is at DANGER_SIZE or fewer, that spread
+   * can't start: the card says "Your group needs you. Stay with them?", with
+   * only "Keep looking" (decision 44). Only while the world is watched and
+   * follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -842,7 +867,8 @@ export class Game {
     const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice;
     this.cardFollowEl.hidden = !open;
     if (!open) { this.followKey = ""; return; }
-    const text = s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
+    const now = s.canStartFor(g), stay = !now && s.inDanger;
+    const text = stay ? needsYou(s.noun) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
     const key = `${g.id}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
@@ -854,7 +880,11 @@ export class Game {
       row.append(b, speakerButton(doc, () => text));
       return row;
     };
-    this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), button(KEEP_LOOKING, "keep", () => this.keepLooking()));
+    const keep = button(KEEP_LOOKING, "keep", () => this.keepLooking());
+    if (!stay) { this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), keep); return; }
+    const note = Object.assign(doc.createElement("p"), { className: "follow-note" });
+    note.append(Object.assign(doc.createElement("span"), { className: "text", textContent: text }), speakerButton(doc, () => text));
+    this.cardFollowEl.replaceChildren(note, keep);
   }
 
   /** Closes quickly; `now` skips the transition. */
