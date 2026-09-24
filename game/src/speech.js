@@ -28,9 +28,10 @@ function calmVoice() {
   return english.find((v) => v.default) ?? english[0] ?? null;
 }
 
-/** What the voice should say for a line as shown: "20 → 31" is read "from 20 to 31". */
+/** What the voice should say for a line as shown: "20 → 31" is read "from 20 to 31", and "3… 7… 12…" as "3, 7, 12." */
 export function spoken(text) {
-  return text.replace(/(\d+)\s*→\s*(\d+)/g, "from $1 to $2").replace(/\s*·\s*/g, ", ").replace(/\s+/g, " ").trim();
+  return text.replace(/(\d+)\s*→\s*(\d+)/g, "from $1 to $2").replace(/(\d+)…/g, "$1,").replace(/,\s*$/, ".")
+    .replace(/\s*·\s*/g, ", ").replace(/\s+/g, " ").trim();
 }
 
 /** True while the browser is reading (or about to read) a line aloud. */

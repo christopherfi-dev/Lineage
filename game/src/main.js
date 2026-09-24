@@ -1,13 +1,14 @@
 /**
  * LINEAGE — Milestone 2: the frozen M1 engine on the designed canvas, played
- * as a story (scope decisions 6 and 32–34, rules in story.js).
+ * as a story (scope decisions 6, 32–34 and 42, rules in story.js).
  *
  * Time waits for the child: the animals wander from the start, but no
  * generation runs until an animal is tapped and its family followed. Then one
  * engine generation happens every GENERATION_SECONDS. Newborns with a new
- * variation glow; tapping one can start a fair test, after which the world
- * fast-forwards. Births, deaths, glows and every count on screen come from the
- * engine's records.
+ * variation glow; tapping one starts a fair test, after which the world
+ * fast-forwards. When too few have the variation yet, the world first
+ * fast-forwards to see if it spreads. Births, deaths, glows and every count on
+ * screen come from the engine's records.
  */
 
 import { Bridge } from "./bridge.js";
@@ -26,7 +27,7 @@ import {
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
-  GLOW_HINT, followButton, NOT_THIS, tooFew, TOO_MANY, watchingLine, readyLine, WATCHING, watchRow,
+  GLOW_HINT, followButton, followSpread, NOT_THIS, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import {
@@ -101,9 +102,6 @@ export class Game {
     this.choiceBarEl = $("choice-bar");
     this.choiceNoteEl = $("choice-note");
     this.cardFollowEl = $("card-follow");
-    this.watchingEl = $("watching");
-    this.readyEl = $("ready");
-    this.readyFollowEl = /** @type {HTMLButtonElement} */ ($("ready-follow"));
     this.sinceEl = $("since");
     this.sinceCountEl = $("since-count");
     this.sinceBodyEl = $("since-body");
@@ -146,7 +144,6 @@ export class Game {
     this.cardWhere = this.speakable($("card-where"));
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
-    this.readyLine = this.speakable($("ready-line"));
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
@@ -202,10 +199,8 @@ export class Game {
     this.since = null;
     this.sinceEl.classList.remove("open");
     this.sinceEl.hidden = true;
-    /** @type {null|import("./story.js").Watch} the watched variation offered in the gentle line */
-    this.ready = null;
-    this.pendingReady = null;
-    this.readyEl.hidden = true;
+    /** the spread's line is on screen, so each generation only changes its counter */
+    this.spreadShown = false;
     this.toldGlow = false;
     this.endingEl.hidden = true;
     // The camera opens on the first founding family, high in the leaves.
@@ -230,6 +225,9 @@ export class Game {
     if (what === "ended") this.storyEnded();
     else if (what === "choice") this.openChoice(now);
     else if (what === "skip-done") this.fastForwardDone();
+    else if (what === "spreading") this.spreadCounter();
+    else if (what === "spread-ready") this.spreadReady();
+    else if (what === "spread-failed") this.spreadFailed();
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
       // The log names only the babies that glow this generation (the calm rule), never more.
@@ -237,18 +235,14 @@ export class Game {
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
-    // A watched variation became common enough: a gentle line offers it, once the world is watched again.
-    if (s.readyNow.length) this.pendingReady = s.readyNow[0];
-    if (this.pendingReady && !s.watching.includes(this.pendingReady)) this.pendingReady = null; // followed meanwhile
-    if (this.pendingReady && s.followOpen && what !== "choice") { this.offerReady(this.pendingReady); this.pendingReady = null; }
-    if (this.ready && !s.watching.includes(this.ready)) this.hideReady();
-    const g = ev.group;
+    const g = ev.group, sp = s.spread ?? (what === "spread-ready" || what === "spread-failed" ? s.lastSpread : null);
     console.info(
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
       `${ev.mutations.length} mutations at birth` +
       (g ? ` · your ${s.noun} ${g.count} (was ${g.before}: +${g.born.length} −${g.gone.length}, ${g.mutated.length} new traits)` : "") +
       (ev.others ? ` · the others here ${ev.others.count}` : "") +
-      ` · glowing ${s.glowing.length}, watching ${s.watching.length} · story: ${s.phase}, ${s.choices.length} follows`
+      ` · glowing ${s.glowing.length}` + (sp ? ` · spread of ${sp.v.group}: ${sp.counts.join(", ")}${sp.outcome ? ` (${sp.outcome})` : ""}` : "") +
+      ` · story: ${s.phase}, ${s.choices.length} follows`
     );
     if (ev.observerErrors.length) console.warn("[lineage] observer errors", ev.observerErrors);
   }
@@ -275,10 +269,10 @@ export class Game {
   }
 
   /**
-   * The backup choice panel (scope decision 34): nothing was followed for
-   * PUSH_SECONDS, so the world pauses and up to three variations that can start
-   * a fair test are offered, watched ones first. An open creature card stays
-   * open, and the countdown waits for it.
+   * The backup choice panel (scope decisions 34 and 42): nothing was followed
+   * for PUSH_SECONDS, so the world pauses and up to three variations that can
+   * start a fair test right away are offered. An open creature card stays open,
+   * and the countdown waits for it.
    */
   openChoice(now) {
     const s = this.story;
@@ -308,7 +302,6 @@ export class Game {
     }
     requestAnimationFrame(() => this.choiceEl.classList.add("open"));
     this.choice = { left: CHOICE_SECONDS * 1000, paused: 0, picked: null };
-    this.hideReady();
     this.updateCard(); // no follow buttons while the panel is up
     this.placeCard(); // an open card moves above the choice panel
     this.centerOnGroup(0.3);
@@ -355,16 +348,18 @@ export class Game {
   }
 
   /**
-   * The child follows a glowing newborn's variation, or a watched one. When
-   * there is a fair test to look back on, "Since your last choice" comes first.
-   * @param {{v:import("./cohorts.js").Variation, id:number, zone:number}} x
+   * The child follows a glowing newborn's variation. When too few have it here
+   * to start a fair test right away, the world first fast-forwards to see if it
+   * spreads (scope decision 42). When there is a fair test to look back on,
+   * "Since your last choice" comes before the new one.
+   * @param {import("./story.js").Glow} x
    */
   followFromMap(x) {
     const s = this.story;
     if (!s.followOpen || this.since || this.journal || this.choice) return;
     this.closeCard();
-    this.hideReady();
-    if (s.choices.length) this.openSince(x);
+    if (!s.canStartFor(x)) this.startSpread(x);
+    else if (s.choices.length) this.openSince(x);
     else this.doFollow(x, false);
   }
 
@@ -449,16 +444,53 @@ export class Game {
     this.doFollow(w.x, false);
   }
 
-  /* ================= watching a variation (scope decision 33) ================= */
-  /** "Watch it?": too few carry it here to start a fair test, so its count goes on the watching list. */
-  watchFromCard(g) {
-    const s = this.story;
-    s.watch(g);
-    const w = s.watchOf(g);
-    this.syncGroups();
-    this.closeCard();
+  /* ================= will it spread? (scope decision 42) ================= */
+  /**
+   * Too few have the variation here to start a fair test right away, so the
+   * world fast-forwards to see if it spreads, with a live counter. Your group
+   * lives on meanwhile, as usual.
+   * @param {import("./story.js").Glow} x
+   */
+  startSpread(x) {
+    const what = this.story.trySpread(x);
+    this.syncGroups(); // the tapped newborn stops glowing
     this.updateHud();
-    if (w) this.say([watchingLine(w.v.group, w.count, w.zone)]);
+    // Most here have it already: too few others for a fair test, and no spread can change that.
+    if (what === "spread-failed") { this.say([SPREAD_COMMON]); this.updateCard(); return; }
+    this.preRoll();
+    this.spreadShown = false;
+    this.spreadCounter();
+  }
+
+  /**
+   * "Will it spread? Animals with smaller eyes: 3… 7… 12…": one line, whose
+   * counter changes in place each generation. Returns the line.
+   */
+  spreadCounter() {
+    const s = this.story, sp = s.spread ?? s.lastSpread, line = spreadLine(sp.v.group, sp.counts);
+    if (!this.spreadShown) { this.spreadShown = true; this.say([line]); return line; }
+    this.log.set(line);
+    this.logQueue = [];
+    this.logTimer = LOG_MS;
+    return line;
+  }
+
+  /** It spread: the fair test starts, with "Since your last choice" first when there is a last test. */
+  spreadReady() {
+    const s = this.story, sp = s.lastSpread;
+    this.spreadCounter();
+    if (!s.choices.length) { this.doFollow(sp, false); return; }
+    this.openSince(sp);
+    this.updateCard(); // an open card loses its follow buttons, and moves above the sheet
+    this.placeCard();
+  }
+
+  /** It didn't spread: the last count stays a moment, then why. Your group stays as it is; this was not a follow. */
+  spreadFailed() {
+    const outcome = this.story.lastSpread.outcome;
+    this.spreadCounter();
+    this.logQueue = [outcome === "gone" ? SPREAD_GONE : outcome === "common" ? SPREAD_COMMON : SPREAD_SHORT];
+    this.updateCard(); // follow buttons again
   }
 
   /** "Not this one": it stops glowing. No group is made. */
@@ -466,20 +498,6 @@ export class Game {
     this.story.dismiss(g.id);
     this.syncGroups();
     this.closeCard();
-  }
-
-  /** A watched variation is common enough now: "Your animals with smaller eyes: now 21. Follow them?" */
-  offerReady(w) {
-    this.ready = w;
-    const line = readyLine(w.v.group, w.count);
-    this.readyLine.set(line);
-    this.readyEl.hidden = false;
-    this.say([line]);
-  }
-
-  hideReady() {
-    this.ready = null;
-    this.readyEl.hidden = true;
   }
 
   /* ================= the prediction journal (Step 6, scope decisions 28-31, 35) ================= */
@@ -577,7 +595,6 @@ export class Game {
   /** The group died out, or the story reached its last generation. A moment, then the reflection screen. */
   storyEnded() {
     const s = this.story;
-    this.hideReady();
     this.say([s.outcome === "died" ? lastPassed(s.noun) : madeIt(s.noun)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
@@ -705,7 +722,7 @@ export class Game {
   }
 
   updateHud() {
-    const s = this.story, doc = this.doc;
+    const s = this.story;
     const zones = this.bridge.zoneCounts();
     const following = s.phase !== "waiting" && s.phase !== "ended";
     this.genEl.textContent = String(this.bridge.generation);
@@ -716,13 +733,6 @@ export class Game {
     const rows = following ? this.fairRows() : [];
     this.othersEl.replaceChildren(...this.countRows(rows));
     this.othersEl.hidden = !rows.length;
-    // The watching list: each variation with how many carry it in its habitat now.
-    const watching = following ? s.watching : [];
-    this.watchingEl.hidden = !watching.length;
-    this.watchingEl.replaceChildren(...(watching.length ? [
-      Object.assign(doc.createElement("b"), { textContent: WATCHING }),
-      ...watching.map((w) => Object.assign(doc.createElement("span"), { className: w.ready ? "ready" : "", textContent: watchRow(w.v.group, w.count) })),
-    ] : []));
     if (!s.running) this.barEl.style.width = "0%";
   }
 
@@ -817,11 +827,12 @@ export class Game {
   }
 
   /**
-   * A glowing newborn's card offers its new variation (scope decisions 32–33,
-   * 36): "Follow 14 animals with smaller eyes" when both sides have at least
-   * MIN_SIZE animals in its habitat (the number is the fair test's real size),
-   * else "Only 7 here have this. Watch it?"; and "Not this one". Only while
-   * the world is watched and follows are left.
+   * A glowing newborn's card always offers to follow its new variation (scope
+   * decisions 32, 36 and 42), and "Not this one". When both sides have at least
+   * MIN_SIZE animals in its habitat, the button says the fair test's real size:
+   * "Follow 14 animals with smaller eyes". Otherwise "Follow animals with
+   * smaller eyes", and the world first fast-forwards to see if it spreads. Only
+   * while the world is watched and follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -829,8 +840,8 @@ export class Game {
     const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice;
     this.cardFollowEl.hidden = !open;
     if (!open) { this.followKey = ""; return; }
-    const sides = s.sidesFor(g), size = s.sizeFor(g), ok = size >= s.minSize;
-    const key = `${g.id}:${size}:${sides.carriers.length}`;
+    const text = s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
+    const key = `${g.id}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
     const doc = this.doc;
@@ -841,9 +852,7 @@ export class Game {
       row.append(b, speakerButton(doc, () => text));
       return row;
     };
-    const first = ok ? button(followButton(size, g.v.group), "go", () => this.followFromMap(g)) :
-      button(sides.carriers.length < s.minSize ? tooFew(sides.carriers.length) : TOO_MANY, "watch", () => this.watchFromCard(g));
-    this.cardFollowEl.replaceChildren(first, button(NOT_THIS, "no", () => this.notThis(g)));
+    this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), button(NOT_THIS, "no", () => this.notThis(g)));
   }
 
   /** Closes quickly; `now` skips the transition. */
@@ -1024,7 +1033,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #since, #journal, #ready, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #since, #journal, #ending")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) { this.dragging = true; this.moved = 0; this.startT = performance.now(); this.camTween = null; }
@@ -1055,11 +1064,6 @@ export class Game {
     this.homeEl.addEventListener("click", () => { this.centerOnGroup(); this.hideHint(); });
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
-    this.readyFollowEl.addEventListener("click", () => {
-      const w = this.ready;
-      if (w) this.followFromMap(w);
-    });
-    this.doc.getElementById("ready-close").addEventListener("click", () => this.hideReady());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
     this.againEl.addEventListener("click", () => this.restart(this.seed));
     this.newWorldEl.addEventListener("click", () => this.newWorld());

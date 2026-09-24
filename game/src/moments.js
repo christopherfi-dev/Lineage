@@ -17,12 +17,11 @@ import { Herd } from "./herd.js";
 import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
-import { WATCH_MAX } from "./cohorts.js";
 import { netEffect } from "./journal.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "generation", "variation", "follow", "watching", "fairtest", "grow", "shrink",
+  "arrival", "generation", "variation", "follow", "spreading", "fizzled", "fairtest", "grow", "shrink",
   "choice", "prediction", "prediction-result", "ending", "extinct", "card",
 ];
 
@@ -51,11 +50,15 @@ const POLICIES = {
   },
   /** Follows nothing by itself. */
   passive: () => null,
-  /** Watches each meaningful glowing variation too rare to start a fair test. */
-  watcher: (s) => {
-    if (!s.followOpen || s.watching.length >= WATCH_MAX) return null;
-    const g = s.glowing.find((x) => !x.v.neutral && !s.canStartFor(x));
-    return g ? { kind: "watch", id: g.id } : null;
+  /**
+   * The measurement's simulated child (scope decision 42): taps the first meaningful glowing variation after at
+   * least 40 s of watching, whether or not it can start a fair test right away. If not, the world fast-forwards to
+   * see if it spreads.
+   */
+  tapper: (s) => {
+    if (!s.followOpen || s.quiet < 40) return null;
+    const g = s.glowing.find((x) => !x.v.neutral);
+    return g ? { kind: s.canStartFor(g) ? "follow" : "spread", id: g.id } : null;
   },
 };
 
@@ -71,8 +74,22 @@ const MOMENT = {
   variation: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.glowing.length === 1 && s.glowing[0].generation === ev.generation && { id: s.glowing[0].id } },
   /** A glowing newborn whose variation can start a fair test: its card is opened. */
   follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== null) return null; const g = s.followOpen && s.glowing.find((x) => !x.v.neutral && s.canStartFor(x)); return g ? { id: g.id } : null; } },
-  /** A watched variation can start a fair test (MIN_SIZE on each side): the gentle line offers it. */
-  watching: { families: FROM_OTHERS, policies: ["watcher"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.readyNow.length > 0 && { trait: s.readyNow[0].v.trait } },
+  /** A variation too rare to start a fair test, fast-forwarded to see if it spreads: three generations in, the counter rising. */
+  spreading: {
+    families: FROM_OTHERS,
+    policies: ["tapper"],
+    at: (s, ev, b, what) => {
+      const c = what === "spreading" ? s.spread.counts : [];
+      return c.length >= 4 && c.at(-3) < c.at(-2) && c.at(-2) < c.at(-1) && { id: s.spread.id, trait: s.spread.v.trait, counts: c.slice() };
+    },
+  },
+  /** The spread stopped, a few generations in, because none carry the variation any more: "It disappeared. Most new traits do." */
+  fizzled: {
+    families: FROM_OTHERS,
+    policies: ["tapper"],
+    at: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" && s.lastSpread.counts.length >= 3 &&
+      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
+  },
   /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
   fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 10 && s.theirs.now >= 10 },
   /** The group clearly bigger than last generation, after a follow (so it is not the families' first burst). */
@@ -137,11 +154,13 @@ async function findStory(game, moment) {
         const hit = at(story, ev, bridge, what);
         if (hit) return { family, actions, generation: ev.generation, follows: story.choices.length, hit };
         if (what === "choice") continue;
+        // A spread that reached a fair test's size starts the test by itself, as in the game.
+        if (what === "spread-ready") { story.follow(story.lastSpread, false); continue; }
         const act = policy(story);
         if (act) {
           actions.push({ generation: ev.generation, ...act });
           const g = story.glowFor(act.id);
-          if (act.kind === "follow") story.follow(g, false); else story.watch(g);
+          if (act.kind === "follow") story.follow(g, false); else story.trySpread(g);
         }
         if (n % 4 === 0) await frame(); // keep the page alive
       }
@@ -176,10 +195,11 @@ function act(game, a) {
     G.pick(o, false, performance.now());
     G.followChoice(o, false);
   } else {
+    // "Follow" on the glowing newborn's card: a fair test right away, or a fast-forward to see if it spreads.
     const g = s.glowFor(a.id);
     if (!g) return;
-    if (a.kind === "watch") G.watchFromCard(g);
-    else { G.followFromMap(g); if (G.since) G.closeSince(); }
+    G.followFromMap(g);
+    if (G.since) G.closeSince();
   }
   if (G.journal) answer(G);
 }
@@ -201,6 +221,13 @@ async function playTo(game, plan) {
     G.generation(last ? performance.now() : performance.now() - 60000);
     G.clock = hold;
     if (last) break;
+    if (G.since || G.journal) {
+      // A spread reached a fair test's size and the test starts by itself: the panels go on as the child would.
+      await frame();
+      if (G.since) G.closeSince();
+      if (G.journal) answer(G);
+      G.clock = hold;
+    }
     const todo = byGeneration.get(G.bridge.generation);
     if (todo) {
       await frame(); // panels open as they would, then the child acts
@@ -266,7 +293,11 @@ export async function goToMoment(game, moment) {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
-  } else if (moment === "grow" || moment === "shrink" || moment === "watching" || moment === "fairtest") {
+  } else if (moment === "spreading") {
+    // The world fast-forwards, the counter rising; the camera stays where the child tapped the newborn.
+    const a = G.herd.animals.get(plan.hit.id);
+    if (a) lookAt(G, a.x, a.y); else lookAtGroup(G);
+  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "fairtest") {
     lookAtGroup(G);
   } else if (moment === "choice") {
     lookAtGroup(G, 0.3); // as the panel itself frames it
@@ -291,7 +322,7 @@ export async function goToMoment(game, moment) {
 /**
  * @typedef {Object} Action what the child did after a generation
  * @property {number} generation
- * @property {"follow"|"watch"|"push"} kind
+ * @property {"follow"|"spread"|"push"} kind "follow" on a glowing newborn's card started a fair test right away, or a spread
  * @property {number} [id] the glowing newborn tapped
  * @property {string} [trait] @property {number} [dir] the option taken on the backup panel
  */

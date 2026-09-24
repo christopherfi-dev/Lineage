@@ -22,8 +22,6 @@ export const MIN_SIZE = 10;
 export const GLOW_MAX = 3;
 /** A newborn glows for the generation it is born in and the next one. */
 export const GLOW_GENERATIONS = 2;
-/** At most this many variations on the watching list. */
-export const WATCH_MAX = 3;
 /** At most this many options on the backup choice panel. */
 export const PUSH_OPTIONS = 3;
 
