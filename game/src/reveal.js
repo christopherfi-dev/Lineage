@@ -119,15 +119,25 @@ export const ANIMALS = [
   },
 ];
 
-/** Any habitat: when no animal above matches well enough. */
+/** Any habitat: when no animal above matches a surviving group well enough. */
 export const FIRST_MAMMALS = {
   name: "The first mammals (tree shrew)", zone: null, profile: {}, signature: {},
   reveal: "Your animals stayed like the very first mammals, like a tree shrew.",
-  revealPast: "Your animals stayed like the very first mammals, like a tree shrew.",
   why: [
-    { text: "Their bodies didn't change much, and that worked.", past: "Their bodies didn't change much.", credits: {} },
+    { text: "Their bodies didn't change much, and that worked.", credits: {} },
     { text: "Some animals today still look a lot like their ancient relatives.", credits: {} },
   ],
+};
+
+/**
+ * Any habitat: when no animal above matches a group that died out (scope
+ * decision 41). It never gets the first mammals.
+ */
+export const NO_TIME = {
+  name: "No time to change", zone: null, profile: {}, signature: {},
+  reveal: "Your animals didn't have time to change.",
+  revealPast: "Your animals didn't have time to change.",
+  why: [{ text: "Their story ended before new traits could spread.", credits: {} }],
 };
 
 /**
@@ -156,7 +166,8 @@ function hasSignature(animal, average, base, gap) {
  * 3. the best is the qualifying animal whose checked traits the group meets
  *    most strongly: the sum of how far each met trait is past its level (a
  *    tie goes to the animal listed first);
- * 4. if none qualifies, the first mammals.
+ * 4. if none qualifies, the first mammals for a surviving group, and "no time
+ *    to change" for a group that died out (scope decision 41).
  * The reveal then shows only the "why" sentences whose credited traits the
  * group has, at the same levels, so it never credits a trait the group lacks.
  * The sentence about the signature always qualifies.
@@ -164,9 +175,10 @@ function hasSignature(animal, average, base, gap) {
  * @param {number} zone the habitat most of the group lives in (engine zone index)
  * @param {ArrayLike<number>} base the generation-0 world mean for each trait
  * @param {number} [gap]
+ * @param {boolean} [died] the group died out
  * @returns {{animal: RevealAnimal, matched: number, checked: number, strength: number, why: string[], whyPast: string[]}}
  */
-export function revealFor(average, zone, base, gap = GAP) {
+export function revealFor(average, zone, base, gap = GAP, died = false) {
   let best = null;
   for (const animal of ANIMALS) {
     if (animal.zone !== zone || !hasSignature(animal, average, base, gap)) continue;
@@ -174,7 +186,7 @@ export function revealFor(average, zone, base, gap = GAP) {
     const strength = met.reduce((sum, m) => sum + m, 0);
     if (!best || strength > best.strength) best = { animal, matched: met.length, checked: Object.keys(animal.profile).length, strength };
   }
-  const found = best ?? { animal: FIRST_MAMMALS, matched: 0, checked: 0, strength: 0 };
+  const found = best ?? { animal: died ? NO_TIME : FIRST_MAMMALS, matched: 0, checked: 0, strength: 0 };
   const has = (credits) => Object.entries(credits).every(([trait, level]) => margin(trait, level, average, base, gap) >= 0);
   const shown = found.animal.why.filter((w) => has(w.credits));
   return { ...found, why: shown.map((w) => w.text), whyPast: shown.map((w) => w.past ?? w.text) };
@@ -187,7 +199,7 @@ export function revealFor(average, zone, base, gap = GAP) {
  * @property {Object<string, "high"|"low">} profile the checked traits
  * @property {Object<string, "high"|"low"|"not high">} signature what the group must have to qualify
  * @property {string} reveal the reveal line
- * @property {string} revealPast the reveal line when the group died out
+ * @property {string} [revealPast] the reveal line when the group died out (not for the first mammals, never shown then)
  * @property {Array<{text:string, past?:string, credits:Object<string, "high"|"low">}>} why its "why" sentences (and their past
  *   tense, when the group died out) and the traits each credits
  */
