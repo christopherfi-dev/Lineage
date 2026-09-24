@@ -78,24 +78,27 @@ export function skipDoneLines(skip, n, others, changed, noun) {
   return lines;
 }
 
-/* ================= following a new variation (scope decisions 32–34) ================= */
+/* ================= following a new variation (scope decisions 32–34 and 42) ================= */
 
 /** The first time a newborn glows in a story. */
 export const GLOW_HINT = "Tap a glowing baby to see what's new.";
-/** "Follow 14 animals with smaller eyes": the fair test's real size (scope decision 36). */
+/** "Follow 14 animals with smaller eyes": the fair test's real size, when it can start right away (scope decision 36). */
 export const followButton = (n, group) => `Follow ${n} animals with ${group}`;
-export const NOT_THIS = "Not this one";
-/** Too few carry it in its habitat to start a fair test yet. */
-export const tooFew = (n) => `Only ${n} here ${n === 1 ? "has" : "have"} this. Watch it?`;
-/** Too few here are without it to start a fair test. */
-export const TOO_MANY = "Almost all here have this. Watch it?";
-export const watchingLine = (group, n, zone) => `Watching animals with ${group}. ${n} ${ZONE_AT[zone]} so far.`;
-/** A watched variation is common enough to start a fair test. */
-export const readyLine = (group, n) => `Your animals with ${group}: now ${n}. Follow them?`;
-export const FOLLOW_THEM = "Follow them";
-export const WATCHING = "Watching";
-/** "smaller eyes: 7" on the watching list */
-export const watchRow = (group, n) => `${group}: ${n}`;
+/** Too few here to start a fair test right away: following it first fast-forwards to see if it spreads (scope decision 42). */
+export const followSpread = (group) => `Follow animals with ${group}`;
+/** Closes the card and leaves the glow on, so the child can look at other babies and come back (scope decision 43). */
+export const KEEP_LOOKING = "Keep looking";
+/** How many of the latest counts the spread's line shows. */
+const SPREAD_COUNTS = 3;
+/** The spread's live counter, updated each generation: "Will it spread? Animals with smaller eyes: 3… 7… 12…" */
+export const spreadLine = (group, counts) =>
+  `Will it spread? Animals with ${group}: ${counts.slice(-SPREAD_COUNTS).map((n) => `${n}…`).join(" ")}`;
+/** The spread stopped: none carry it any more. */
+export const SPREAD_GONE = "It disappeared. Most new traits do.";
+/** The spread stopped at its last generation with too few to start a fair test. */
+export const SPREAD_SHORT = "It didn't spread far enough.";
+/** Too few here are without it for a fair test: most of the habitat has it already. */
+export const SPREAD_COMMON = "Most here have it. Too few others for a fair test.";
 
 /*
  * Growth is never a percentage (scope decision 12): a child sees counts,

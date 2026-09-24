@@ -25,7 +25,7 @@ unchanged, and the world you see starts again from generation 0 with the same se
 seeds 1–100 pass. A `?seed=` that fails is swapped for a good one, and "New world" only picks
 good seeds.
 
-## The story (scope decisions 6 and 32–35)
+## The story (scope decisions 6, 32–35 and 42)
 
 The rules are in `src/story.js` and `src/cohorts.js`, with every number at the top of the files:
 
@@ -38,7 +38,7 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `MIN_SIZE` | 10 | a fair test needs at least this many on each side |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
-| `WATCH_MAX` | 3 | variations on the watching list, at most |
+| `SPREAD_MAX` | 10 | generations a variation too rare to start a fair test is fast-forwarded, at most, to see if it spreads |
 | `PUSH_SECONDS` | 120 | story time with no follow before the backup choice panel opens |
 | `CHOICE_SECONDS` | 20 | time to choose on that panel before one option is picked at random |
 | `STORY_CHOICES` | 15 | follows in a story, at most |
@@ -54,7 +54,9 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    group's median for that trait, plus or minus 0.12). At most three glow at once, meaningful
    traits first, then the newest, one per variation; nothing else flashes. The first glow of a
    story says "Tap a glowing baby to see what's new." Tapping one opens its card with "Follow
-   animals with smaller eyes" and "Not this one".
+   animals with smaller eyes" and "Keep looking" (scope decision 43). "Keep looking" closes the
+   card and leaves the glow on, so a child can look at several babies and come back to one; the
+   glow still ends on its own after `GLOW_GENERATIONS`.
 3. **The fair test** (scope decisions 33, 36 and 37). Following makes two groups of the same
    size in the newborn's habitat: the animals there that carry the variation, the newborn and
    the ones nearest it, and for each of them the nearest one there that doesn't, its twin: "the
@@ -65,16 +67,29 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    between the animals' home spots on the map; newborns get theirs from a generator of their
    own (`src/herd.js`), so a measurement run and the game pick the same animals. After a
    follow the world fast-forwards 2 generations.
-4. **Too rare yet** (scope decisions 33 and 36). If fewer than `MIN_SIZE` in that habitat carry it,
-   the card says "Only 7 here have this. Watch it?". A watched variation goes on the corner
-   panel's "Watching" list with its count; when it can start a fair test, a gentle line offers
-   it: "Your animals with smaller eyes: now 21. Follow them?"
-   **The push** (scope decision 34). After `PUSH_SECONDS` with no follow, the world pauses
-   and the choice panel offers up to three variations that can start a fair test, watched ones
-   first. Each is drawn from its real genome with a ring (and a close-up) on the part it is
+4. **Will it spread?** (scope decision 42). If either side has fewer than `MIN_SIZE` in that
+   habitat, the card says "Follow animals with smaller eyes", without a number. Following it
+   fast-forwards the world (2 s a generation, with the Fast-forward badge), and one line in the
+   log counts the animals there that have it, the latest three counts: "Will it spread? Animals
+   with smaller eyes: 3… 7… 12…". The count changes in place each generation, and its speaker
+   reads "3, 7, 12.".
+   - At `MAX_SIZE` the fair test starts, with the adaptive size. After `SPREAD_MAX` generations
+     it starts with what there is, if both sides have `MIN_SIZE`.
+   - Otherwise: "It disappeared. Most new traits do." (none have it any more) or "It didn't spread
+     far enough." The child keeps their group, and the try is not one of their follows.
+   - When too few there are without it (most already have it), no spread can help: "Most here
+     have it. Too few others for a fair test." With `MAX_SIZE` or more carrying it, this comes at
+     once, with no fast-forward.
+   - The child's group lives on meanwhile; if it dies out, the story ends as usual. The skipped
+     generations count toward the story's 76.
+
+   **The push** (scope decisions 34 and 42). After `PUSH_SECONDS` with no follow, the world
+   pauses and the choice panel offers up to three variations that can start a fair test right
+   away. Each is drawn from its real genome with a ring (and a close-up) on the part it is
    about. After `CHOICE_SECONDS`, one is picked at random. Options not picked make no group.
-   **"Since your last choice"** shows the last fair test at the next follow, in that panel or
-   in its own sheet, with the prediction made then beside what happened.
+   **"Since your last choice"** shows the last fair test at the next follow (a spread that
+   starts one included), in that panel or in its own sheet, with the prediction made then beside
+   what happened.
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
    and "Back to my group" goes to the group's largest cluster.
 6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
@@ -168,7 +183,7 @@ trait (for example feet: no webbing, some webbing, webbed).
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31 and 34). The moments are arrival, generation, variation, follow, watching, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34 and 42). The moments are arrival, generation, variation, follow, spreading, fizzled, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/`.
 

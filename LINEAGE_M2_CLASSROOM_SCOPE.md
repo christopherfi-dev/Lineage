@@ -126,7 +126,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **The glow (calm rule):** a newborn in the child's group glows when the trait new in it at birth (a body mutation of 0.12 or more) takes it past the group's usual. The line is the replacement rule's threshold: the group's median, plus or minus 0.12.
      - At most 3 glow at a time: meaningful traits first, then the newest, one per variation.
      - A newborn glows in the generation it is born and the next one. Nothing else flashes any more.
-   - **The card:** tapping a glowing newborn opens its card with "Follow animals with [trait]" and "Not this one". The buttons show only while the world is watched (not during a fast-forward or a panel) and follows are left. "Not this one" stops the glow and makes no group.
+   - **The card:** tapping a glowing newborn opens its card with "Follow animals with [trait]" and "Not this one". The buttons show only while the world is watched (not during a fast-forward or a panel) and follows are left. "Not this one" stops the glow and makes no group. *"Not this one" was replaced by "Keep looking" in decision 43 (2026-09-24): it closes the card and the glow stays.*
    - **A follow counts as a choice.** "Since your last choice" comes first (decision 34), then a prediction after every third follow (decision 28), then the usual 2-generation fast-forward.
    - **Limits:** at most STORY_CHOICES (15) follows. There are no fixed choice points. A story ends at generation 76, or when the child's group dies out.
 33. **The fair test** (2026-09-24, replaces the unchosen groups in decision 9).
@@ -137,13 +137,15 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Not enough yet:** when fewer than START_SIZE animals in the habitat carry the variation, the card's button says "Only N here have this. Watch it?". When fewer than START_SIZE don't carry it, it says "Almost all here have this. Watch it?".
      - Watching puts the variation on a small "Watching" list (at most 3) with its count in that habitat.
      - When both sides reach START_SIZE, a gentle line appears once: "Your animals with [trait]: now N. Follow them?", with a "Follow them" button.
+     - *The watching path (the button, the list and the gentle line) was replaced by decision 42 (2026-09-24): a variation too rare to start a test right away is fast-forwarded to see if it spreads.*
 34. **The push, and "Since your last choice"** (2026-09-24).
    - **The push:** with no follow for PUSH_SECONDS (120) of story time, the choice panel opens as a backup. It offers up to 3 variations that can start a fair test: watched ones first, then glowing ones, then others the group has spread (at least 3 members carry them).
      - It keeps the 20-second timer, the random pick and "Time's up!". The options not picked make no group.
      - If nothing can start a fair test, the push waits and checks again each generation.
+     - *Since decision 42 (2026-09-24) it offers only variations that can start right away, glowing ones first; the watched ones went with the watching list.*
    - **"Since your last choice"** shows the last fair test at the next follow: in the backup panel, or as its own sheet after a follow from a card or the gentle line. It holds the neutral note (decision 8) and the prediction beside what happened (decision 30).
      - The sheet waits while a line is read aloud or a card is open. "Next", or 15 seconds, goes on to the new follow.
-   - **Moments:** `?moment=follow` (a glowing newborn's card), `?moment=watching` (a watched variation ready to follow) and `?moment=fairtest` (both groups five generations after a follow) join the moment shortcuts (decision 27). All moments were shot again in `design/current/`.
+   - **Moments:** `?moment=follow` (a glowing newborn's card), `?moment=watching` (a watched variation ready to follow) and `?moment=fairtest` (both groups five generations after a follow) join the moment shortcuts (decision 27). All moments were shot again in `design/current/`. *`?moment=watching` was replaced by `?moment=spreading` and `?moment=fizzled` (decision 42).*
    *Measured with a simulated child on 270 stories (30 good seeds × 9 founding families, the game's own code). The child follows the first meaningful glowing variation that can start a fair test, after at least 40 s of watching, and takes the first option on the backup panel.*
    - *Glowing newborns whose variation can already start a group: 4,442 of 13,731 (32%; meaningful ones 32%). The median count of carriers in the habitat is 14 (middle half 7–23).*
    - *Stories:*
@@ -177,7 +179,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
 36. **The fair test's size adapts** (2026-09-24, replaces START_SIZE in decision 33).
    - **The size** is the smallest of: the carriers in the habitat, the non-carriers there, and MAX_SIZE (20). Both groups always start at exactly that size.
    - **A follow needs at least MIN_SIZE (10).** The card shows the real number: "Follow 14 animals with smaller eyes".
-   - **Below MIN_SIZE** the card keeps "Only N here have this. Watch it?". The gentle line for a watched variation appears when both sides reach MIN_SIZE.
+   - **Below MIN_SIZE** the card keeps "Only N here have this. Watch it?". The gentle line for a watched variation appears when both sides reach MIN_SIZE. *Replaced by decision 42 (2026-09-24): the card always offers to follow, and below MIN_SIZE the world fast-forwards to see if the variation spreads.*
 37. **Twins, and an ending that leads with the fair test** (2026-09-24).
    - **Yours:** the child's carriers are chosen as before, the newborn first and then the nearest.
    - **The others here:** for each of yours in turn, the nearest non-carrier not already taken, its twin, so the two groups stand side by side on the map.
@@ -221,6 +223,50 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - *A died-out ending gets the fallback in 99 of 234 (42%), and 33 of the 40 families that die before any follow (83%).*
 41. **No tree shrew on a died-out ending** (2026-09-24, changes decision 40's fallback). A group that died out never gets the first mammals. If it matches no animal, the reveal is "Your animals didn't have time to change.", with one "why" line: "Their story ended before new traits could spread." A surviving group keeps the first mammals as its fallback, as it is. The reveal stays after the fair test on died-out endings (confirmed).
    *With the same simulated child on the 270 stories: 99 of 234 died-out endings (42%) get the new line, including 33 of the 40 families that die before any follow. No died-out ending gets the first mammals; 5 of 36 surviving endings still do.*
+42. **Will it spread? A fast-forward instead of "Watch it?"** (2026-09-24, replaces the watching path in decisions 33 and 36 and the watched options in decision 34). Fast-forwarding never changes the biology.
+   - **The card** on a glowing newborn always offers "Follow animals with [trait]" and "Not this one" ("Keep looking" since decision 43). "Watch it?", the Watching list and the gentle line are gone.
+     - When both sides have at least MIN_SIZE (10) in the habitat, the fair test starts right away, as before, and the button says its real size: "Follow 14 animals with smaller eyes" (decision 36).
+     - Otherwise the button has no number, and the world fast-forwards to see if the variation spreads.
+   - **The spread:** the world speeds up (2 s a generation, with the Fast-forward badge), and one line in the log counts the animals with it in that habitat, the latest three counts: "Will it spread? Animals with smaller eyes: 3… 7… 12…". The count changes in place each generation. The line has a speaker ("3, 7, 12.").
+     - **It reaches MAX_SIZE (20):** it stops at once, and the fair test starts with the adaptive size.
+     - **SPREAD_MAX (10) generations pass:** it stops. If both sides then have MIN_SIZE, the fair test starts with what there is.
+     - **It fails:** "It disappeared. Most new traits do." (none have it any more) or "It didn't spread far enough." (still too few at the cap). The child keeps their current group, and the try is not one of their follows. The backup panel's 120 s start again.
+     - **When it starts a fair test,** "Since your last choice" and the prediction come first, as for any follow (decisions 28 and 34).
+   - **Too few without it** (added here, rare): the variation is already common in that habitat, so no spread can help. The line is "Most here have it. Too few others for a fair test." With MAX_SIZE or more carrying it at the tap, it comes at once, with no fast-forward. The child keeps their group.
+   - **Meanwhile** the child's group lives on as usual. If it dies out, the story ends as a normal died-out ending. The skipped generations count toward the story's 76.
+   - **The backup panel** after 120 s with no follow stays, but offers only variations that can start a fair test right away.
+   - **Moments:** `?moment=spreading` (the counter mid-fast-forward) and `?moment=fizzled` (the variation disappeared) replace `?moment=watching`. All moments were shot again in `design/current/`.
+   *Measured on the same 270 stories (30 good seeds × 9 founding families, the game's own code) with a new simulated child: after at least 40 s of watching, it taps the first meaningful glowing variation, whether or not it can start right away. On the backup panel it takes the first option.*
+   - *Follows that start right away: 811 of 1,396 taps (58%).*
+   - *Skips (585 taps):*
+     - *500 finished: 138 reached 20 (28%); 80 started with 10–19 at the cap (16%); 282 fizzled (56%).*
+     - *Of the fizzles, 97 disappeared, 170 still had too few, and 15 had too few without it.*
+     - *A median of 8 generations skipped: 5 to reach 20, 4 to disappear.*
+     - *85 more were cut short when the story ended; in 70 of them the group died out.*
+   - *Story length: median 37 generations, about 5.6 minutes of generations and pre-rolls (panels add more). 51 of 270 stories (19%) reach generation 76.*
+   - *Fast-forwarding: a median 21 generations per story (skips, and the 2 after each follow), against 14 watched. In 198 of 270 stories most generations are fast.*
+   - *Follows: 1,095, a median of 3 per story. 218 started after a skip; 66 came from the backup panel, which was needed in 55 of 270 stories (20%).*
+   - *54 stories have no fair test at all (40 in the last round); 33 of them tried a skip.*
+   - *The webbed-feet fair test (as in decision 39, with a spread when a test can't start right away):*
+     - *In the high leaves, 110 of 150 tries start (80 right away, 30 after a skip). After 10 generations the webbed group did worse in 66 and better in 30 (median 4 against 14).*
+     - *At the water's edge, 149 of 150 start (146 right away, 3 after a skip). After 10 generations the webbed group did better in 96 and worse in 50 (median 27 against 13).*
+   - *Other caps, because more than half of skips fizzle, each measured on its own stories:*
+
+     | SPREAD_MAX | 10 | 15 | 20 |
+     |---|---|---|---|
+     | skips that fizzle | 56% | 54% | 52% |
+     | fair tests started after a skip | 218 | 212 | 204 |
+     | skips cut short by the story's end | 85 | 104 | 113 |
+     | median story: generations; minutes | 37; 5.6 | 41; 6.2 | 41; 5.5 |
+     | stories reaching 76 | 51 | 53 | 52 |
+     | webbed tries starting in the high leaves | 110 | 114 | 123 |
+
+     *SPREAD_MAX stays 10 (for Marc to confirm). A longer cap barely lowers the fizzles, starts no more tests, and lets more stories end in a skip.*
+43. **Keep looking** (2026-09-24, replaces "Not this one" in decisions 32 and 42). On a glowing baby's card, "Keep looking" replaces "Not this one".
+   - It closes the card and leaves the glow on, so a child can look at several babies and come back to one.
+   - The glow still ends on its own after its usual generations (GLOW_GENERATIONS, 2), under the calm rule (decision 32).
+   - The card still closes with ×, a tap on empty ground, or Escape.
+   - The simulated child never used "Not this one", so no measurement changes. The `follow` and `card` screenshots in `design/current/` were shot again.
 
 ## What the engine already gives you (do not rebuild these)
 

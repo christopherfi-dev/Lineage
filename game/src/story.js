@@ -1,8 +1,9 @@
 /**
- * The story loop (scope decisions 6 and 32–34). DOM-free: the page, the
+ * The story loop (scope decisions 6, 32–34 and 42). DOM-free: the page, the
  * moment shortcuts and the measurement scripts drive the same rules.
  *
  * waiting ─tap─▶ watch ─follow─▶ skip ─▶ watch ─▶ … ─▶ ended
+ *                  ├─ too rare yet ─▶ spread ─▶ follow, or back to watch
  *                  └─ push ─▶ choice ─choose─▶ skip
  *
  * Time waits for the child: no generation runs until an animal is tapped, and
@@ -16,7 +17,11 @@
  * others here" (cohorts.js). The size is the smaller side, at most MAX_SIZE,
  * and a test needs at least MIN_SIZE. Both change only by babies of their own mothers
  * and by deaths, so their counts compare fairly. A variation too rare to start
- * a test can be watched until it is common enough.
+ * a test right away is fast-forwarded to see if it spreads (scope decision 42):
+ * at MAX_SIZE carriers the test starts; after SPREAD_MAX generations it starts
+ * with what there is, if that is at least MIN_SIZE; otherwise the child keeps
+ * the group they have, and the try is not one of their follows. A variation
+ * most of the habitat already has (too few without it) is not fast-forwarded.
  *
  * If the child follows nothing for PUSH_SECONDS, a choice panel offers
  * variations that can start a test, as a backup. At most STORY_CHOICES
@@ -29,7 +34,7 @@ import { averageOf, formOf } from "./variations.js";
 import { census, comparisonFor, evidenceFor, mainZoneOf } from "./evidence.js";
 import { revealFor } from "./reveal.js";
 import {
-  GLOW_GENERATIONS, GLOW_MAX, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS, WATCH_MAX,
+  GLOW_GENERATIONS, GLOW_MAX, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS,
   canStart, formCohorts, newbornVariation, sameVariation, sidesIn, spreadVariations, testSize,
 } from "./cohorts.js";
 
@@ -47,19 +52,23 @@ export const STORY_CHOICES = 15;
 export const STORY_GENERATIONS = 76;
 /** With no follow for this many seconds of story, the backup choice panel opens. */
 export const PUSH_SECONDS = 120;
+/** A variation too rare to start a fair test is fast-forwarded at most this many generations to see if it spreads. */
+export const SPREAD_MAX = 10;
 
 export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
-   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number}} [opts] where
-   *   each animal's home spot is (herd.js); the sizes only for measuring other values of MIN_SIZE and MAX_SIZE
+   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number, spreadMax?:number}} [opts]
+   *   where each animal's home spot is (herd.js); the others only for measuring other values of MIN_SIZE,
+   *   MAX_SIZE and SPREAD_MAX
    */
-  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE } = {}) {
+  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE, spreadMax = SPREAD_MAX } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     this.minSize = minSize;
     this.maxSize = maxSize;
-    /** @type {"waiting"|"watch"|"skip"|"choice"|"ended"} */
+    this.spreadMax = spreadMax;
+    /** @type {"waiting"|"watch"|"skip"|"spread"|"choice"|"ended"} */
     this.phase = "waiting";
     /** @type {null|Offer[]} the backup choice panel's options, while it is open */
     this.options = null;
@@ -71,12 +80,12 @@ export class Story {
     this.glowing = [];
     /** @type {Glow[]} recent newborns with a new variation, glowing or not */
     this.fresh = [];
-    /** @type {Set<number>} newborns the child said "Not this one" to */
+    /** @type {Set<number>} newborns the child tried to follow with a spread: they stop glowing */
     this.dismissed = new Set();
-    /** @type {Watch[]} variations the child is watching */
-    this.watching = [];
-    /** @type {Watch[]} watched variations that just became common enough to follow */
-    this.readyNow = [];
+    /** @type {null|Spread} a variation being fast-forwarded to see if it spreads */
+    this.spread = null;
+    /** @type {null|Spread} the latest spread, once it has stopped */
+    this.lastSpread = null;
     /** seconds of story since the latest follow (or the start) */
     this.idle = 0;
     /** seconds watched since the latest fast-forward ended (or the start) */
@@ -111,8 +120,9 @@ export class Story {
     this.segment = new Map();
   }
 
-  get running() { return this.phase === "watch" || this.phase === "skip"; }
-  get fast() { return this.phase === "skip"; }
+  get running() { return this.phase === "watch" || this.phase === "skip" || this.phase === "spread"; }
+  /** The world fast-forwards: after a follow, and while a variation is seen spreading. */
+  get fast() { return this.phase === "skip" || this.phase === "spread"; }
   get lasted() { return (this.endGeneration ?? this.bridge.generation) - this.startGeneration; }
   /** "family" until the first follow, then "group". */
   get noun() { return this.choices.length ? "group" : "family"; }
@@ -149,11 +159,10 @@ export class Story {
   /**
    * After each engine generation.
    * @param {import("./bridge.js").GenerationEvents} ev
-   * @returns {"ended"|"skip-done"|"choice"|null} what the story did; `readyNow` lists watched variations just ready
+   * @returns {"ended"|"skip-done"|"spreading"|"spread-ready"|"spread-failed"|"choice"|null} what the story did
    */
   afterGeneration(ev) {
     const g = ev.group;
-    this.readyNow = [];
     if (!g || !this.running) return null;
     const seconds = this.fast ? FAST_SECONDS : GENERATION_SECONDS;
     this.idle += seconds;
@@ -162,7 +171,7 @@ export class Story {
     this.remember();
     if (ev.generation >= STORY_GENERATIONS) return this.end("survived", ev.generation);
     this.updateGlow(ev);
-    this.updateWatching();
+    if (this.phase === "spread") return this.spreadGeneration();
     if (this.phase === "skip") {
       if (++this.skipped < SKIP_GENERATIONS) return null;
       this.phase = "watch";
@@ -197,7 +206,7 @@ export class Story {
 
   refreshGlow(generation = this.bridge.generation) {
     this.fresh = this.fresh.filter((x) => generation - x.generation < GLOW_GENERATIONS &&
-      this.bridge.isFollowed(x.id) && !this.dismissed.has(x.id) && !this.watchOf(x));
+      this.bridge.isFollowed(x.id) && !this.dismissed.has(x.id));
     const ranked = [...this.fresh].sort((a, b) => Number(a.v.neutral) - Number(b.v.neutral) || b.generation - a.generation || a.id - b.id);
     const glowing = [];
     for (const x of ranked) {
@@ -210,7 +219,7 @@ export class Story {
   /** @returns {null|Glow} */
   glowFor(id) { return this.glowing.find((x) => x.id === id) ?? null; }
 
-  /** Both sides of a glowing, watched or offered variation in its habitat, now. */
+  /** Both sides of a glowing, spreading or offered variation in its habitat, now. */
   sidesFor(x) { return sidesIn(this.bridge, x.v, x.zone); }
 
   /** Both sides have at least MIN_SIZE animals here, so a fair test can start. */
@@ -219,48 +228,69 @@ export class Story {
   /** How big a fair test on this variation would be now: the smaller side, at most MAX_SIZE. */
   sizeFor(x) { return testSize(this.sidesFor(x), this.maxSize); }
 
-  /** "Not this one": it stops glowing, and nothing else happens. */
-  dismiss(id) {
-    this.dismissed.add(id);
+  /**
+   * Too few carry the variation here to start a fair test right away, so the
+   * world fast-forwards to see if it spreads (scope decision 42). The newborn
+   * stops glowing; the child's group lives on meanwhile, as usual. When MAX_SIZE
+   * or more carry it already, the test is short of animals without it, which
+   * no spread can fix: it stops at once.
+   * @param {Glow} x
+   * @returns {"spreading"|"spread-failed"}
+   */
+  trySpread(x) {
+    this.dismissed.add(x.id);
     this.refreshGlow();
-  }
-
-  /** "Watch it?": too few carry it here yet, so its count is kept an eye on. */
-  watch(x) {
-    if (this.watchOf(x)) return;
-    const sides = this.sidesFor(x);
-    this.watching.push({ v: x.v, zone: x.zone, id: x.id, home: this.homeOf(x.id), count: sides.carriers.length, ready: canStart(sides, this.minSize, this.maxSize), told: canStart(sides, this.minSize, this.maxSize) });
-    if (this.watching.length > WATCH_MAX) this.watching.shift();
-    this.refreshGlow();
-  }
-
-  /** @returns {null|Watch} */
-  watchOf(x) { return this.watching.find((w) => w.zone === x.zone && sameVariation(w.v, x.v)) ?? null; }
-
-  updateWatching() {
-    for (const w of this.watching) {
-      const sides = this.sidesFor(w);
-      w.count = sides.carriers.length;
-      w.ready = canStart(sides, this.minSize, this.maxSize);
-      if (w.ready && !w.told) { w.told = true; this.readyNow.push(w); }
-    }
-    this.watching = this.watching.filter((w) => w.count > 0);
+    const n = this.sidesFor(x).carriers.length;
+    this.spread = { v: x.v, zone: x.zone, id: x.id, home: this.homeOf(x.id), generation: this.bridge.generation,
+      counts: [n], outcome: null };
+    this.phase = "spread";
+    return n >= this.maxSize ? this.stopSpread("common") : "spreading";
   }
 
   /**
-   * The backup choice panel's options: watched variations that can start a
-   * fair test first, then glowing ones that can, then others the group has
-   * spread. One per trait.
+   * One generation of a spread: count the carriers, and stop when they reach
+   * MAX_SIZE, when none are left, or after SPREAD_MAX generations. "reached"
+   * and "enough" can start the fair test; "gone", "short" and "common" cannot,
+   * and the child keeps the group they have (not counted as a follow).
+   */
+  spreadGeneration() {
+    const sp = this.spread, sides = this.sidesFor(sp), n = sides.carriers.length;
+    sp.counts.push(n);
+    const generations = sp.counts.length - 1, ok = canStart(sides, this.minSize, this.maxSize);
+    // Enough carriers but too few without it is "common": most here have it.
+    const notOk = n >= this.minSize ? "common" : "short";
+    if (n >= this.maxSize) return this.stopSpread(ok ? "reached" : notOk);
+    if (n === 0) return this.stopSpread("gone");
+    if (generations >= this.spreadMax) return this.stopSpread(ok ? "enough" : notOk);
+    return "spreading";
+  }
+
+  /** @returns {"spread-ready"|"spread-failed"} */
+  stopSpread(outcome) {
+    const sp = this.spread;
+    sp.outcome = outcome;
+    this.lastSpread = sp;
+    this.spread = null;
+    this.phase = "watch";
+    if (outcome === "reached" || outcome === "enough") return "spread-ready";
+    this.idle = 0; // the child just tried: the backup panel waits again
+    this.quiet = 0;
+    return "spread-failed";
+  }
+
+  /**
+   * The backup choice panel's options: only variations that can start a fair
+   * test right away (scope decision 42), glowing ones first, then others the
+   * group has spread. One per trait.
    * @returns {Offer[]}
    */
   pushOptions() {
     const out = [];
-    const add = (x, watched) => {
-      if (out.length < PUSH_OPTIONS && !out.some((o) => o.v.trait === x.v.trait)) out.push({ v: x.v, id: this.anchorFor(x), zone: x.zone, watched });
+    const add = (x) => {
+      if (out.length < PUSH_OPTIONS && !out.some((o) => o.v.trait === x.v.trait)) out.push({ v: x.v, id: this.anchorFor(x), zone: x.zone });
     };
-    for (const w of this.watching) if (w.ready) add(w, true);
-    for (const g of this.glowing) if (this.canStartFor(g)) add(g, false);
-    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.minSize, this.maxSize)) add(s, false);
+    for (const g of this.glowing) if (this.canStartFor(g)) add(g);
+    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.minSize, this.maxSize)) add(s);
     return out;
   }
 
@@ -278,7 +308,7 @@ export class Story {
    * habitat, the anchor and the nearest, and a twin without it beside each
    * becomes "the others here", the same number on both sides. Then the world
    * fast-forwards.
-   * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow, a watch or an offer
+   * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow, a spread that can start, or an offer
    * @param {boolean} byChance picked at random on the backup panel because time ran out
    */
   follow(x, byChance) {
@@ -293,7 +323,6 @@ export class Story {
       sizeAtChoice: mine.length, sizeAtEnd: null, othersAtChoice: theirs.length, othersAtEnd: null,
     });
     this.sizeAtChoice = mine.length;
-    this.watching = this.watching.filter((w) => !(w.zone === x.zone && sameVariation(w.v, x.v)));
     this.fresh = [];
     this.glowing = [];
     this.options = null;
@@ -322,6 +351,7 @@ export class Story {
     this.endGeneration = generation;
     this.glowing = [];
     this.options = null;
+    if (this.spread) { this.spread.outcome = "ended"; this.lastSpread = this.spread; this.spread = null; }
     this.mainZone = mainZoneOf(this.lastAnimals);
     const segment = [...this.segment.values()], living = this.bridge.livingAnimals();
     this.comparison = comparisonFor(segment, living, this.startCensus);
@@ -340,15 +370,18 @@ export class Story {
  * @property {number} id @property {import("./cohorts.js").Variation} v
  * @property {number} zone its habitat @property {number} generation when it was born
  *
- * @typedef {Object} Watch a variation the child is watching
+ * @typedef {Object} Spread a variation fast-forwarded to see if it spreads (scope decision 42)
  * @property {import("./cohorts.js").Variation} v @property {number} zone the habitat it is counted in
  * @property {number} id the newborn it was seen in @property {null|{x:number,y:number}} home that newborn's home spot
- * @property {number} count how many carry it there now @property {boolean} ready a fair test can start
- * @property {boolean} told the child has been told it is ready
+ * @property {number} generation when it started
+ * @property {number[]} counts carriers in the habitat at the start and after each generation
+ * @property {null|"reached"|"enough"|"gone"|"short"|"common"|"ended"} outcome why it stopped: MAX_SIZE reached,
+ *   MIN_SIZE or more at SPREAD_MAX, none left, still too few at SPREAD_MAX, too few without it (most here have it),
+ *   or the story ended meanwhile
  *
  * @typedef {Object} Offer an option on the backup choice panel
  * @property {import("./cohorts.js").Variation} v @property {number} id the animal shown
- * @property {number} zone @property {boolean} watched it was on the watching list
+ * @property {number} zone
  *
  * @typedef {Object} FairTest the latest follow's two groups
  * @property {import("./cohorts.js").Variation} v @property {number} zone @property {number} anchor

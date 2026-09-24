@@ -19,18 +19,9 @@
     <div class="line" id="counts"></div>
     <div class="line small" id="zones"></div>
     <div class="line small" id="others" hidden></div>
-    <!-- Variations too rare to start a fair test yet, with how many carry them (scope decision 33). -->
-    <div class="line small" id="watching" hidden></div>
   </div>
 
   <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
-
-  <!-- A watched variation is common enough now: a gentle offer to follow it (scope decision 33). -->
-  <div id="ready" hidden>
-    <p id="ready-line"></p>
-    <button id="ready-follow" type="button">Follow them</button>
-    <button id="ready-close" type="button" aria-label="Close">&times;</button>
-  </div>
 
   <!-- The creature card (Step 3): tap any animal to see it up close. The world keeps running behind it. -->
   <div id="card" hidden>
@@ -42,7 +33,7 @@
     <p id="card-where"></p>
     <p id="card-new" hidden></p>
     <div id="card-counts" hidden></div>
-    <!-- A glowing newborn: follow its new variation, watch it, or not (scope decision 32). -->
+    <!-- A glowing newborn: follow its new variation, or keep looking (scope decisions 32, 42 and 43). -->
     <div id="card-follow" hidden></div>
     <div id="card-traits"></div>
   </div>
