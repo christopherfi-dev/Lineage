@@ -210,6 +210,15 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      | story length (median generations) | 30 | 36 | 43 |
      | push needed (stories) | 52% | 60% | 70% |
      | webbed tries in the high leaves; webbed worse after 5 | 80; 56 | 69; 53 | 20; 12 |
+40. **A reveal on every ending** (2026-09-24, extends decision 10). Every ending shows the real-animal reveal, not only a story that reaches generation 76. It uses the group's actual average traits and main habitat when the story ended (its last living members), with the same table, matching rule and "why" filter (`docs/LINEAGE_REAL_ANIMAL_REVEAL.md`).
+   - **Survived:** as before ("Your animals became swimmers, a lot like a river otter.").
+   - **Died out:** past tense ("Your animals were becoming a lot like a sloth."), with the "why" lines in the past tense ("Thick fur kept them warm."). It comes after the fair test and the question, so the fair test still leads.
+   - **A family that dies before any follow** also gets one.
+   - `?moment=extinct` (a group that died out after a follow) shows the new reveal, so no new moment was added.
+   *Measured with the same simulated child on the 270 stories (36 survive, 234 die out):*
+   - *Survived: Bushbaby 12, Sloth 5, Hare 5, first mammals 5, Squirrel 4, River otter 3, Capybara 2, Beaver 0, Meerkat 0.*
+   - *Died out: first mammals 99, Squirrel 37, River otter 19, Beaver 19, Bushbaby 18, Hare 16, Capybara 10, Meerkat 9, Sloth 7.*
+   - *A died-out ending gets the fallback in 99 of 234 (42%), and 33 of the 40 families that die before any follow (83%).*
 
 ## What the engine already gives you (do not rebuild these)
 
