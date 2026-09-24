@@ -13,12 +13,6 @@ const number = (n) => (n < WORDS.length ? WORDS[n] : String(n));
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** @param {{trait:string, before:number, after:number, delta:number}} m */
-export function traitChange(m) {
-  const up = m.after !== m.before ? m.after > m.before : m.delta > 0;
-  return TRAIT_WORDS[m.trait][up ? 1 : 0];
-}
-
 export const START_LINE = "Tap an animal to follow its family.";
 
 export function followLine(zone, n) {
@@ -27,11 +21,14 @@ export function followLine(zone, n) {
 
 /**
  * What the log says about your group after a generation, from real counts.
- * Only for a group that is still alive.
+ * Only for a group that is still alive. New variations are named only for
+ * the babies that glow (scope decision 38), so the log never counts more
+ * babies than the map shows.
  * @param {import("./bridge.js").GroupEvents} f
  * @param {"family"|"group"} noun
+ * @param {Array<{group:string}>} glowing the variations of this generation's glowing babies
  */
-export function groupLines(f, noun) {
+export function groupLines(f, noun, glowing = []) {
   const zones = f.byZone.map((n, z) => (n ? z : -1)).filter((z) => z >= 0);
   const where = zones.length === 1 ? ` ${ZONE_AT[zones[0]]}` : "";
   const lines = [];
@@ -46,11 +43,11 @@ export function groupLines(f, noun) {
   } else {
     lines.push(`Your ${noun} is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
   }
-  if (f.mutated.length === 1) {
-    lines.push(`One of your babies was born with ${traitChange(f.mutated[0])}.`);
-  } else if (f.mutated.length > 1) {
-    lines.push(`${capital(number(f.mutated.length))} of your babies were born with something new.`);
-    lines.push(`One has ${traitChange(f.mutated[0])}.`);
+  if (glowing.length === 1) {
+    lines.push(`One of your babies was born with ${glowing[0].group}.`);
+  } else if (glowing.length > 1) {
+    lines.push(`${capital(number(glowing.length))} of your babies were born with something new.`);
+    lines.push(`One has ${glowing[0].group}.`);
   }
   return lines;
 }
@@ -85,7 +82,8 @@ export function skipDoneLines(skip, n, others, changed, noun) {
 
 /** The first time a newborn glows in a story. */
 export const GLOW_HINT = "Tap a glowing baby to see what's new.";
-export const followButton = (group) => `Follow animals with ${group}`;
+/** "Follow 14 animals with smaller eyes": the fair test's real size (scope decision 36). */
+export const followButton = (n, group) => `Follow ${n} animals with ${group}`;
 export const NOT_THIS = "Not this one";
 /** Too few carry it in its habitat to start a fair test yet. */
 export const tooFew = (n) => `Only ${n} here ${n === 1 ? "has" : "have"} this. Watch it?`;
@@ -112,6 +110,9 @@ export const YOURS = "Yours";
 export const OTHERS_HERE = "The others here";
 /** "Yours (smaller eyes)" */
 export const yoursWith = (group) => `${YOURS} (${group})`;
+/** When your group died out, the ending says what became of the others here (scope decision 37). */
+export const OTHERS_DIED_TOO = "The others here died out too.";
+export const OTHERS_ALIVE = "The others here are still alive.";
 /** The ending's last fair test: "On the open ground:" */
 export const fairHeading = (zone) => `${capital(ZONE_AT[zone])}:`;
 export const SINCE_TITLE = "Since your last choice:";

@@ -71,10 +71,10 @@ const MOMENT = {
   variation: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.glowing.length === 1 && s.glowing[0].generation === ev.generation && { id: s.glowing[0].id } },
   /** A glowing newborn whose variation can start a fair test: its card is opened. */
   follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== null) return null; const g = s.followOpen && s.glowing.find((x) => !x.v.neutral && s.canStartFor(x)); return g ? { id: g.id } : null; } },
-  /** A watched variation reaches START_SIZE carriers: the gentle line offers it. */
+  /** A watched variation can start a fair test (MIN_SIZE on each side): the gentle line offers it. */
   watching: { families: FROM_OTHERS, policies: ["watcher"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.readyNow.length > 0 && { trait: s.readyNow[0].v.trait } },
-  /** Both groups of a fair test, five generations after the follow (the fast-forward and three more). */
-  fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 5 && s.theirs.now >= 5 },
+  /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
+  fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 10 && s.theirs.now >= 10 },
   /** The group clearly bigger than last generation, after a follow (so it is not the families' first burst). */
   grow: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.group.count - ev.group.before >= 4 && ev.group.count >= 1.2 * ev.group.before },
   /** The group clearly smaller than last generation, but not gone. */
@@ -87,8 +87,8 @@ const MOMENT = {
   "prediction-result": { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => { if (what !== null || s.choices.length !== 1) return null; const g = followable(s); return g ? { id: g.id } : null; } },
   /** A surviving ending whose reveal names a real animal (not the first mammals). */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
-  /** An ending where the group died out. */
-  extinct: { families: FROM_WEBBED, policies: ["passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" },
+  /** An ending where the group died out after a follow: it leads with the fair test (scope decision 37). */
+  extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
   /** A member of your group with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
@@ -219,12 +219,6 @@ function lookAtGroup(game, high = 0) {
   const p = game.herd.largestCluster(game.herd.followed);
   if (p) lookAt(game, p.x, p.y, 0.5, 0.5 - high);
 }
-/** Both groups of a fair test in view: halfway between your largest cluster and the others'. */
-function lookAtBoth(game) {
-  const p = game.herd.largestCluster(game.herd.followed), q = game.herd.largestCluster(game.bridge.otherIds());
-  if (p && q) lookAt(game, (p.x + q.x) / 2, (p.y + q.y) / 2); else lookAtGroup(game);
-}
-
 /** A small label while the moment is being reached; it also keeps taps out until then. */
 function badge(doc, text) {
   const el = doc.createElement("div");
@@ -272,9 +266,7 @@ export async function goToMoment(game, moment) {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
-  } else if (moment === "fairtest") {
-    lookAtBoth(G);
-  } else if (moment === "grow" || moment === "shrink" || moment === "watching") {
+  } else if (moment === "grow" || moment === "shrink" || moment === "watching" || moment === "fairtest") {
     lookAtGroup(G);
   } else if (moment === "choice") {
     lookAtGroup(G, 0.3); // as the panel itself frames it

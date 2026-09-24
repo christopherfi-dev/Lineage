@@ -8,7 +8,7 @@
  * events) and hands them to the canvas as plain events.
  *
  * "Your group" starts as a family, a mother line (families.js). After a
- * follow it is a cohort: START_SIZE animals with the chosen variation, and a
+ * follow it is a cohort: the fair test's animals with the chosen variation, and a
  * second cohort, "the others here", is tracked beside it (scope decisions
  * 32–33). A family and both cohorts grow by babies whose mother is in them and
  * shrink by deaths. Following is observer state only and cannot change the

@@ -10,10 +10,11 @@
  * active: a newborn in the group with a new variation glows (a few at a time,
  * meaningful traits first), and tapping it offers to follow that variation.
  *
- * Following is a fair test. The group becomes START_SIZE animals in the
- * newborn's habitat that carry the variation, the newborn and the ones nearest
- * it, and START_SIZE animals there that don't are tracked beside it as "the
- * others here" (cohorts.js). Both change only by babies of their own mothers
+ * Following is a fair test. The group becomes animals in the newborn's
+ * habitat that carry the variation, the newborn and the ones nearest it, and
+ * the same number there that don't, a twin beside each, are tracked as "the
+ * others here" (cohorts.js). The size is the smaller side, at most MAX_SIZE,
+ * and a test needs at least MIN_SIZE. Both change only by babies of their own mothers
  * and by deaths, so their counts compare fairly. A variation too rare to start
  * a test can be watched until it is common enough.
  *
@@ -28,8 +29,8 @@ import { averageOf, formOf } from "./variations.js";
 import { census, comparisonFor, evidenceFor, mainZoneOf } from "./evidence.js";
 import { revealFor } from "./reveal.js";
 import {
-  GLOW_GENERATIONS, GLOW_MAX, PUSH_OPTIONS, START_SIZE, WATCH_MAX,
-  canStart, formCohorts, newbornVariation, sameVariation, sidesIn, spreadVariations,
+  GLOW_GENERATIONS, GLOW_MAX, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS, WATCH_MAX,
+  canStart, formCohorts, newbornVariation, sameVariation, sidesIn, spreadVariations, testSize,
 } from "./cohorts.js";
 
 /** Real seconds per generation while watching. */
@@ -50,13 +51,14 @@ export const PUSH_SECONDS = 120;
 export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
-   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, size?:number}} [opts] where each animal's home
-   *   spot is (herd.js); `size` only for measuring other values of START_SIZE
+   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number}} [opts] where
+   *   each animal's home spot is (herd.js); the sizes only for measuring other values of MIN_SIZE and MAX_SIZE
    */
-  constructor(bridge, { homeOf = () => null, size = START_SIZE } = {}) {
+  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
-    this.size = size;
+    this.minSize = minSize;
+    this.maxSize = maxSize;
     /** @type {"waiting"|"watch"|"skip"|"choice"|"ended"} */
     this.phase = "waiting";
     /** @type {null|Offer[]} the backup choice panel's options, while it is open */
@@ -211,8 +213,11 @@ export class Story {
   /** Both sides of a glowing, watched or offered variation in its habitat, now. */
   sidesFor(x) { return sidesIn(this.bridge, x.v, x.zone); }
 
-  /** Both sides have enough animals here to start a fair test. */
-  canStartFor(x) { return canStart(this.sidesFor(x), this.size); }
+  /** Both sides have at least MIN_SIZE animals here, so a fair test can start. */
+  canStartFor(x) { return canStart(this.sidesFor(x), this.minSize, this.maxSize); }
+
+  /** How big a fair test on this variation would be now: the smaller side, at most MAX_SIZE. */
+  sizeFor(x) { return testSize(this.sidesFor(x), this.maxSize); }
 
   /** "Not this one": it stops glowing, and nothing else happens. */
   dismiss(id) {
@@ -224,7 +229,7 @@ export class Story {
   watch(x) {
     if (this.watchOf(x)) return;
     const sides = this.sidesFor(x);
-    this.watching.push({ v: x.v, zone: x.zone, id: x.id, home: this.homeOf(x.id), count: sides.carriers.length, ready: canStart(sides, this.size), told: canStart(sides, this.size) });
+    this.watching.push({ v: x.v, zone: x.zone, id: x.id, home: this.homeOf(x.id), count: sides.carriers.length, ready: canStart(sides, this.minSize, this.maxSize), told: canStart(sides, this.minSize, this.maxSize) });
     if (this.watching.length > WATCH_MAX) this.watching.shift();
     this.refreshGlow();
   }
@@ -236,7 +241,7 @@ export class Story {
     for (const w of this.watching) {
       const sides = this.sidesFor(w);
       w.count = sides.carriers.length;
-      w.ready = canStart(sides, this.size);
+      w.ready = canStart(sides, this.minSize, this.maxSize);
       if (w.ready && !w.told) { w.told = true; this.readyNow.push(w); }
     }
     this.watching = this.watching.filter((w) => w.count > 0);
@@ -255,7 +260,7 @@ export class Story {
     };
     for (const w of this.watching) if (w.ready) add(w, true);
     for (const g of this.glowing) if (this.canStartFor(g)) add(g, false);
-    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.size)) add(s, false);
+    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.minSize, this.maxSize)) add(s, false);
     return out;
   }
 
@@ -269,15 +274,16 @@ export class Story {
   }
 
   /**
-   * Follow a variation as a fair test: your group becomes START_SIZE carriers
-   * in its habitat, nearest the anchor, and START_SIZE animals there without
-   * it become "the others here". Then the world fast-forwards.
+   * Follow a variation as a fair test: your group becomes carriers in its
+   * habitat, the anchor and the nearest, and a twin without it beside each
+   * becomes "the others here", the same number on both sides. Then the world
+   * fast-forwards.
    * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow, a watch or an offer
    * @param {boolean} byChance picked at random on the backup panel because time ran out
    */
   follow(x, byChance) {
     const sides = this.sidesFor(x), anchor = this.anchorFor(x);
-    const { mine, theirs } = formCohorts(sides, anchor, this.homeOf, this.size);
+    const { mine, theirs } = formCohorts(sides, anchor, this.homeOf, testSize(sides, this.maxSize));
     this.closeChoice();
     this.bridge.followCohorts(mine, theirs);
     const generation = this.bridge.generation;
@@ -354,7 +360,7 @@ export class Story {
  * @property {boolean} byChance picked at random on the backup panel because time ran out
  * @property {number} generation when it was followed
  * @property {number} zone the habitat of the fair test
- * @property {number} sizeAtChoice your group's size when it formed (START_SIZE)
+ * @property {number} sizeAtChoice your group's size when it formed (the fair test's size)
  * @property {null|number} sizeAtEnd its size when the next follow replaced it or the story ended
  * @property {number} othersAtChoice @property {null|number} othersAtEnd the others here, the same way
  */
