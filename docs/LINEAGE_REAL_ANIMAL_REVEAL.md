@@ -84,6 +84,42 @@ The first mammals (tree shrew)
 - Reveal: "Your animals stayed like the very first mammals, like a tree shrew."
 - Why: "Their bodies didn't change much, and that worked. Some animals today still look a lot like their ancient relatives."
 
+## Died-out endings (2026-09-24, scope decision 40)
+
+Every ending gets a reveal, not only a surviving one. It uses the group's actual average traits and main habitat when the story ended (its last living members), with the same table, the same matching rule and the same "why" filter. A group that died out gets the reveal in the past tense:
+
+| Animal | Reveal when the group died out |
+|---|---|
+| River otter | "Your animals were becoming a lot like a river otter." |
+| Beaver | "Your animals were becoming a lot like a beaver." |
+| Capybara | "Your animals were becoming a lot like a capybara." |
+| Squirrel | "Your animals were becoming a lot like a squirrel." |
+| Sloth | "Your animals were becoming a lot like a sloth." |
+| Bushbaby | "Your animals were becoming a lot like a bushbaby." |
+| Hare | "Your animals were becoming a lot like a hare." |
+| Meerkat | "Your animals were becoming a lot like a meerkat." |
+| The first mammals | "Your animals stayed like the very first mammals, like a tree shrew." (already past) |
+
+The "why" lines about the group's animals are in the past tense too:
+- "Webbed feet pushed them through water."
+- "A strong tail helped them swim."
+- "A sleek body slid through the water easily."
+- "Webbed feet and a strong tail pushed them through water."
+- "Thick fur kept them warm, but it slowed their swimming."
+- "Webbed toes helped them swim."
+- "Long back legs helped on land, but slowed them in water."
+- "Curved claws gripped the branches."
+- "Toes without webbing held on tight."
+- "Big curved claws held on to branches."
+- "Thick fur kept them warm."
+- "Big eyes helped them see well."
+- "Long back legs helped them move fast."
+- "Long back legs helped them run fast."
+- "A small tail didn't slow them down."
+- "Big eyes helped them see well across open ground."
+
+The fallback's first line becomes "Their bodies didn't change much.", because "and that worked" is not true of a group that died out. "Some animals today still look a lot like their ancient relatives." stays as it is.
+
 ## Matching rule
 1. Only animals from the group's end habitat are considered, plus the fallback.
 2. An animal qualifies only if the group has its signature trait(s).
@@ -125,6 +161,26 @@ Results:
 - **The first mammals:** no trait is credited. Unchanged, except that the reveal line was shortened from 14 words to 12 for read-aloud.
 
 No animal was added, removed or renamed.
+
+### How often each reveal appears on every ending (2026-09-24)
+
+With active choosing and the adaptive fair test (scope decisions 32–40), measured on the 270 stories with the same simulated child: 36 survive and 234 die out, 40 of them before any follow.
+
+| Reveal | Survived | Died out |
+|---|---|---|
+| River otter | 3 | 19 |
+| Beaver | 0 | 19 |
+| Capybara | 2 | 10 |
+| Squirrel | 4 | 37 |
+| Sloth | 5 | 7 |
+| Bushbaby | 12 | 18 |
+| Hare | 5 | 16 |
+| Meerkat | 0 | 9 |
+| The first mammals (tree shrew) | 5 | 99 |
+
+- A died-out ending gets the fallback in 99 of 234 (42%).
+- Of the families that die before any follow, 33 of 40 get it (83%): their bodies barely changed.
+- Every reveal line and "why" line shown is 12 words or fewer (46 lines).
 
 ### How often each reveal appears (balance round: relative levels, GAP 0.12, signatures)
 

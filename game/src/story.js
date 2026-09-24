@@ -105,7 +105,7 @@ export class Story {
     this.mainZone = null;
     /** the whole world's mean for each trait at the start (generation 0): the base for relative reveal levels */
     this.startWorld = null;
-    /** @type {null|{animal: import("./reveal.js").RevealAnimal, why:string[], matched:number, checked:number, strength:number}} a surviving group's real animal */
+    /** @type {null|{animal: import("./reveal.js").RevealAnimal, why:string[], whyPast:string[], matched:number, checked:number, strength:number}} the group's real animal, on every ending */
     this.reveal = null;
     /** @type {Map<number, {id:number, genome:ArrayLike<number>, zone:number}>} everyone in the group since it last formed */
     this.segment = new Map();
@@ -326,10 +326,9 @@ export class Story {
     const segment = [...this.segment.values()], living = this.bridge.livingAnimals();
     this.comparison = comparisonFor(segment, living, this.startCensus);
     this.evidence = evidenceFor(segment, living, this.startCensus);
-    // Scope decision 10: from the group's actual average traits and main habitat, never its choices.
-    if (outcome === "survived") {
-      this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld);
-    }
+    // Scope decisions 10 and 40: on every ending, from the group's actual average traits and main habitat
+    // when the story ended (its last living members), never its choices.
+    this.reveal = revealFor(averageOf(this.lastAnimals.map((a) => a.genome)).map((a) => a.mean), this.mainZone, this.startWorld);
     return "ended";
   }
 }

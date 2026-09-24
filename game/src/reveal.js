@@ -3,10 +3,12 @@
  * matching rule and the checks live in docs/LINEAGE_REAL_ANIMAL_REVEAL.md;
  * this file must match it.
  *
- * A surviving group is shown the real animal it is most like, from its actual
- * average traits at the end and the habitat where most of it lives. The
- * choices the child made play no part. There is no correct answer: every
- * surviving group becomes something.
+ * Every ending shows the real animal the group is most like, from its actual
+ * average traits and the habitat where most of it lived when the story ended
+ * (scope decision 40). A group that died out gets the same match in the past
+ * tense ("Your animals were becoming a lot like a sloth."). The choices the
+ * child made play no part. There is no correct answer: every group becomes
+ * something.
  *
  * The reveal reflects what changed (scope decision 13): trait levels are
  * relative to the generation-0 world, and each animal needs its signature
@@ -32,10 +34,11 @@ export const ANIMALS = [
     profile: { toe_webbing: "high", strong_tail: "high", streamlined_body: "high", curved_claws: "low" },
     signature: { toe_webbing: "high", streamlined_body: "high" },
     reveal: "Your animals became swimmers, a lot like a river otter.",
+    revealPast: "Your animals were becoming a lot like a river otter.",
     why: [
-      { text: "Webbed feet push through water.", credits: { toe_webbing: "high" } },
-      { text: "A strong tail helps them swim.", credits: { strong_tail: "high" } },
-      { text: "A sleek body slides through the water easily.", credits: { streamlined_body: "high" } },
+      { text: "Webbed feet push through water.", past: "Webbed feet pushed them through water.", credits: { toe_webbing: "high" } },
+      { text: "A strong tail helps them swim.", past: "A strong tail helped them swim.", credits: { strong_tail: "high" } },
+      { text: "A sleek body slides through the water easily.", past: "A sleek body slid through the water easily.", credits: { streamlined_body: "high" } },
     ],
   },
   {
@@ -43,9 +46,10 @@ export const ANIMALS = [
     profile: { toe_webbing: "high", strong_tail: "high", dense_fur: "high", streamlined_body: "low" },
     signature: { toe_webbing: "high", strong_tail: "high" },
     reveal: "Your animals became paddlers, a lot like a beaver.",
+    revealPast: "Your animals were becoming a lot like a beaver.",
     why: [
-      { text: "Webbed feet and a strong tail push them through water.", credits: { toe_webbing: "high", strong_tail: "high" } },
-      { text: "Thick fur keeps them warm, but it slows their swimming.", credits: { dense_fur: "high" } },
+      { text: "Webbed feet and a strong tail push them through water.", past: "Webbed feet and a strong tail pushed them through water.", credits: { toe_webbing: "high", strong_tail: "high" } },
+      { text: "Thick fur keeps them warm, but it slows their swimming.", past: "Thick fur kept them warm, but it slowed their swimming.", credits: { dense_fur: "high" } },
     ],
   },
   {
@@ -53,9 +57,10 @@ export const ANIMALS = [
     profile: { toe_webbing: "high", strong_tail: "low", long_hindlimbs: "high" },
     signature: { toe_webbing: "high", long_hindlimbs: "high" },
     reveal: "Your animals live between land and water, a lot like a capybara.",
+    revealPast: "Your animals were becoming a lot like a capybara.",
     why: [
-      { text: "Webbed toes help them swim.", credits: { toe_webbing: "high" } },
-      { text: "Long back legs help on land, but slow them in water.", credits: { long_hindlimbs: "high" } },
+      { text: "Webbed toes help them swim.", past: "Webbed toes helped them swim.", credits: { toe_webbing: "high" } },
+      { text: "Long back legs help on land, but slow them in water.", past: "Long back legs helped on land, but slowed them in water.", credits: { long_hindlimbs: "high" } },
     ],
   },
   {
@@ -63,9 +68,10 @@ export const ANIMALS = [
     profile: { curved_claws: "high", toe_webbing: "low", streamlined_body: "low" },
     signature: { curved_claws: "high" },
     reveal: "Your animals became climbers, a lot like a squirrel.",
+    revealPast: "Your animals were becoming a lot like a squirrel.",
     why: [
-      { text: "Curved claws grip the branches.", credits: { curved_claws: "high" } },
-      { text: "Toes without webbing hold on tight.", credits: { toe_webbing: "low" } },
+      { text: "Curved claws grip the branches.", past: "Curved claws gripped the branches.", credits: { curved_claws: "high" } },
+      { text: "Toes without webbing hold on tight.", past: "Toes without webbing held on tight.", credits: { toe_webbing: "low" } },
     ],
   },
   {
@@ -73,9 +79,10 @@ export const ANIMALS = [
     profile: { curved_claws: "high", dense_fur: "high", long_hindlimbs: "low", large_eyes: "low" },
     signature: { curved_claws: "high", dense_fur: "high" },
     reveal: "Your animals became slow, careful climbers, a lot like a sloth.",
+    revealPast: "Your animals were becoming a lot like a sloth.",
     why: [
-      { text: "Big curved claws hold on to branches.", credits: { curved_claws: "high" } },
-      { text: "Thick fur keeps them warm.", credits: { dense_fur: "high" } },
+      { text: "Big curved claws hold on to branches.", past: "Big curved claws held on to branches.", credits: { curved_claws: "high" } },
+      { text: "Thick fur keeps them warm.", past: "Thick fur kept them warm.", credits: { dense_fur: "high" } },
     ],
   },
   {
@@ -84,9 +91,10 @@ export const ANIMALS = [
     profile: { large_eyes: "high", long_hindlimbs: "high" },
     signature: { large_eyes: "high" },
     reveal: "Your animals became night leapers, a lot like a bushbaby.",
+    revealPast: "Your animals were becoming a lot like a bushbaby.",
     why: [
-      { text: "Big eyes help them see well.", credits: { large_eyes: "high" } },
-      { text: "Long back legs help them move fast.", credits: { long_hindlimbs: "high" } },
+      { text: "Big eyes help them see well.", past: "Big eyes helped them see well.", credits: { large_eyes: "high" } },
+      { text: "Long back legs help them move fast.", past: "Long back legs helped them move fast.", credits: { long_hindlimbs: "high" } },
     ],
   },
   {
@@ -94,10 +102,11 @@ export const ANIMALS = [
     profile: { long_hindlimbs: "high", strong_tail: "low", large_eyes: "high" },
     signature: { long_hindlimbs: "high" },
     reveal: "Your animals became runners, a lot like a hare.",
+    revealPast: "Your animals were becoming a lot like a hare.",
     why: [
-      { text: "Long back legs help them run fast.", credits: { long_hindlimbs: "high" } },
-      { text: "Big eyes help them see well.", credits: { large_eyes: "high" } },
-      { text: "A small tail doesn't slow them down.", credits: { strong_tail: "low" } },
+      { text: "Long back legs help them run fast.", past: "Long back legs helped them run fast.", credits: { long_hindlimbs: "high" } },
+      { text: "Big eyes help them see well.", past: "Big eyes helped them see well.", credits: { large_eyes: "high" } },
+      { text: "A small tail doesn't slow them down.", past: "A small tail didn't slow them down.", credits: { strong_tail: "low" } },
     ],
   },
   {
@@ -105,7 +114,8 @@ export const ANIMALS = [
     profile: { large_eyes: "high", long_hindlimbs: "low", strong_tail: "low" },
     signature: { large_eyes: "high", long_hindlimbs: "not high" },
     reveal: "Your animals became lookouts, a lot like a meerkat.",
-    why: [{ text: "Big eyes help them see well across open ground.", credits: { large_eyes: "high" } }],
+    revealPast: "Your animals were becoming a lot like a meerkat.",
+    why: [{ text: "Big eyes help them see well across open ground.", past: "Big eyes helped them see well across open ground.", credits: { large_eyes: "high" } }],
   },
 ];
 
@@ -113,8 +123,9 @@ export const ANIMALS = [
 export const FIRST_MAMMALS = {
   name: "The first mammals (tree shrew)", zone: null, profile: {}, signature: {},
   reveal: "Your animals stayed like the very first mammals, like a tree shrew.",
+  revealPast: "Your animals stayed like the very first mammals, like a tree shrew.",
   why: [
-    { text: "Their bodies didn't change much, and that worked.", credits: {} },
+    { text: "Their bodies didn't change much, and that worked.", past: "Their bodies didn't change much.", credits: {} },
     { text: "Some animals today still look a lot like their ancient relatives.", credits: {} },
   ],
 };
@@ -153,7 +164,7 @@ function hasSignature(animal, average, base, gap) {
  * @param {number} zone the habitat most of the group lives in (engine zone index)
  * @param {ArrayLike<number>} base the generation-0 world mean for each trait
  * @param {number} [gap]
- * @returns {{animal: RevealAnimal, matched: number, checked: number, strength: number, why: string[]}}
+ * @returns {{animal: RevealAnimal, matched: number, checked: number, strength: number, why: string[], whyPast: string[]}}
  */
 export function revealFor(average, zone, base, gap = GAP) {
   let best = null;
@@ -165,7 +176,8 @@ export function revealFor(average, zone, base, gap = GAP) {
   }
   const found = best ?? { animal: FIRST_MAMMALS, matched: 0, checked: 0, strength: 0 };
   const has = (credits) => Object.entries(credits).every(([trait, level]) => margin(trait, level, average, base, gap) >= 0);
-  return { ...found, why: found.animal.why.filter((w) => has(w.credits)).map((w) => w.text) };
+  const shown = found.animal.why.filter((w) => has(w.credits));
+  return { ...found, why: shown.map((w) => w.text), whyPast: shown.map((w) => w.past ?? w.text) };
 }
 
 /**
@@ -175,5 +187,7 @@ export function revealFor(average, zone, base, gap = GAP) {
  * @property {Object<string, "high"|"low">} profile the checked traits
  * @property {Object<string, "high"|"low"|"not high">} signature what the group must have to qualify
  * @property {string} reveal the reveal line
- * @property {Array<{text:string, credits:Object<string, "high"|"low">}>} why its "why" sentences and the traits each credits
+ * @property {string} revealPast the reveal line when the group died out
+ * @property {Array<{text:string, past?:string, credits:Object<string, "high"|"low">}>} why its "why" sentences (and their past
+ *   tense, when the group died out) and the traits each credits
  */

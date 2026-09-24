@@ -669,12 +669,14 @@ export class Game {
       li.append(this.predictionBlock(p, p.question.text));
       return li;
     }));
-    // The real-animal reveal (scope decision 10, docs/LINEAGE_REAL_ANIMAL_REVEAL.md): a surviving
-    // group's actual average traits and main habitat, never its choices. Text for now; art comes later.
+    // The real-animal reveal on every ending (scope decisions 10 and 40, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
+    // the group's actual average traits and main habitat when the story ended, never its choices.
+    // A group that died out gets it in the past tense. Text for now; art comes later.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
-      this.revealLine.set(s.reveal.animal.reveal);
-      this.revealWhy.set(s.reveal.why.join(" ")); // only the sentences whose traits the group has
+      const died = s.outcome === "died";
+      this.revealLine.set(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal);
+      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" ")); // only the sentences whose traits the group has
     }
     this.endingEl.hidden = false;
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
