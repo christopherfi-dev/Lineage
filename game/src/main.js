@@ -83,6 +83,18 @@ const ARRIVAL_MS = 7200;
 const RETURN_MS = 3000;
 /** How quickly the light follows the group's mood (growing warmer, shrinking cooler). */
 const MOOD_MS = 1800;
+/** Two fingers (or + and −) zoom the map between these; never so far out that the world stops filling the screen. */
+const ZOOM_MIN = 0.6, ZOOM_MAX = 2.5;
+/** One tap on + or − zooms this much. */
+const ZOOM_STEP = 1.25;
+/** On a phone the story is told a little closer, so an animal is about as big under a finger as on an iPad. */
+const PHONE_ZOOM = 1.25;
+/** When the arrival settles it may come up to this much closer than the story's zoom, to show a family clearly. */
+const ARRIVAL_CLOSER = 1.5;
+/** A short or narrow screen (a phone): the generation panel is a slim bar (the same sizes as styles.css). */
+const COMPACT = "(max-height: 599px), (max-width: 599px)";
+/** On a short screen the narration keeps to about a fifth of the height. */
+const SHORT_PX = 600;
 const lerp = (a, b, k) => a + (b - a) * k;
 const ease = (k) => k * k * (3 - 2 * k);
 
@@ -184,13 +196,21 @@ export class Game {
     /** @type {Map<string, () => void>} a sound for a log line, played when the line shows */
     this.logCues = new Map([[SPREAD_GONE, () => this.sound.goneTone()]]);
     this.hudEl = $("hud");
+    this.miniEl = $("mini");
+    this.miniCountEl = $("mini-count");
+    this.zoomEl = $("zoom");
+    this.zoomInEl = /** @type {HTMLButtonElement} */ ($("zoom-in"));
+    this.zoomOutEl = /** @type {HTMLButtonElement} */ ($("zoom-out"));
+    this.compact = globalThis.matchMedia?.(COMPACT) ?? { matches: false };
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
     this.world = new World();
     this.sky = new Sky(this.world, $("air"));
-    this.zoom = 1; this.camOff = 0; this.mist = 1; this.mood = 0; this.moodTarget = 0; this.dayPhase = 0.12;
+    // The zoom on screen is the settled zoom (pinch, + and −, the arrival's framing) times the arrival's own drift in.
+    this.zoom = 1; this.zoomBase = 1; this.zoomK = 1; this.zoomTween = null;
+    this.camOff = 0; this.mist = 1; this.mood = 0; this.moodTarget = 0; this.dayPhase = 0.12;
     this.painted = false;
     this.seed = seed;
     this.makeWorld = makeWorld;
@@ -261,13 +281,12 @@ export class Game {
     this.dayPhase = 0;
     this.arrival = { t0: this.painted ? performance.now() : null, dur: this.painted ? RETURN_MS : ARRIVAL_MS };
     this.stage.classList.add("arriving");
-    // The camera opens on the first founding family, high in the leaves.
-    const first = this.herd.centroidOf(bridge.families.founding[0].ids);
-    this.camTween = null;
-    this.cam.x = first.x - this.vw / 2; this.cam.y = first.y - this.vh / 2; this.clampCam();
+    this.setHud(false); // a new story starts with the slim bar on a phone
     this.showHint();
     this.say([START_LINE]);
     this.updateHud();
+    // The camera opens on the first founding family, high in the leaves, close enough to tap one of them.
+    this.frameArrival(bridge.families.founding[0].ids);
   }
 
   /* ================= engine generations ================= */
@@ -334,6 +353,9 @@ export class Game {
     this.clock = 0;
     this.hideHint();
     this.say([followLine(this.bridge.zoneOf(animal.id), f.members.size)]);
+    // The arrival came close on one family; the story goes on at its own zoom, unless the child chose one.
+    if (this.framed) this.zoomTo(this.comfortZoom());
+    this.framed = false;
     this.centerOnGroup();
     this.updateHud();
     this.openNaming();
@@ -931,6 +953,9 @@ export class Game {
     this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
       (following ? `your ${s.name ? `${s.name} ` : ""}${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
+    // The slim bar on a phone: the same count of your animals, beside your group's dot.
+    this.miniEl.hidden = !following;
+    this.miniCountEl.textContent = String(this.herd.followed.size);
     // The fair test since the last follow, as counts with bars: yours and the others here.
     const rows = following ? this.fairRows() : [];
     this.othersEl.replaceChildren(...this.countRows(rows));
@@ -1074,7 +1099,7 @@ export class Game {
    */
   fitLog() {
     const el = this.cardEl, side = !!this.card && !el.hidden && !el.classList.contains("above");
-    const reach = side && el.offsetTop + el.offsetHeight > this.stage.clientHeight - LOG_ROOM;
+    const reach = side && el.offsetTop + el.offsetHeight > this.stage.clientHeight - this.logRoom;
     this.logbarEl.style.paddingRight = reach ? `${this.stage.clientWidth - el.offsetLeft + 16}px` : "";
   }
 
@@ -1162,19 +1187,67 @@ export class Game {
   /* ================= canvas & camera ================= */
   setupCanvas() {
     this.onResize = () => {
+      // The middle of the view stays where it was when the screen turns.
+      if (this.vw) { this.cam.x += (this.vw - this.stage.clientWidth) / 2; this.cam.y += (this.vh - this.stage.clientHeight) / 2; }
       this.DPR = Math.min(devicePixelRatio || 1, 2);
       this.vw = this.stage.clientWidth; this.vh = this.stage.clientHeight;
       this.cv.width = Math.floor(this.vw * this.DPR); this.cv.height = Math.floor(this.vh * this.DPR);
       this.ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0);
+      /** The narration's room at the foot of the screen: about a fifth of a short screen. */
+      this.logRoom = this.vh < SHORT_PX ? Math.round(this.vh / 5) : LOG_ROOM;
+      this.zoomBase = clamp(this.zoomBase, this.zoomMin(), ZOOM_MAX);
       this.clampCam();
+      this.setHud(this.hudEl.classList.contains("open"));
       this.placeCard();
     };
     addEventListener("resize", this.onResize);
     this.onResize();
   }
-  clampCam() {
-    this.cam.x = clamp(this.cam.x, 0, Math.max(0, this.world.W - this.vw));
-    this.cam.y = clamp(this.cam.y, 0, Math.max(0, this.world.H - this.vh));
+
+  /*
+   * The camera: `cam` is the view's top-left corner at zoom 1, so the middle of
+   * the screen is always cam + half the screen, whatever the zoom. Zooming keeps
+   * that middle where it is; a pinch keeps the spot between the fingers.
+   */
+  /** How far out the map zooms: ZOOM_MIN, or less far on a screen so big that the world would stop filling it. */
+  zoomMin() { return Math.max(ZOOM_MIN, this.vw / this.world.W, this.vh / this.world.H); }
+  /** The zoom the story is told at, and "Back to my group" goes back to. */
+  comfortZoom() { return Math.min(this.vw, this.vh) < SHORT_PX ? PHONE_ZOOM : 1; }
+  /** The zoom being gone to: the end of a zoom in progress, or the zoom now. */
+  zoomGoal() { return this.zoomTween?.to ?? this.zoomBase; }
+  /** Keep the view inside the world, at zoom `z`. */
+  clampCam(z = this.zoomBase) {
+    const c = this.camAt(this.cam.x + this.vw / 2, this.cam.y + this.vh / 2, this.vw / 2, this.vh / 2, z);
+    this.cam.x = c.x; this.cam.y = c.y;
+  }
+  /** The camera that shows world point (wx, wy) at (sx, sy) on the screen at zoom z, kept inside the world. */
+  camAt(wx, wy, sx, sy, z) {
+    const ww = this.vw / z, wh = this.vh / z, mx = (this.vw - ww) / 2, my = (this.vh - wh) / 2;
+    return {
+      x: clamp(wx - sx / z - mx, -mx, Math.max(-mx, this.world.W - ww - mx)),
+      y: clamp(wy - sy / z - my, -my, Math.max(-my, this.world.H - wh - my)),
+    };
+  }
+  /** The world point under a point on the screen (client coordinates), in the view drawn last. */
+  worldAt(px, py) {
+    const rect = this.stage.getBoundingClientRect(), v = this.view ?? this.cam, z = this.zoom;
+    return { x: v.x + (px - rect.left) / z, y: v.y + (py - rect.top) / z };
+  }
+  /** Put the camera on a point of the map at once, `fx` of the way across the screen and `fy` down it. */
+  lookAt(x, y, fx = 0.5, fy = 0.5) {
+    if (this.zoomTween) { this.zoomBase = this.zoomTween.to; this.zoomTween = null; }
+    this.camTween = null;
+    Object.assign(this.cam, this.camAt(x, y, this.vw * fx, this.vh * fy, this.zoomBase));
+  }
+  /** Zoom smoothly to `z`, around the middle of the screen. */
+  zoomTo(z) {
+    this.zoomTween = { to: clamp(z, this.zoomMin(), ZOOM_MAX), t: 0 };
+  }
+  /** + and −: the child chose a zoom, which the story keeps. */
+  zoomBy(f) {
+    this.framed = false;
+    this.zoomTo(this.zoomGoal() * f);
+    this.hideHint();
   }
   /**
    * The camera goes to your group's largest cluster: the group may be spread
@@ -1182,7 +1255,64 @@ export class Game {
    */
   centerOnGroup(high = 0) {
     const p = this.herd.largestCluster(this.herd.followed); if (!p) return;
-    this.camTween = { x: p.x - this.vw / 2, y: p.y - this.vh * (0.5 - high), t: 0 };
+    this.camTween = { x: p.x - this.vw / 2, y: p.y - this.vh / 2 + high * this.vh / this.zoomGoal(), t: 0 };
+  }
+
+  /**
+   * Where the arrival settles: on the first founding family, as close as up to
+   * ARRIVAL_CLOSER times the story's zoom, where the panels, the hint and the
+   * narration leave the most of the family clear, so its animals are big enough
+   * to tap. The family's homes are used, as its animals wander around them.
+   * @param {number[]} ids the family
+   */
+  frameArrival(ids) {
+    const homes = ids.map((id) => this.herd.animals.get(id)?.home).filter(Boolean);
+    const zc = this.comfortZoom(), fit = homes.length ? this.bestFrame(homes, zc, Math.min(ZOOM_MAX, zc * ARRIVAL_CLOSER)) : null;
+    this.framed = true;
+    this.camTween = null; this.zoomTween = null;
+    this.zoomBase = fit ? fit.z : zc;
+    if (fit) Object.assign(this.cam, fit.cam);
+    this.clampCam();
+    this.arrivalFit = fit; // for checking from the console
+  }
+
+  /**
+   * The closest zoom from `hi` down to `lo` at which enough of these points are
+   * clear on the screen (off the panels, the hint, the buttons and the
+   * narration), and the camera for it: the most points clear, then the middle of
+   * the screen. When no zoom shows enough, the one that shows the most.
+   * @param {{x:number, y:number}[]} pts world points
+   */
+  bestFrame(pts, lo, hi) {
+    const PAD = 18, EDGE = 24, stage = this.stage.getBoundingClientRect();
+    const blocks = [this.hudEl, this.hintEl, this.muteEl, this.zoomEl].map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ l: r.left - stage.left - PAD, t: r.top - stage.top - PAD, r: r.right - stage.left + PAD, b: r.bottom - stage.top + PAD }));
+    const bottom = this.vh - this.logRoom, top = Math.max(0, ...blocks.map((b) => b.b));
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    const need = Math.min(pts.length, Math.max(6, Math.ceil((pts.length * 5) / 6)));
+    // Places for the family's middle, the middle of the free part of the screen first.
+    const steps = [0, -0.08, 0.08, -0.16, 0.16, -0.24, 0.24];
+    const spots = steps.flatMap((dy) => steps.map((dx) => ({ dx, dy }))).sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy));
+    let best = null;
+    for (let z = hi; z >= lo - 1e-6; z -= 0.05) {
+      let here = null;
+      for (const { dx, dy } of spots) {
+        const cam = this.camAt(cx, cy, this.vw * (0.5 + dx), (top + bottom) / 2 + (bottom - top) * dy, z);
+        const vx = cam.x + (this.vw - this.vw / z) / 2, vy = cam.y + (this.vh - this.vh / z) / 2;
+        let clear = 0, shown = 0;
+        for (const p of pts) {
+          const sx = (p.x - vx) * z, sy = (p.y - 11 - vy) * z; // the middle of the animal's body
+          if (sx < EDGE || sx > this.vw - EDGE || sy < EDGE || sy > this.vh - EDGE) continue;
+          shown++;
+          if (sy < bottom - EDGE && !blocks.some((b) => sx > b.l && sx < b.r && sy > b.t && sy < b.b)) clear++;
+        }
+        if (!here || clear > here.clear || (clear === here.clear && shown > here.shown)) here = { z, cam, clear, shown, of: pts.length };
+      }
+      if (here.clear >= need) return here;
+      if (!best || here.clear > best.clear || (here.clear === best.clear && here.shown > best.shown)) best = here;
+    }
+    return best;
   }
 
   /* ================= frame ================= */
@@ -1226,6 +1356,14 @@ export class Game {
     this.pumpLog(dt);
     this.updateLight(now, dt);
     if ((this.soundT -= dt) <= 0) { this.soundT = SOUND_MS; if (this.sound.on) this.sound.update(this.habitatUnderCamera()); }
+    if (this.zoomTween) {
+      const tw = this.zoomTween;
+      tw.t = Math.min(1, tw.t + dt / 620);
+      const e = 1 - Math.pow(1 - tw.t, 3);
+      this.zoomBase += (tw.to - this.zoomBase) * e * 0.3;
+      if (tw.t >= 1) { this.zoomBase = tw.to; this.zoomTween = null; }
+      this.clampCam();
+    }
     if (this.camTween) {
       const tw = this.camTween;
       tw.t = Math.min(1, tw.t + dt / 620);
@@ -1235,7 +1373,18 @@ export class Game {
       if (tw.t >= 1) { this.cam.x = tw.x; this.cam.y = tw.y; this.camTween = null; }
       this.clampCam();
     }
+    this.zoom = this.zoomBase * this.zoomK;
+    this.showZoomButtons();
     this.render(now);
+  }
+
+  /** + and − can't go past the ends, and they rest while a panel is up (the panel is what matters then). */
+  showZoomButtons() {
+    const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
+    if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
+    if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
+    const panel = !!(this.choice || this.since || this.journal || this.naming) || !this.endingEl.hidden;
+    if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
   /**
@@ -1251,7 +1400,7 @@ export class Game {
     if (a) {
       k = a.t0 === null ? 0 : clamp((now - a.t0) / a.dur, 0, 1);
       const long = a.dur >= ARRIVAL_MS, e = ease(k);
-      this.zoom = long ? lerp(0.68, 1, 1 - Math.pow(1 - k, 2.2)) : 1;
+      this.zoomK = long ? lerp(0.68, 1, 1 - Math.pow(1 - k, 2.2)) : 1;
       this.camOff = long ? -170 * (1 - e) : 0;
       this.mist = 1 - ease(clamp((k - 0.04) / (long ? 0.72 : 0.8), 0, 1));
       this.arrivalK = k;
@@ -1277,7 +1426,7 @@ export class Game {
   /** The mist has lifted: the panels and the one line come in. */
   endArrival() {
     this.arrival = null;
-    this.zoom = 1; this.camOff = 0; this.mist = 0;
+    this.zoomK = 1; this.zoom = this.zoomBase; this.camOff = 0; this.mist = 0;
     this.stage.classList.remove("arriving");
     if (this.story.phase === "waiting") this.showHint();
     this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
@@ -1309,6 +1458,7 @@ export class Game {
     x.fillRect(vx, vy, ww, wh);
 
     /* everyone else, then the day's light over the world, then your animals over it (herd.js, light.js) */
+    this.herd.zoom = z;
     this.herd.draw(x, view, now, "world");
     this.sky.drawWorld(x, view, L, this.mood, now);
     this.herd.draw(x, view, now, "mine");
@@ -1355,7 +1505,7 @@ export class Game {
     const left = clamp(sx - box.w / 2, M, Math.max(M, this.vw - box.w - M)), byHud = left < box.hudRight + M;
     let top = sy - 40 - box.h;
     if (top < M || (byHud && top < box.hudBottom + M)) top = Math.max(sy + 18, byHud ? box.hudBottom + M : M);
-    top = Math.min(top, this.vh - LOG_ROOM - box.h); // and clear of the narration
+    top = Math.min(top, this.vh - this.logRoom - box.h); // and clear of the narration
     this.bloomEl.style.opacity = op.toFixed(3);
     this.bloomEl.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
   }
@@ -1365,35 +1515,62 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #card, #choice, #since, #journal, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #ending")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (this.ptrs.size === 1) { this.dragging = true; this.moved = 0; this.startT = performance.now(); this.camTween = null; }
+      if (this.ptrs.size === 1) {
+        this.dragging = true; this.pinched = false; this.moved = 0; this.startT = performance.now();
+        this.camTween = null; this.zoomTween = null;
+      } else if (this.ptrs.size === 2) this.startPinch();
     });
     s.addEventListener("pointermove", (e) => {
       if (!this.ptrs.has(e.pointerId)) return;
       const prev = this.ptrs.get(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (this.ptrs.size === 1 && this.dragging) {
+      if (this.pinch) this.movePinch();
+      else if (this.ptrs.size === 1 && this.dragging) {
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
         this.moved += Math.hypot(dx, dy);
-        this.cam.x -= dx; this.cam.y -= dy;
+        this.cam.x -= dx / this.zoom; this.cam.y -= dy / this.zoom;
         this.clampCam();
         if (this.moved > 26) this.hideHint();
       }
     });
-    const end = (e) => {
+    // One finger lifted from a pinch: the other pans on (or the two still down pinch on). A pinch never ends in a tap.
+    const end = (e, cancel = false) => {
       if (!this.ptrs.has(e.pointerId)) return;
       const p = this.ptrs.get(e.pointerId);
       this.ptrs.delete(e.pointerId);
+      this.pinch = null;
+      if (this.ptrs.size >= 2) this.startPinch();
+      else if (this.ptrs.size === 1) this.dragging = true;
       if (this.ptrs.size === 0) {
-        if (this.dragging && this.moved < 12 && performance.now() - this.startT < 460) this.tapAt(p.x, p.y);
-        this.dragging = false;
+        if (!cancel && this.dragging && !this.pinched && this.moved < 12 && performance.now() - this.startT < 460) this.tapAt(p.x, p.y);
+        this.dragging = false; this.pinched = false;
       }
     };
-    s.addEventListener("pointerup", end);
-    s.addEventListener("pointercancel", end);
-    this.homeEl.addEventListener("click", () => { this.centerOnGroup(); this.hideHint(); });
+    s.addEventListener("pointerup", (e) => end(e));
+    s.addEventListener("pointercancel", (e) => end(e, true));
+    // A trackpad pinch (or ctrl and the wheel) zooms the map around the pointer, never the page.
+    s.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #ending")) return;
+      this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+    }, { passive: false });
+    // Safari's own pinch would zoom the whole page, panels and all.
+    for (const type of ["gesturestart", "gesturechange", "gestureend"]) this.doc.addEventListener(type, (e) => e.preventDefault());
+    this.zoomInEl.addEventListener("click", () => this.zoomBy(ZOOM_STEP));
+    this.zoomOutEl.addEventListener("click", () => this.zoomBy(1 / ZOOM_STEP));
+    // On a phone the generation panel is a slim bar: a tap opens the whole panel, and another closes it.
+    this.hudEl.addEventListener("click", () => { if (this.compact.matches) this.setHud(!this.hudEl.classList.contains("open")); });
+    this.hudEl.addEventListener("keydown", (e) => {
+      if (!this.compact.matches || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      this.setHud(!this.hudEl.classList.contains("open"));
+    });
+    // "Back to my group": the camera goes to the group, at the story's zoom.
+    this.homeEl.addEventListener("click", () => { this.zoomTo(this.comfortZoom()); this.centerOnGroup(); this.hideHint(); });
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
@@ -1416,10 +1593,57 @@ export class Game {
     this.hintGone = true;
     this.hintEl.style.opacity = "0";
   }
+  /** Two fingers down: the spot between them stays under them while they pinch. */
+  startPinch() {
+    const [a, b] = [...this.ptrs.values()];
+    this.pinched = true;
+    this.dragging = false;
+    this.framed = false; // the child chose a zoom, which the story keeps
+    // During the arrival a pinch lets the mist go, as a tap on the ground does.
+    const arr = this.arrival;
+    if (arr && arr.t0 !== null) arr.t0 = Math.min(arr.t0, performance.now() - arr.dur * 0.88);
+    this.pinch = { d: Math.hypot(b.x - a.x, b.y - a.y) || 1, z: this.zoomBase, at: this.worldAt((a.x + b.x) / 2, (a.y + b.y) / 2) };
+    this.hideHint();
+  }
+  movePinch() {
+    const [a, b] = [...this.ptrs.values()], p = this.pinch;
+    const z = clamp(p.z * (Math.hypot(b.x - a.x, b.y - a.y) || 1) / p.d, this.zoomMin(), ZOOM_MAX);
+    this.keepAt(p.at, (a.x + b.x) / 2, (a.y + b.y) / 2, z);
+  }
+  /** Zoom to `z` keeping the world point under (px, py) (client coordinates) where it is. */
+  zoomAround(z, px, py) {
+    this.framed = false;
+    this.camTween = null; this.zoomTween = null;
+    this.keepAt(this.worldAt(px, py), px, py, clamp(z, this.zoomMin(), ZOOM_MAX));
+    this.hideHint();
+  }
+  /** At zoom z, the camera that puts world point `w` under (px, py) (client coordinates). */
+  keepAt(w, px, py, z) {
+    const rect = this.stage.getBoundingClientRect();
+    this.zoomBase = z;
+    this.zoom = z * this.zoomK;
+    Object.assign(this.cam, this.camAt(w.x, w.y, px - rect.left, py - rect.top, z));
+  }
+
+  /** The slim bar or the whole generation panel, on a phone; on an iPad the panel is always whole. */
+  setHud(open) {
+    const el = this.hudEl, compact = this.compact.matches;
+    el.classList.toggle("open", open);
+    if (compact) {
+      el.setAttribute("role", "button");
+      el.tabIndex = 0;
+      el.setAttribute("aria-expanded", String(open));
+    } else {
+      el.removeAttribute("role");
+      el.removeAttribute("tabindex");
+      el.removeAttribute("aria-expanded");
+    }
+  }
+
   tapAt(px, py) {
     // What is under the finger, in the view on screen (wider while the arrival's camera is higher up).
-    const rect = this.stage.getBoundingClientRect(), v = this.view ?? this.cam, z = this.zoom;
-    const a = this.herd.hit(v.x + (px - rect.left) / z, v.y + (py - rect.top) / z);
+    const w = this.worldAt(px, py);
+    const a = this.herd.hit(w.x, w.y, this.zoom);
     // A tap during the arrival lets the mist go at once. A tap on an animal still follows its family, as before.
     if (this.arrival) {
       if (!a) {

@@ -9,7 +9,8 @@
 <link rel="stylesheet" href="../game/fonts/fonts.css">
 <!--
   Every moment of the live game, before the look (design/current/) and after it
-  (design/after/), side by side. See design/after/README.md.
+  (design/after/), side by side. On a phone held sideways, before the small-screen
+  round (design/phone-before/) and after it. See design/after/README.md.
 -->
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -35,6 +36,7 @@
   figcaption { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #9A8E70; }
   .none { display: flex; align-self: start; align-items: center; justify-content: center; aspect-ratio: 1180 / 820; border-radius: 12px; background: #E6DAC0; color: #857C62; font-size: 14px; text-align: center; padding: 8px; }
   body.portrait .none { aspect-ratio: 820 / 1180; }
+  body.phone .none { aspect-ratio: 844 / 390; }
   footer { margin-top: 28px; font-size: 14px; color: #6E6750; }
   code { font-size: 13px; }
 </style>
@@ -42,13 +44,14 @@
 <body>
 <main>
   <h1>LINEAGE before and after</h1>
-  <p>Each moment of the live game on seed 6: before Step 5 (<code>design/current/</code>) and after both of its parts (<code>design/after/</code>): the look, then family names, sound and animals that move like animals. Tap a picture to see it full size.</p>
-  <div class="switch" role="group" aria-label="Orientation">
+  <p>Each moment of the live game on seed 6: before Step 5 (<code>design/current/</code>) and after both of its parts (<code>design/after/</code>): the look, then family names, sound and animals that move like animals, then small screens and touch (the + and − buttons, a closer arrival). <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after it. Tap a picture to see it full size.</p>
+  <div class="switch" role="group" aria-label="Screen">
     <button type="button" data-o="landscape" aria-pressed="true">Landscape</button>
     <button type="button" data-o="portrait" aria-pressed="false">Portrait</button>
+    <button type="button" data-o="phone" aria-pressed="false">Phone</button>
   </div>
   <div id="list"></div>
-  <footer>Shot with headless Chromium at iPad size (1180 × 820 and 820 × 1180, at 2× pixels). How each moment is reached: <code>design/current/README.md</code>. Links to open each moment in the game: <a href="../game/moments.html">moments</a>.</footer>
+  <footer>Shot with headless Chromium at iPad size (1180 × 820 and 820 × 1180) and on a phone held sideways (844 × 390), at 2× pixels. How each moment is reached: <code>design/current/README.md</code>. Links to open each moment in the game: <a href="../game/moments.html">moments</a>.</footer>
 </main>
 <script>
   // [file, title, note]; a moment with no "before" picture was added with the look.
@@ -84,13 +87,16 @@
   };
   const show = (o) => {
     document.body.classList.toggle("portrait", o === "portrait");
+    document.body.classList.toggle("phone", o === "phone");
     for (const b of document.querySelectorAll(".switch button")) b.setAttribute("aria-pressed", String(b.dataset.o === o));
     list.replaceChildren(...MOMENTS.flatMap(([file, title, note, before = true]) => {
       const h = document.createElement("h2");
       h.append(title, Object.assign(document.createElement("small"), { textContent: note }));
       const pair = Object.assign(document.createElement("div"), { className: "pair" });
       const name = `${file}-${o}.jpg`;
-      if (before) pair.append(picture("current", name, "Before"));
+      // On the phone, "before" is the game just before the small-screen round, which has every moment.
+      if (o === "phone") pair.append(picture("phone-before", name, "Before"));
+      else if (before) pair.append(picture("current", name, "Before"));
       else pair.append(Object.assign(document.createElement("div"), { className: "none", textContent: "No picture before: new with the look" }));
       pair.append(picture("after", name, "After"));
       return [h, pair];
