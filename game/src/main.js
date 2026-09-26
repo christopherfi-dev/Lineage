@@ -430,10 +430,10 @@ export class Game {
     this.showMute();
   }
 
-  /** "Back to my group", with the family's name once it has one. */
+  /** "Back to my family" until the first follow, then "Back to my group", with the family's name once it has one. */
   setHomeLabel() {
     const text = [...this.homeEl.childNodes].find((n) => n.nodeType === 3);
-    if (text) text.nodeValue = homeLabel(this.story?.name ?? null);
+    if (text) text.nodeValue = homeLabel(this.story?.noun ?? "family", this.story?.name ?? null);
   }
 
   /**
@@ -540,6 +540,7 @@ export class Game {
    */
   doFollow(x, byChance) {
     this.story.follow(x, byChance);
+    this.setHomeLabel(); // "family" becomes "group" at the first follow
     this.syncGroups();
     this.updateCard();
     this.centerOnGroup();

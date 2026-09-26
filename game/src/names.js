@@ -49,7 +49,7 @@ export const TRAIT_NAME_WORDS = {
  * List 3: names the game never makes. Besides these, no name joins two of the
  * same letter where the halves meet ("Leaffoot"), because that is hard to read.
  */
-export const NEVER = ["Grasshopper", "Leafhopper", "Sandhopper"]; // real small animals, not a family's name
+export const NEVER = ["Grasshopper", "Leafhopper", "Sandhopper", "Stonerunner"]; // real small animals, and one Marc left out
 
 /** A first half and a second half that may be joined. */
 export const joins = (start, end) => start[start.length - 1].toLowerCase() !== end[0] && !NEVER.includes(start + end);

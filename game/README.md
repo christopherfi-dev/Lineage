@@ -98,8 +98,8 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    starts one included), in that panel or in its own sheet, with the prediction made then beside
    what happened.
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
-   and "Back to my group" goes to the group's largest cluster.
-6. **Endings.** The story ends when no living animal fits the group ("Their story lasted N
+   and "Back to my group" ("Back to my family" before the first follow) goes to the group's largest cluster.
+6. **Endings.** The story ends when no living animal fits the group ("Your story lasted N
    generations.") or at generation 76 ("Your group survived 76 generations."). The
    reflection screen shows:
    - "Here's what your animals look like now." (or "looked like", if they died out): the group's

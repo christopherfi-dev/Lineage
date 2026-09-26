@@ -1,6 +1,6 @@
 # LINEAGE — family names
 
-*Step 5, part two (2026-09-26). The word lists and the naming rule, for Marc to check. The game builds every name from `game/src/names.js`; this page is written from that file, so the two always agree.*
+*Step 5, part two (2026-09-26), with Marc's changes after checking it: "Stonerunner" is never made, "now" left the "Most of your … has …" line, and the died-out title and the home button changed. The game builds every name from `game/src/names.js`; this page is written from that file, so the two always agree.*
 
 ## When a family is named
 
@@ -46,13 +46,14 @@ A name is one word made of two halves: a word for the family's **habitat** (list
 ## List 3 — names never made
 
 - **Real small animals, not a family's name:** Grasshopper, Leafhopper, Sandhopper.
+- **Left out by Marc:** Stonerunner.
 - **Same letter where the halves meet** (hard to read): Mossswish, Mossstripe, Leaffoot, Leaffur, Leaffluff, Twiggrip, Twigglide, Sanddash, Grassswish, Grassstripe, Cloverrunner, Meadowwink, Reeddash, Riverrunner, Ponddash.
 
-## Every name the game can make (324)
+## Every name the game can make (323)
 
 **The high leaves (106):** Mossfoot, Mosspaddle, Mossclaw, Mossgrip, Mossfur, Mossfluff, Mossrunner, Mosshopper, Mosstail, Mossblink, Mosswink, Mossglide, Mossdash, Mosscoat, Mosscloak, Mosstuft, Mosstip, Leafpaddle, Leafclaw, Leafgrip, Leafrunner, Leaftail, Leafswish, Leafblink, Leafwink, Leafglide, Leafdash, Leafcoat, Leafcloak, Leaftuft, Leaftip, Leafstripe, Fernfoot, Fernpaddle, Fernclaw, Ferngrip, Fernfur, Fernfluff, Fernrunner, Fernhopper, Ferntail, Fernswish, Fernblink, Fernwink, Fernglide, Ferndash, Ferncoat, Ferncloak, Ferntuft, Ferntip, Fernstripe, Twigfoot, Twigpaddle, Twigclaw, Twigfur, Twigfluff, Twigrunner, Twighopper, Twigtail, Twigswish, Twigblink, Twigwink, Twigdash, Twigcoat, Twigcloak, Twigtuft, Twigtip, Twigstripe, Vinefoot, Vinepaddle, Vineclaw, Vinegrip, Vinefur, Vinefluff, Vinerunner, Vinehopper, Vinetail, Vineswish, Vineblink, Vinewink, Vineglide, Vinedash, Vinecoat, Vinecloak, Vinetuft, Vinetip, Vinestripe, Oakfoot, Oakpaddle, Oakclaw, Oakgrip, Oakfur, Oakfluff, Oakrunner, Oakhopper, Oaktail, Oakswish, Oakblink, Oakwink, Oakglide, Oakdash, Oakcoat, Oakcloak, Oaktuft, Oaktip, Oakstripe.
 
-**The open ground (107):** Sandfoot, Sandpaddle, Sandclaw, Sandgrip, Sandfur, Sandfluff, Sandrunner, Sandtail, Sandswish, Sandblink, Sandwink, Sandglide, Sandcoat, Sandcloak, Sandtuft, Sandtip, Sandstripe, Stonefoot, Stonepaddle, Stoneclaw, Stonegrip, Stonefur, Stonefluff, Stonerunner, Stonehopper, Stonetail, Stoneswish, Stoneblink, Stonewink, Stoneglide, Stonedash, Stonecoat, Stonecloak, Stonetuft, Stonetip, Stonestripe, Grassfoot, Grasspaddle, Grassclaw, Grassgrip, Grassfur, Grassfluff, Grassrunner, Grasstail, Grassblink, Grasswink, Grassglide, Grassdash, Grasscoat, Grasscloak, Grasstuft, Grasstip, Cloverfoot, Cloverpaddle, Cloverclaw, Clovergrip, Cloverfur, Cloverfluff, Cloverhopper, Clovertail, Cloverswish, Cloverblink, Cloverwink, Cloverglide, Cloverdash, Clovercoat, Clovercloak, Clovertuft, Clovertip, Cloverstripe, Meadowfoot, Meadowpaddle, Meadowclaw, Meadowgrip, Meadowfur, Meadowfluff, Meadowrunner, Meadowhopper, Meadowtail, Meadowswish, Meadowblink, Meadowglide, Meadowdash, Meadowcoat, Meadowcloak, Meadowtuft, Meadowtip, Meadowstripe, Sunfoot, Sunpaddle, Sunclaw, Sungrip, Sunfur, Sunfluff, Sunrunner, Sunhopper, Suntail, Sunswish, Sunblink, Sunwink, Sunglide, Sundash, Suncoat, Suncloak, Suntuft, Suntip, Sunstripe.
+**The open ground (106):** Sandfoot, Sandpaddle, Sandclaw, Sandgrip, Sandfur, Sandfluff, Sandrunner, Sandtail, Sandswish, Sandblink, Sandwink, Sandglide, Sandcoat, Sandcloak, Sandtuft, Sandtip, Sandstripe, Stonefoot, Stonepaddle, Stoneclaw, Stonegrip, Stonefur, Stonefluff, Stonehopper, Stonetail, Stoneswish, Stoneblink, Stonewink, Stoneglide, Stonedash, Stonecoat, Stonecloak, Stonetuft, Stonetip, Stonestripe, Grassfoot, Grasspaddle, Grassclaw, Grassgrip, Grassfur, Grassfluff, Grassrunner, Grasstail, Grassblink, Grasswink, Grassglide, Grassdash, Grasscoat, Grasscloak, Grasstuft, Grasstip, Cloverfoot, Cloverpaddle, Cloverclaw, Clovergrip, Cloverfur, Cloverfluff, Cloverhopper, Clovertail, Cloverswish, Cloverblink, Cloverwink, Cloverglide, Cloverdash, Clovercoat, Clovercloak, Clovertuft, Clovertip, Cloverstripe, Meadowfoot, Meadowpaddle, Meadowclaw, Meadowgrip, Meadowfur, Meadowfluff, Meadowrunner, Meadowhopper, Meadowtail, Meadowswish, Meadowblink, Meadowglide, Meadowdash, Meadowcoat, Meadowcloak, Meadowtuft, Meadowtip, Meadowstripe, Sunfoot, Sunpaddle, Sunclaw, Sungrip, Sunfur, Sunfluff, Sunrunner, Sunhopper, Suntail, Sunswish, Sunblink, Sunwink, Sunglide, Sundash, Suncoat, Suncloak, Suntuft, Suntip, Sunstripe.
 
 **The water's edge (111):** Reedfoot, Reedpaddle, Reedclaw, Reedgrip, Reedfur, Reedfluff, Reedrunner, Reedhopper, Reedtail, Reedswish, Reedblink, Reedwink, Reedglide, Reedcoat, Reedcloak, Reedtuft, Reedtip, Reedstripe, Brookfoot, Brookpaddle, Brookclaw, Brookgrip, Brookfur, Brookfluff, Brookrunner, Brookhopper, Brooktail, Brookswish, Brookblink, Brookwink, Brookglide, Brookdash, Brookcoat, Brookcloak, Brooktuft, Brooktip, Brookstripe, Pebblefoot, Pebblepaddle, Pebbleclaw, Pebblegrip, Pebblefur, Pebblefluff, Pebblerunner, Pebblehopper, Pebbletail, Pebbleswish, Pebbleblink, Pebblewink, Pebbleglide, Pebbledash, Pebblecoat, Pebblecloak, Pebbletuft, Pebbletip, Pebblestripe, Riverfoot, Riverpaddle, Riverclaw, Rivergrip, Riverfur, Riverfluff, Riverhopper, Rivertail, Riverswish, Riverblink, Riverwink, Riverglide, Riverdash, Rivercoat, Rivercloak, Rivertuft, Rivertip, Riverstripe, Ripplefoot, Ripplepaddle, Rippleclaw, Ripplegrip, Ripplefur, Ripplefluff, Ripplerunner, Ripplehopper, Rippletail, Rippleswish, Rippleblink, Ripplewink, Rippleglide, Rippledash, Ripplecoat, Ripplecloak, Rippletuft, Rippletip, Ripplestripe, Pondfoot, Pondpaddle, Pondclaw, Pondgrip, Pondfur, Pondfluff, Pondrunner, Pondhopper, Pondtail, Pondswish, Pondblink, Pondwink, Pondglide, Pondcoat, Pondcloak, Pondtuft, Pondtip, Pondstripe.
 
@@ -69,7 +70,7 @@ Everywhere the child's animals are named, once the family has its name. Before t
 | The log, and the caption on the map | "One of your babies was born with thicker fur." | "One of your Mossfoot babies was born with thicker fur." |
 | The log | "Two of your babies were born with something new." | "Two of your Mossfoot babies were born with something new." |
 | The log | "2 generations later: yours 23, the others here 20." | "2 generations later: your Mossfoot animals 23, the others here 20." |
-| The log | "Most of your group now has webbed feet." | "Most of your Mossfoot group now has webbed feet." |
+| The log | "Most of your group now has webbed feet." | "Most of your Mossfoot group has webbed feet." ("now" left this line, with or without a name: "Most of your group has webbed feet.") |
 | The log | "Wait! Your family is getting very small." | "Wait! Your Mossfoot family is getting very small." |
 | The log | "The last of your group has passed." | "The last of your Mossfoot group has passed." |
 | The log | "Your group made it to the end of the story." | "Your Mossfoot group made it to the end of the story." |
@@ -79,7 +80,7 @@ Everywhere the child's animals are named, once the family has its name. Before t
 | Count rows (predictions, ending) | "Yours: 11 → 5" | "Your Mossfoot animals: 11 → 5" |
 | Since, ending | "Your group grew because of its other traits." | "Your Mossfoot group grew because of its other traits." |
 | The corner panel | "… · your family 21" | "… · your Mossfoot family 21" |
-| The button | "Back to my group" | "Back to my Mossfoot group" |
+| The button | "Back to my group" | "Back to my Mossfoot family" before the first follow, "Back to my Mossfoot group" after it (without a name: "Back to my family", "Back to my group") |
 | A prediction | "Will your new group grow or shrink?" | "Will your new Mossfoot group grow or shrink?" |
 | A prediction | "Which will do better: yours or the others here?" | "Which will do better: your Mossfoot animals or the others here?" |
 | A prediction's answers | "Yours. A sleeker body helps at the water's edge." | "Your Mossfoot animals. A sleeker body helps at the water's edge." |
@@ -88,7 +89,7 @@ Everywhere the child's animals are named, once the family has its name. Before t
 | A prediction's answers | "Yours. A darker coat will help them." | "Your Mossfoot animals. A darker coat will help them." |
 | A prediction's result | "You thought yours would do better. Yours did." | "You thought your Mossfoot animals would do better. Your Mossfoot animals did." |
 | The ending title | "Your group survived 76 generations." | "Your Mossfoot group survived 76 generations." |
-| The ending title, died out | "Their story lasted 60 generations." | "The Mossfoot group's story lasted 60 generations." |
+| The ending title, died out | "Their story lasted 60 generations." | "Your Mossfoot story lasted 60 generations." (without a name: "Your story lasted 60 generations.") |
 | The ending | "Here's what your animals look like now." | "Here's what your Mossfoot animals look like now." |
 | The ending | "Here's what your animals looked like." | "Here's what your Mossfoot animals looked like." |
 | The ending | "Your group's traits" | "Your Mossfoot group's traits" |
@@ -100,9 +101,9 @@ Everywhere the child's animals are named, once the family has its name. Before t
 
 **Unchanged:** "You're following a family of 12 animals in the high leaves." is said before the family has a name. Lines that don't name the child's animals stay as they were ("The others here", "Their story ended before the first choice.", "Your choice doesn't change the animals.").
 
-**Longest lines with a name.** A name is one word, so most lines grow by one word. Four reach 13 or 14 words with the longest trait words:
+**Longest lines with a name.** A name is one word, so most lines grow by one word. Four reach 13 words with the longest trait words (Marc: fine):
 
-- "One of your Mossfoot babies was born with less webbing between the toes." (13)
-- "Your Mossfoot animals live between land and water, a lot like a capybara." (13)
-- "Your Mossfoot animals. Less webbing between the toes helps at the water's edge." (13)
-- "Most of your Mossfoot group now has a faint mark on the tail tip." (14; 13 without the name)
+- "One of your Mossfoot babies was born with less webbing between the toes."
+- "Your Mossfoot animals live between land and water, a lot like a capybara."
+- "Your Mossfoot animals. Less webbing between the toes helps at the water's edge."
+- "Most of your Mossfoot group has a faint mark on the tail tip."

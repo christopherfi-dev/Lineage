@@ -87,7 +87,7 @@ export function chosenLines(group, n, others, zone, skip) {
  */
 export function skipDoneLines(skip, n, others, changed, noun, name = null) {
   const lines = [`${skip} generations later: ${name ? your("animals", name) : "yours"} ${n}, the others here ${others}.`];
-  if (changed.length) lines.push(`Most of ${your(noun, name)} now has ${hasWords(changed[0].trait, changed[0].level)}.`);
+  if (changed.length) lines.push(`Most of ${your(noun, name)} has ${hasWords(changed[0].trait, changed[0].level)}.`);
   return lines;
 }
 
@@ -180,7 +180,7 @@ export const madeIt = (noun, name = null) => `${capital(your(noun, name))} made 
 
 export function endingTitle(outcome, n, noun, name = null) {
   return outcome === "died" ?
-    `${name ? `The ${name} ${noun}'s` : "Their"} story lasted ${plural(n, "generation", "generations")}.` :
+    `${capital(your("story", name))} lasted ${plural(n, "generation", "generations")}.` :
     `${capital(your(noun, name))} survived ${plural(n, "generation", "generations")}.`;
 }
 
@@ -222,5 +222,5 @@ export const lookLine = (outcome, name = null) =>
 /** The real-animal reveal (reveal.js) with the family's name: "Your Mossfoot animals became paddlers, …". */
 export const namedReveal = (line, name = null) => (name ? line.replace(/^Your animals\b/, `Your ${name} animals`) : line);
 
-/** "Back to my group", with the family's name once it has one. */
-export const homeLabel = (name = null) => `Back to my ${name ? `${name} ` : ""}group`;
+/** "Back to my family" until the first follow, then "Back to my group", with the family's name once it has one. */
+export const homeLabel = (noun, name = null) => `Back to my ${name ? `${name} ` : ""}${noun}`;
