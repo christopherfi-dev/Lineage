@@ -21,6 +21,9 @@ const FADE_MS = 1500;  // a death fades softly, a little light rising from it
 /** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then breathes. */
 const BLOOM_MS = 3400;
 
+/** Zoomed out, an animal this small on screen (its body unit, in pixels) skips details too fine to see there. */
+const FINE_PX = 5.5;
+
 /** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
 
@@ -87,6 +90,8 @@ export class Herd {
     this.light = { sun: -0.6, low: 0.6, night: 0 };
     /** -1 shrinking .. 1 growing */
     this.mood = 0;
+    /** how big the map is drawn (main.js): zoomed out, small animals skip details too fine to see */
+    this.zoom = 1;
   }
 
   make(id, zone, genome, x, y, home, bornAt) {
@@ -203,14 +208,20 @@ export class Herd {
     return this.centroidOf(pts.filter((q) => near(peak, q)).map((q) => q.id));
   }
 
-  /** Nearest living animal to a world point, within reach of a fingertip. */
-  hit(wx, wy) {
+  /**
+   * Nearest living animal to a world point, within reach of a fingertip. Zoomed
+   * out, the reach stays as big on the screen as at zoom 1 (a glowing newborn's
+   * most of all); zoomed in, it grows with the animals, a little more slowly.
+   * @param {number} [zoom] the map's zoom
+   */
+  hit(wx, wy, zoom = 1) {
+    const k = zoom < 1 ? 1 / zoom : 1 / Math.sqrt(zoom);
     let best = null, bd = 1e9;
     for (const a of this.animals.values()) {
-      const d = Math.hypot(a.x - wx, (a.y - 11) - wy) - (this.glowing.has(a.id) ? 12 : this.followed.has(a.id) ? 6 : 0);
+      const d = Math.hypot(a.x - wx, (a.y - 11) - wy) - (this.glowing.has(a.id) ? 12 : this.followed.has(a.id) ? 6 : 0) * k;
       if (d < bd) { bd = d; best = a; }
     }
-    return best && bd < 34 ? best : null;
+    return best && bd < 34 * k ? best : null;
   }
 
   /* ================= wandering (visual only) ================= */
@@ -350,7 +361,7 @@ export class Herd {
         if (!this.glowSince.has(c.id)) this.glowSince.set(c.id, now);
         glowAt = this.glowSince.get(c.id);
       }
-      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt);
+      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom);
     }
     // The animal whose card is open: a ring that breathes, so you can find it on the map.
     const sel = this.selected !== null ? this.animals.get(this.selected) : null;
@@ -450,14 +461,16 @@ function shade(hex, k) {
  * @param {{sun:number, low:number, night:number}} L the light now
  * @param {number} alpha 1, or less while a death fades
  * @param {null|number} [glowAt] when this newborn began to glow (a new variation you can follow), else null
+ * @param {number} [zoom] how big the map is drawn: zoomed out, a small animal skips its fur, rim light, eyes and webbing
  */
-function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
+function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
+  const unit = mine ? 11.6 : gray ? 7.4 : 8.4, fine = unit * zoom >= FINE_PX;
   const fade = (gray ? 0.9 : 1) * alpha;
   const A = (a) => a * fade;
-  const u = (mine ? 11.6 : gray ? 7.4 : 8.4) * (0.84 + g.bodySize * 0.20) * scale;
+  const u = unit * (0.84 + g.bodySize * 0.20) * scale;
   const dir = c.face || 1;
   const walk = c.mode === "walk" || !c.inZone;
   const ph = c.ph * 2.0;
@@ -470,7 +483,7 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   const nod = walk ? Math.sin(ph * 2) * u * 0.03 : 0;
   const headX = bRX * (0.74 + 0.1 * down), headY = bodyY - bRY * 0.52 - hR * 0.42 - u * 0.08 * up + u * 0.2 * down + nod;
   const nose = hR * (0.72 + g.snout * 0.26);
-  const web = gray ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
+  const web = gray || !fine ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
   /* the shadow leans away from the sun, long when the sun is low */
   const lean = -L.sun * (0.25 + 0.75 * L.low), stretch = 1 + 0.55 * L.low * Math.abs(L.sun);
@@ -551,7 +564,7 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   P.ellipse(-bRX * 0.46, bodyY + bRY * 0.16, bRX * 0.50, bRY * 0.86, 0, 0, TAU);
 
   const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
-  if (shag > 0.05) {
+  if (fine && shag > 0.05) {
     x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
     for (let k = 0; k < 10; k++) {
@@ -562,11 +575,13 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   }
 
   /* the rim of light is on the sun's side, whichever way the animal faces */
-  x.save();
-  x.translate(-(L.sun || -0.8) * (mine ? 1.3 : 0.9) * dir, -1.0);
-  x.fillStyle = rim; x.globalAlpha = A(mine ? 1 : 0.5);
-  x.fill(P);
-  x.restore();
+  if (fine) {
+    x.save();
+    x.translate(-(L.sun || -0.8) * (mine ? 1.3 : 0.9) * dir, -1.0);
+    x.fillStyle = rim; x.globalAlpha = A(mine ? 1 : 0.5);
+    x.fill(P);
+    x.restore();
+  }
   x.globalAlpha = A(mine || other ? 1 : 0.82);
   x.fillStyle = body; x.fill(P);
   if (mine) {
@@ -586,7 +601,7 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
     x.beginPath(); x.moveTo(bRX * 0.52 + fw * 0.6, -u * 0.02); x.quadraticCurveTo(bRX * 0.52 + fw * 0.95, -u * 0.02, bRX * 0.52 + fw * 0.9, u * 0.08); x.stroke();
   }
 
-  if (!gray) {
+  if (!gray && fine) {
     const eR = u * (0.07 + g.eyes * 0.055);
     x.globalAlpha = A(1);
     x.fillStyle = mine ? "#F6F4EA" : "#EFEAD9";
