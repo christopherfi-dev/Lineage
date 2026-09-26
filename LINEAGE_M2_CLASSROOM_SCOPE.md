@@ -307,6 +307,15 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **The fallbacks:** the tree shrew has one; "No time to change" names no animal and has none.
    - **Tense:** the facts are about the real animal, so they stay in the present tense on died-out endings.
    - **For checking:** "Facts for Marc to check" in the reveal doc lists every animal as a child sees it: its reveal line, its "why" lines in both tenses, and its facts.
+47. **Small screens and touch** (2026-09-26, PR #22). On a screen under 600 px high or wide, the generation panel is a slim bar, and two fingers zoom the map from 0.6× to 2.5×, with + and − for anyone who can't pinch.
+   - **The story's zoom:** 1× on an iPad, 1.25× on a phone (a screen whose shorter side is under 600 px). "Back to my family" / "Back to my group" goes back to it. Confirmed by Marc (2026-09-26).
+   - **The arrival's close-up:** the arrival settles up to 1.5× closer on the first founding family, and eases back to the story's zoom at the first tap. Confirmed by Marc (2026-09-26).
+   - **Phone layouts deferred:** the choice, naming and prediction sheets and the ending keep their iPad layout on a phone. Class iPads are the target; revisit only if the game is used on phones.
+   - **Waiting for Marc's real-device check** on a class iPad and in iPhone Safari:
+     - pinch and page-zoom blocking;
+     - smoothness at 2.5× on a busy fair test;
+     - the fair-test smoothness check;
+     - the day's tint.
 
 ## What the engine already gives you (do not rebuild these)
 
