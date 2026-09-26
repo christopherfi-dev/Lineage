@@ -313,7 +313,7 @@ export async function goToMoment(game, moment) {
   if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
   if (moment === "generation") {
-    G.clock = genMs - 3000; // the next generation passes three seconds from now, at the night's end
+    G.clock = genMs * 0.5; // mid-afternoon: dusk, night and the next dawn (the next generation) in ten seconds
     lookAtGroup(G);
   } else if (moment === "variation") {
     const a = G.herd.animals.get(plan.hit.id);

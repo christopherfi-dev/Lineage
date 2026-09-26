@@ -1,0 +1,20 @@
+--- a/game/index.html
++++ b/game/index.html
+@@ -4,6 +4,7 @@
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>LINEAGE</title>
++<meta name="theme-color" content="#EFE6D2">
+ <link rel="icon" href="data:,">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Karla:wght@400;500;600;700&display=swap">
+@@ -38,6 +39,9 @@
+     <div id="card-traits"></div>
+   </div>
+ 
++  <!-- A variation: a short caption beside the newborn that blooms (Step 4). -->
++  <div id="bloom" hidden><span class="spark"></span><span id="bloom-line"></span></div>
++
+   <button id="home" type="button"><span class="ring"><i></i></span>Back to my group</button>
+ 
+   <div id="logbar"><span class="ring"></span><span id="log"></span></div>

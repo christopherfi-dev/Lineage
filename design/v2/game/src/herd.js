@@ -84,6 +84,7 @@ export class Herd {
     this.light = { sun: -0.6, low: 0.6, night: 0 };
     /** -1 shrinking .. 1 growing */
     this.mood = 0;
+    /** @type {number[]} your newborns blooming now, first first */
   }
 
   make(id, zone, genome, x, y, home, bornAt) {
@@ -161,15 +162,12 @@ export class Herd {
     // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.
   }
 
-  /**
-   * The glowing newborn whose ring opened most recently, for its caption; null when none is new.
-   * @param {(id:number) => boolean} [named] only newborns the log has named
-   */
-  bloomNow(now, named = () => true) {
+  /** The glowing newborn whose ring opened most recently, for its caption; null when none is new. */
+  bloomNow(now) {
     let best = null;
     for (const id of this.glowing) {
       const a = this.animals.get(id), t0 = this.glowSince.get(id);
-      if (!a || t0 === undefined || now - t0 > BLOOM_MS + 3200 || !named(id)) continue;
+      if (!a || t0 === undefined || now - t0 > BLOOM_MS + 3200) continue;
       if (!best || t0 > this.glowSince.get(best.id)) best = a;
     }
     return best;

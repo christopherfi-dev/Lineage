@@ -180,6 +180,29 @@ usual form is its median for each trait. A member carries a variation when one t
 least `APART` (0.12) from that median, in one direction. Words come in three levels for each
 trait (for example feet: no webbing, some webbing, webbed).
 
+## The look (Step 5, part one)
+
+"Golden hour, in gouache", from the Claude Design handoff in `design/v2/` (its README lists the
+changes moment by moment). Visuals and motion only: every line of text, every rule and every
+number is as it was.
+
+- **A generation is one day** (`src/light.js`): dawn when it arrives, a golden afternoon, dusk,
+  a soft night with fireflies, then dawn again. The day stands still at a choice point, is a
+  morning before the story starts, and turns golden behind the ending (a blue dusk when the
+  group died out). Pollen, glints on the water and now and then a bird's shadow.
+- **The arrival:** morning mist lifts as the camera drifts down into the leaves. A tap on an
+  animal still follows its family at once; a tap anywhere else lets the mist go.
+- **The mood:** the light turns a little warmer as your group grows, a little cooler as it shrinks.
+- **Your animals** are drawn last and brightest, lit from the sun's side (`src/herd.js`). Babies
+  stay a little smaller beside their mothers for 7 s, and a death fades with a little light.
+- **A glowing newborn:** a ring of light opens with sparkles, then breathes. Beside it is the
+  log's own line ("One of your babies was born with thicker fur."), with a speaker, but only
+  for babies the log has named.
+- **Panels** (`styles.css`): field-guide paper, and the Petrona and Karla fonts, served from
+  `fonts/` (SIL Open Font License) so no font service is called. Speakers keep a 44 px hit area.
+- **Smooth on an iPad:** the warm light and the vignette are drawn on a small canvas that the
+  page stretches over the map (`#air`), not painted over the whole map each frame.
+
 ## What is real
 
 - Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
@@ -195,7 +218,7 @@ trait (for example feet: no webbing, some webbing, webbed).
 
 `?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
 
-`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/`.
+`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before the look) and `design/after/` (after it).
 
 ## Smoke test
 

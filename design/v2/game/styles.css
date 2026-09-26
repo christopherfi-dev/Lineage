@@ -16,12 +16,6 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
   touch-action: none; user-select: none; -webkit-user-select: none;
 }
 #world { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-/*
- * Over the map, under every panel: the warm light from the sun's side and the
- * vignette, soft gradients drawn small (light.js) and stretched by the browser,
- * so they cost a frame almost nothing (smooth on an iPad).
- */
-#air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
 #hud, #hint, #card, #choice, #journal, #since, #ending .card, #home, #bloom {
@@ -107,7 +101,6 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
   will-change: transform, opacity;
 }
 #bloom[hidden] { display: none; }
-@media (max-width: 600px) { #bloom { max-width: calc(100% - 20px); white-space: normal; } } /* a phone: the caption wraps */
 #bloom #bloom-line { display: flex; align-items: center; }
 #bloom .spark {
   width: 14px; height: 14px; flex: 0 0 auto; background: #E3A63E;
@@ -445,13 +438,12 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .fair-board, #ending-fair-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 #since-body .count, #choice-since .count, #ending-fair-rows .count {
   display: flex; align-items: flex-end; gap: 14px; min-width: 0; padding: 12px 16px 14px; border-radius: 18px; white-space: normal;
-  background: #FBF7EC; box-shadow: inset 0 0 0 1.5px var(--mark); /* older iPads: the group's own colour */
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mark) 45%, #E6DAC0);
+  background: #FBF7EC; box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mark) 45%, #E6DAC0);
   font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 500; line-height: 1.2; color: #2A2B22;
 }
 #since-body .count .bars, #choice-since .count .bars, #ending-fair-rows .count .bars { height: 52px; gap: 5px; padding-bottom: 2px; border-bottom: 2px solid #E3D6B8; }
 #since-body .count .bars i, #choice-since .count .bars i, #ending-fair-rows .count .bars i { width: 16px; border-radius: 5px 5px 1px 1px; transition: height .9s cubic-bezier(.2, .9, .28, 1); }
-#since-body .count .bars i.now, #ending-fair-rows .count .bars i.now { box-shadow: 0 0 6px var(--mark); box-shadow: 0 0 10px color-mix(in oklab, var(--mark) 40%, transparent); }
+#since-body .count .bars i.now, #ending-fair-rows .count .bars i.now { box-shadow: 0 0 10px color-mix(in oklab, var(--mark) 40%, transparent); }
 #hud #others .count { white-space: normal; }
 
 /* "Since your last choice", before a new follow: the choice panel's paper. */

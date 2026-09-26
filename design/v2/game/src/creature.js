@@ -561,6 +561,7 @@ export function paintCreature(cv, genome, { seed = 1, focus = null, closeUp = fa
     tail_tip_marking: [tl.end[0], tl.end[1] + 4, 12, 14],
   };
 
+  // Glows under the parts that are new in this animal.
   // The part that is new in this animal: warm light under it (a soft ring and a few
   // sparkles are drawn over the creature, below), like a bloom on the map.
   for (const trait of glow) {

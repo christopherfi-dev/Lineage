@@ -24,7 +24,7 @@ import { isGoodSeed, goodSeed } from "./seeds.js";
 import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
 import {
-  START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
+  START_LINE, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
@@ -40,8 +40,6 @@ const LOG_MS = 3800;
 const CARD_CLOSE_MS = 150;
 /** During a choice, the gap kept between the card and the choice panel. */
 const CARD_GAP = 12;
-/** The narration's room at the foot of the screen: a card at the side that reaches into it has the line wrap beside it. */
-const LOG_ROOM = 120;
 /** How long a chosen animal stays highlighted before the fast-forward. */
 const PICKED_MS = 1200;
 /** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
@@ -95,7 +93,6 @@ export class Game {
     this.hintEl = $("hint");
     this.homeEl = $("home");
     this.logEl = $("log");
-    this.logbarEl = $("logbar");
     /** @type {Map<string, string>} visual moods for spread lines, by text */
     this.logMoods = new Map();
     this.genEl = $("gen");
@@ -162,13 +159,12 @@ export class Game {
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.bloomEl = $("bloom");
-    this.hudEl = $("hud");
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
     this.world = new World();
-    this.sky = new Sky(this.world, $("air"));
+    this.sky = new Sky(this.world);
     this.zoom = 1; this.camOff = 0; this.mist = 1; this.mood = 0; this.moodTarget = 0; this.dayPhase = 0.12;
     this.painted = false;
     this.seed = seed;
@@ -188,12 +184,11 @@ export class Game {
     this.setupCanvas();
     this.bindInput();
     this.start(bridge);
-    // The world is painted behind the mist; the arrival starts when it is ready (or the mist would never lift).
-    const painted = () => {
+    // The world is painted behind the mist; the arrival starts when it is ready.
+    this.world.paint().then(() => {
       this.painted = true;
       if (this.arrival && this.arrival.t0 === null) this.arrival.t0 = performance.now();
-    };
-    this.world.paint().then(painted, (err) => { console.error("lineage terrain paint failed", err); painted(); });
+    });
 
     this.step = (t) => {
       try { this.frame(t); } catch (err) { console.error("lineage frame failed", err); return; }
@@ -228,8 +223,6 @@ export class Game {
     /** the spread's line is on screen, so each generation only changes its counter */
     this.spreadShown = false;
     this.toldGlow = false;
-    /** @type {Set<number>} generations whose glowing newborns the log named: only those get a caption on the map */
-    this.namedBirths = new Set();
     this.endingEl.hidden = true;
     this.mood = this.moodTarget = 0;
     this.dayPhase = 0;
@@ -270,7 +263,6 @@ export class Game {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
       // The log names only the babies that glow this generation (the calm rule), never more.
       const lines = groupLines(ev.group, s.noun, s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v));
-      this.namedBirths.add(ev.generation);
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
@@ -861,7 +853,6 @@ export class Game {
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
     }
-    this.fitLog();
     const cv = this.cardAnimalEl, size = `${cv.clientWidth}x${cv.clientHeight}`;
     if (size !== c.size) {
       c.size = size;
@@ -894,7 +885,6 @@ export class Game {
       this.cardCountsEl.replaceChildren(...this.countRows(rows), say);
     }
     this.renderFollow();
-    this.fitLog(); // the card's height may have changed
   }
 
   /**
@@ -935,21 +925,10 @@ export class Game {
     this.cardFollowEl.replaceChildren(note, keep);
   }
 
-  /**
-   * Visual only: while a card at the side reaches down to the narration (an iPad
-   * held sideways), the line wraps beside it, so the line and its speaker stay in reach.
-   */
-  fitLog() {
-    const el = this.cardEl, side = !!this.card && !el.hidden && !el.classList.contains("above");
-    const reach = side && el.offsetTop + el.offsetHeight > this.stage.clientHeight - LOG_ROOM;
-    this.logbarEl.style.paddingRight = reach ? `${this.stage.clientWidth - el.offsetLeft + 16}px` : "";
-  }
-
   /** Closes quickly; `now` skips the transition. */
   closeCard(now = false) {
     this.card = null;
     this.herd.selected = null;
-    this.fitLog();
     this.cardEl.classList.remove("open");
     clearTimeout(this.cardHideT);
     if (now) this.cardEl.hidden = true;
@@ -1001,6 +980,7 @@ export class Game {
     return { set: (t) => { text.textContent = t; } };
   }
   /* ================= narration ================= */
+  /** Replace whatever is queued: the log only ever speaks about now. */
   /** Visual only: the log's look for a spread's counter, a gentle fizzle, or "Wait!". A tick replays its pop. */
   moodLog(mood) {
     const c = this.logEl.classList;
@@ -1010,7 +990,6 @@ export class Game {
     void this.logEl.offsetWidth;
     c.add("tick");
   }
-  /** Replace whatever is queued: the log only ever speaks about now. */
   say(lines) { this.logQueue = lines.slice(); this.logTimer = 0; }
   pumpLog(dt) {
     this.logTimer -= dt;
@@ -1191,35 +1170,25 @@ export class Game {
 
   /**
    * A short caption beside the first of your newborns blooming now: its new
-   * trait, in the log's own words ("thicker fur"), with a speaker. Only for
-   * newborns the log has named, so the map never says more than the log does
-   * (nothing about babies born during a fast-forward).
+   * trait, in the log's own words ("thicker fur"), with a speaker.
    */
   placeBloom(now, view) {
-    const named = (id) => this.namedBirths.has(this.story.glowFor(id)?.generation ?? -1);
-    const b = !this.choice && !this.journal && !this.since && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
+    const b = !this.choice && !this.journal && !this.since && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now) : null;
     if (!b) {
       if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
       return;
     }
     if (this.bloomId !== b.id) {
       this.bloomId = b.id;
-      this.bloomLine.set(bornLine(this.story.glowFor(b.id).v.group));
+      const g = this.story.glowFor(b.id);
+      this.bloomLine.set(g ? `One of your babies was born with ${g.v.group}.` : GLOW_HINT);
       this.bloomEl.hidden = false;
-      // Its size and the generation panel's, measured once, to keep it on the screen and off the panel.
-      const hud = this.hudEl;
-      this.bloomBox = { w: this.bloomEl.offsetWidth, h: this.bloomEl.offsetHeight, hudRight: hud.offsetLeft + hud.offsetWidth, hudBottom: hud.offsetTop + hud.offsetHeight };
     }
     const age = now - this.herd.glowSince.get(b.id);
     const op = age < 500 ? age / 500 : age > 5600 ? Math.max(0, 1 - (age - 5600) / 1000) : 1;
-    // Above the newborn, inside the screen; below it when the top edge or the generation panel is in the way.
-    const sx = (b.x - view.x) * this.zoom, sy = (b.y - view.y) * this.zoom, box = this.bloomBox, M = 10;
-    const left = clamp(sx - box.w / 2, M, Math.max(M, this.vw - box.w - M)), byHud = left < box.hudRight + M;
-    let top = sy - 40 - box.h;
-    if (top < M || (byHud && top < box.hudBottom + M)) top = Math.max(sy + 18, byHud ? box.hudBottom + M : M);
-    top = Math.min(top, this.vh - LOG_ROOM - box.h); // and clear of the narration
+    const sx = (b.x - view.x) * this.zoom, sy = (b.y - view.y) * this.zoom;
     this.bloomEl.style.opacity = op.toFixed(3);
-    this.bloomEl.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
+    this.bloomEl.style.transform = `translate(${sx.toFixed(1)}px, ${(sy - 40).toFixed(1)}px) translate(-50%, -100%)`;
   }
 
   /* ================= input ================= */
@@ -1274,17 +1243,13 @@ export class Game {
     this.hintEl.style.opacity = "0";
   }
   tapAt(px, py) {
-    // What is under the finger, in the view on screen (wider while the arrival's camera is higher up).
-    const rect = this.stage.getBoundingClientRect(), v = this.view ?? this.cam, z = this.zoom;
-    const a = this.herd.hit(v.x + (px - rect.left) / z, v.y + (py - rect.top) / z);
-    // A tap during the arrival lets the mist go at once. A tap on an animal still follows its family, as before.
+    // A tap during the arrival lets the mist go at once.
     if (this.arrival) {
-      if (!a) {
-        if (this.arrival.t0 !== null) this.arrival.t0 = Math.min(this.arrival.t0, performance.now() - this.arrival.dur * 0.88);
-        return;
-      }
-      this.endArrival();
+      if (this.arrival.t0 !== null) this.arrival.t0 = Math.min(this.arrival.t0, performance.now() - this.arrival.dur * 0.88);
+      return;
     }
+    const rect = this.stage.getBoundingClientRect();
+    const a = this.herd.hit(this.cam.x + px - rect.left, this.cam.y + py - rect.top);
     if (!a) { this.closeCard(); return; }
     // Before the story starts, a tap chooses the family to follow. After that, a tap opens the animal's card.
     if (this.story.phase === "waiting") this.begin(a);

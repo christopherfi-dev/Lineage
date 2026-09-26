@@ -1,0 +1,790 @@
+--- a/game/styles.css
++++ b/game/styles.css
+@@ -1,73 +1,120 @@
+-/* Visual layer from design/Lineage World.dc.html (its inline styles, as classes). */
++/*
++ * LINEAGE — Step 4 look: golden hour, soft gouache, a field guide's paper.
++ * Paper #F7F0DF · deeper paper #EFE5CE · rule #E3D6B8 · ink #2A2B22 · soft ink #585A4A
++ * muted #8C8267 · yours #14657F · gold #D9A441 · amber #C9822E · dusk #4F5A78
++ */
+ * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+-html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #CFC5A8; -webkit-font-smoothing: antialiased; }
+-@keyframes lgIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
++html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #EFE6D2; -webkit-font-smoothing: antialiased; }
++@keyframes lgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
++@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
++@keyframes breathe { from { transform: scale(1); } to { transform: scale(1.012); } }
++@keyframes sheen { from { background-position: -140% 0; } to { background-position: 240% 0; } }
+ 
+ #stage {
+-  position: fixed; inset: 0; overflow: hidden; background: #CFC5A8;
+-  font-family: Karla, 'Avenir Next', system-ui, sans-serif; color: #2B3026;
++  position: fixed; inset: 0; overflow: hidden; background: #EFE6D2;
++  font-family: Karla, 'Avenir Next', system-ui, sans-serif; color: #2A2B22;
+   touch-action: none; user-select: none; -webkit-user-select: none;
+ }
+ #world { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+ 
++/* The paper every panel is made of: a warm sheet with a faint tooth. */
++#hud, #hint, #card, #choice, #journal, #since, #ending .card, #home, #bloom {
++  background-color: #F7F0DF;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
++}
++
++/* ---- The arrival: the panels wait for the mist to lift. ---- */
++#hud, #logbar { transition: opacity 1.1s ease; }
++#stage.arriving #hud, #stage.arriving #logbar { opacity: 0; }
++#stage.arriving #hint, #stage.arriving #home { visibility: hidden; }
++
+ #hint {
+-  position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+-  display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 13px; border-radius: 999px;
+-  background: rgba(251, 246, 234, .93); box-shadow: 0 3px 16px rgba(45, 38, 20, .2);
+-  font-size: 14.5px; font-weight: 600; letter-spacing: .2px; color: #5A6151;
+-  pointer-events: none; transition: opacity .9s ease; white-space: nowrap;
++  position: absolute; top: calc(18px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
++  display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 14px; border-radius: 999px;
++  box-shadow: 0 4px 20px rgba(60, 44, 20, .18), inset 0 0 0 1px rgba(255, 255, 255, .6);
++  font-size: 15px; font-weight: 600; letter-spacing: .2px; color: #585A4A;
++  pointer-events: none; transition: opacity 1.2s ease; white-space: nowrap;
+ }
+-#hint .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; }
++#hint .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 4px rgba(20, 101, 127, .15); }
+ 
+ #home {
+-  position: absolute; right: 18px; bottom: calc(104px + env(safe-area-inset-bottom));
+-  display: flex; align-items: center; gap: 10px; padding: 11px 19px 11px 13px;
+-  border: 1px solid #E2D8BE; border-radius: 999px; background: #FBF6EA; color: #14657F;
+-  font-family: Karla, system-ui, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: .2px;
+-  box-shadow: 0 5px 18px rgba(45, 38, 20, .26); opacity: 0; pointer-events: none; transition: opacity .35s ease;
+-}
+-#home .ring {
+-  display: flex; align-items: center; justify-content: center;
+-  width: 15px; height: 15px; border: 2px solid #14657F; border-radius: 50%;
++  position: absolute; right: 18px; bottom: calc(112px + env(safe-area-inset-bottom));
++  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 12px 22px 12px 16px;
++  border: 0; border-radius: 999px; color: #14657F;
++  font-family: Karla, system-ui, sans-serif; font-size: 16px; font-weight: 700; letter-spacing: .2px;
++  box-shadow: 0 6px 22px rgba(60, 44, 20, .24), inset 0 0 0 1px rgba(255, 255, 255, .6);
++  opacity: 0; pointer-events: none; transition: opacity .5s ease;
+ }
+-#home .ring i { width: 5px; height: 5px; border-radius: 50%; background: #14657F; }
++#home .ring { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 2px solid #14657F; border-radius: 50%; }
++#home .ring i { width: 6px; height: 6px; border-radius: 50%; background: #14657F; }
+ 
++/* ---- The narration: one calm line at the foot of the screen, warmer or cooler with the mood. ---- */
+ #logbar {
+-  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 13px;
+-  padding: 64px 28px calc(20px + env(safe-area-inset-bottom));
+-  background: linear-gradient(to top, rgba(28, 33, 22, .82), rgba(28, 33, 22, .5) 46%, rgba(28, 33, 22, 0));
++  position: absolute; left: 0; right: 0; bottom: 0; isolation: isolate;
++  display: flex; align-items: flex-end; gap: 10px;
++  padding: 80px 30px calc(22px + env(safe-area-inset-bottom));
++  background: linear-gradient(to top, rgba(38, 32, 20, .74), rgba(38, 32, 20, .42) 48%, rgba(38, 32, 20, 0));
+   pointer-events: none;
+ }
+-#logbar .ring { flex: 0 0 auto; width: 13px; height: 13px; margin-bottom: 9px; border: 2px solid #7FCADD; border-radius: 50%; }
++#logbar::before, #logbar::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 2.4s ease; }
++#logbar::before { background: linear-gradient(to top, rgba(120, 72, 20, .45), rgba(120, 72, 20, 0) 70%); }
++#logbar::after { background: linear-gradient(to top, rgba(40, 56, 78, .5), rgba(40, 56, 78, 0) 70%); }
++#stage.mood-grow #logbar::before { opacity: 1; }
++#stage.mood-shrink #logbar::after { opacity: 1; }
+ #log {
+-  font-family: Petrona, Georgia, serif; font-weight: 500; font-size: 24px; line-height: 1.28; letter-spacing: .1px;
+-  color: #F8F3E5; text-shadow: 0 2px 9px rgba(0, 0, 0, .6); text-wrap: pretty;
++  display: flex; align-items: center; gap: 4px;
++  font-family: Petrona, Georgia, serif; font-weight: 500; font-size: 27px; line-height: 1.25; letter-spacing: .1px;
++  color: #FBF5E6; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); text-wrap: pretty;
+ }
+ 
+-/* Step 1: the generation number on screen, so you can see it advance. */
++/* ---- The generation panel: the number, and the day it is in. ---- */
+ #hud {
+   position: absolute; top: calc(16px + env(safe-area-inset-top)); left: calc(16px + env(safe-area-inset-left));
+-  min-width: 200px; padding: 9px 15px 11px; border-radius: 16px;
+-  background: rgba(251, 246, 234, .93); box-shadow: 0 3px 16px rgba(45, 38, 20, .2);
+-  color: #5A6151; pointer-events: none;
++  min-width: 220px; padding: 11px 16px 12px; border-radius: 18px;
++  box-shadow: 0 4px 20px rgba(60, 44, 20, .18), inset 0 0 0 1px rgba(255, 255, 255, .6);
++  color: #585A4A; pointer-events: none;
+ }
+-#hud .gen { font-size: 11.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #A09477; }
+-#hud .gen b {
+-  margin-left: 4px; font-family: Petrona, Georgia, serif; font-size: 26px; font-weight: 600;
+-  letter-spacing: 0; color: #2B3026;
++#hud .gen { font-size: 11.5px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #9A8E70; }
++#hud .gen b { margin-left: 5px; font-family: Petrona, Georgia, serif; font-size: 28px; font-weight: 600; letter-spacing: 0; color: #2A2B22; }
++/* One generation is one day: the bar is the day's colours, dawn to night, and the sun moves along it. */
++#hud .bar {
++  position: relative; height: 8px; margin: 6px 0 9px; border-radius: 99px;
++  background: linear-gradient(90deg, #E7C7BE 0%, #F3DDA6 10%, #F4E6C2 36%, #EFC27E 58%, #D6A0A2 70%, #7C88B0 79%, #7C88B0 92%, #E7C7BE 100%);
++  box-shadow: inset 0 1px 2px rgba(60, 44, 20, .18);
+ }
+-#hud .bar { height: 4px; margin: 5px 0 7px; border-radius: 99px; background: #E7DDC5; overflow: hidden; }
+-#hud .bar i { display: block; width: 0; height: 100%; background: #14657F; }
+-#hud .line { font-size: 13.5px; font-weight: 600; }
+-#hud .small { margin-top: 2px; font-size: 12px; font-weight: 500; color: #7E765E; }
+-/* ---- The creature card (Step 3, scope decision 21): any animal up close. The world keeps running behind it. ---- */
++#hud .bar i { position: relative; display: block; width: 0; height: 100%; border-radius: 99px; background: rgba(255, 250, 238, .35); }
++#hud .bar i::after {
++  content: ""; position: absolute; right: -7px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%;
++  background: radial-gradient(circle at 40% 38%, #FFFBEA, #FFE6A6 60%, #F2C46E);
++  box-shadow: 0 0 0 3px rgba(255, 240, 200, .6), 0 0 12px rgba(255, 200, 110, .9);
++}
++#stage.night #hud .bar i::after { background: radial-gradient(circle at 40% 38%, #FFFFFF, #E4ECF8 60%, #B9C6E0); box-shadow: 0 0 0 3px rgba(220, 230, 250, .5), 0 0 12px rgba(190, 210, 250, .9); }
++#hud .line { font-size: 14px; font-weight: 600; color: #4A4C3E; }
++#hud .small { margin-top: 2px; font-size: 12.5px; font-weight: 500; color: #857C62; }
++
++/* ---- A variation: a short caption beside the newborn that blooms. ---- */
++#bloom {
++  position: absolute; left: 0; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px;
++  padding: 6px 4px 6px 14px; border-radius: 999px; white-space: nowrap; pointer-events: auto;
++  box-shadow: 0 4px 18px rgba(60, 44, 20, .22), 0 0 0 2px rgba(255, 226, 160, .7);
++  font-family: Petrona, Georgia, serif; font-size: 19px; font-weight: 500; color: #3A3526;
++  will-change: transform, opacity;
++}
++#bloom[hidden] { display: none; }
++#bloom #bloom-line { display: flex; align-items: center; }
++#bloom .spark {
++  width: 14px; height: 14px; flex: 0 0 auto; background: #E3A63E;
++  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
++}
++
++/* ---- The creature card: a field-guide page about one animal. The world keeps running behind it. ---- */
+ #card {
+   position: absolute; z-index: 40;
+   top: calc(14px + env(safe-area-inset-top)); right: calc(14px + env(safe-area-inset-right));
+-  width: 360px; max-width: calc(100% - 28px);
++  width: 420px; max-width: calc(100% - 28px);
+   max-height: calc(100% - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto;
+-  padding: 10px 12px 12px 14px; border-radius: 22px; background: #FBF6EA; color: #2B3026;
+-  box-shadow: 0 10px 34px rgba(38, 32, 18, .38);
++  padding: 12px 14px 14px 18px; border-radius: 26px; color: #2A2B22;
++  box-shadow: 0 14px 44px rgba(50, 36, 16, .36), inset 0 0 0 1px rgba(255, 255, 255, .7);
+   opacity: 0; transform: translateX(16px) scale(.97); transform-origin: top right;
+   transition: opacity .13s ease, transform .15s cubic-bezier(.2, .9, .28, 1);
+ }
+@@ -76,313 +123,402 @@
+ #card .head { display: flex; align-items: center; gap: 6px; }
+ #card-who {
+   display: flex; flex: 1; align-items: center; min-width: 0;
+-  font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #6E6750;
++  font-size: 12.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #6E6750;
+ }
+ #card-close {
+-  flex: 0 0 auto; width: 38px; height: 38px; border: 0; border-radius: 50%; background: #EFE6D0; color: #5A6151;
+-  font-size: 26px; line-height: 1; cursor: pointer;
++  flex: 0 0 auto; width: 48px; height: 48px; border: 0; border-radius: 50%; background: #EDE2C8; color: #585A4A;
++  font-size: 28px; line-height: 1; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6);
+ }
+-#card-animal { display: block; width: 100%; height: 232px; margin-top: 6px; border-radius: 16px; }
+-#card-where { display: flex; align-items: center; margin: 8px 0 0; font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; }
++#card-animal {
++  display: block; width: 100%; height: 250px; margin-top: 8px; border-radius: 18px;
++  box-shadow: 0 0 0 1px #E3D6B8, 0 0 0 5px #F7F0DF, 0 0 0 6px #E8DCC0;
++  animation: breathe 3.6s ease-in-out infinite alternate;
++}
++#card-where { display: flex; align-items: center; margin: 14px 0 0; font-family: Petrona, Georgia, serif; font-size: 22px; font-weight: 500; }
+ #card-new {
+-  display: flex; align-items: center; margin: 6px 0 0; padding: 5px 4px 5px 10px; border-radius: 12px;
+-  background: #FFF0C7; box-shadow: inset 0 0 0 2px #F6C861; font-family: Petrona, Georgia, serif; font-size: 16.5px; line-height: 1.25;
++  display: flex; align-items: center; margin: 8px 0 0; padding: 8px 4px 8px 14px; border-radius: 16px;
++  background: linear-gradient(100deg, #FFF1CE, #FBF1DA 60%, #FFF1CE);
++  box-shadow: 0 0 0 2px rgba(232, 184, 92, .55), 0 0 18px rgba(255, 206, 110, .35);
++  font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.28;
+ }
+ #card-new[hidden], #card-counts[hidden] { display: none; }
+-#card-counts {
+-  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-top: 6px;
+-  font-size: 14.5px; font-weight: 600; color: #5A6151;
+-}
+-/* What the animal has, in plain words (scope decision 22), one line each. */
+-#card-traits { margin-top: 8px; border-top: 1px solid #E7DDC5; }
+-#card-traits .row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 1px 2px 1px 8px; border-bottom: 1px solid #EFE7D3; }
+-#card-traits .v { flex: 1; font-family: Petrona, Georgia, serif; font-size: 16.5px; line-height: 1.2; }
+-#card-traits .say { width: 28px; height: 28px; margin: 0; }
+-/* The trait that is new in this animal glows, like its part on the drawing. */
+-#card-traits .row.new { border-radius: 10px; background: linear-gradient(90deg, #FFE3A0, #FFF3D4 70%); box-shadow: 0 0 10px rgba(255, 196, 64, .55); }
+-#card.gone #card-animal, #card.gone #card-traits, #card.gone #card-new { opacity: .55; filter: grayscale(.5); }
+-/*
+- * While the choice panel is up, the card sits in the room above it, wide, and never reaches an
+- * option (scope decision 23): the drawing on the left, the words on the right, the traits in two
+- * columns. main.js sets --room, the height between the top of the screen and the panel.
+- */
++#card-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 15px; font-weight: 600; color: #585A4A; }
++/* What the animal has, in plain words, two to a row. */
++#card-traits { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; margin-top: 10px; padding-top: 6px; border-top: 1px solid #E3D6B8; }
++#card-traits .row { display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 2px 0 2px 10px; border-bottom: 1px dashed #E6DAC0; }
++#card-traits .v { flex: 1; font-family: Petrona, Georgia, serif; font-size: 16px; line-height: 1.18; }
++#card-traits .row.new { border-radius: 12px; border-bottom-color: transparent; background: linear-gradient(90deg, #FFE7B2, #FFF4DA 80%); box-shadow: 0 0 0 1.5px rgba(232, 184, 92, .6), 0 0 14px rgba(255, 206, 110, .4); }
++#card.gone #card-animal, #card.gone #card-traits, #card.gone #card-new { opacity: .55; filter: grayscale(.5); animation: none; }
++/* While the choice panel is up, the card sits in the room above it, wide (scope decision 23). */
+ #card.above {
+-  left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 800px; margin-left: auto;
++  left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 860px; margin-left: auto;
+   max-height: var(--room); transform-origin: top center;
+ }
+-#card.above:not([hidden]) { display: grid; grid-template-columns: minmax(190px, 36%) 1fr; column-gap: 14px; align-content: start; }
++#card.above:not([hidden]) { display: grid; grid-template-columns: minmax(200px, 36%) 1fr; column-gap: 16px; align-content: start; }
+ #card.above .head { grid-column: 1 / -1; }
+-#card.above #card-animal { grid-column: 1; grid-row: 2 / span 4; align-self: start; height: min(190px, calc(var(--room) - 72px)); }
++#card.above #card-animal { grid-column: 1; grid-row: 2 / span 4; align-self: start; height: min(200px, calc(var(--room) - 76px)); }
+ #card.above #card-where, #card.above #card-new, #card.above #card-counts, #card.above #card-traits { grid-column: 2; }
+-#card.above #card-where { margin-top: 6px; }
+-#card.above #card-traits { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
++#card.above #card-where { margin-top: 8px; }
++#card.above #card-traits { grid-template-columns: 1fr 1fr 1fr; }
+ #card.above #card-traits .v { font-size: 15px; }
+ 
+-/* Narrower screens: the hint sits under the generation panel instead of beside it. */
+-@media (max-width: 1180px) { #hint { top: calc(128px + env(safe-area-inset-top)); } }
++@media (max-width: 1180px) { #hint { top: calc(132px + env(safe-area-inset-top)); } }
+ 
+-/* ---- The story loop (scope decision 6). Panels in the mockup's field-guide sheet style. ---- */
++/* ---- The story loop ---- */
+ #hud #fast {
+-  margin-left: 10px; padding: 2px 9px 3px; border-radius: 999px; background: #14657F; color: #EFFAFD;
+-  font-size: 10.5px; letter-spacing: 1.2px; vertical-align: 5px; animation: ffPulse 1s ease-in-out infinite alternate;
++  margin-left: 10px; padding: 3px 10px 4px; border-radius: 999px; background: #14657F; color: #EFFAFD;
++  font-size: 10.5px; letter-spacing: 1.2px; vertical-align: 6px; animation: ffPulse 1.2s ease-in-out infinite alternate;
+ }
+ #hud #fast[hidden] { display: none; }
+-/* The groups not chosen, in their colours on the map. */
+ .swatch {
+-  display: inline-block; flex: 0 0 auto; width: 11px; height: 11px; margin-right: 7px; border-radius: 50%;
+-  background: var(--mark); vertical-align: 0;
++  display: inline-block; flex: 0 0 auto; width: 12px; height: 12px; margin-right: 8px; border-radius: 50%;
++  background: var(--mark); box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); vertical-align: 0;
+ }
+-#hud #others { display: flex; flex-wrap: wrap; gap: 2px 14px; max-width: 330px; margin-top: 5px; color: #5A6151; }
++#hud #others { display: flex; flex-direction: column; gap: 4px; max-width: 340px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #E6DAC0; color: #585A4A; }
+ #hud #others[hidden] { display: none; }
+ #hud #others span { display: inline-flex; align-items: center; }
+-@keyframes ffPulse { from { opacity: .65; } to { opacity: 1; } }
++@keyframes ffPulse { from { opacity: .7; } to { opacity: 1; } }
+ 
+-.eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 1.7px; text-transform: uppercase; color: #A09477; }
++.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #9A8E70; }
+ 
++/* A choice point: a sheet of three painted plates. */
+ #choice {
+   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+-  padding: 10px 26px calc(20px + env(safe-area-inset-bottom));
+-  background: #FBF6EA; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 50px rgba(38, 32, 18, .4);
+-  transform: translateY(104%); transition: transform .42s cubic-bezier(.2, .9, .28, 1);
+-  max-height: 72%; overflow-y: auto;
++  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
++  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
++  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
++  max-height: 74%; overflow-y: auto;
+ }
+ #choice.open { transform: none; }
+ #choice[hidden] { display: none; }
+-#choice .grab { width: 46px; height: 5px; margin: 0 auto 10px; border-radius: 99px; background: #E0D4B8; }
+-#choice h2 {
+-  margin: 3px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600;
+-  letter-spacing: -.4px; line-height: 1.1; color: #2B3026;
+-}
++#choice .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
++#choice h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -.4px; line-height: 1.1; color: #2A2B22; }
+ #choice-since {
+-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin: 8px 0 0;
+-  font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3; color: #3E4436;
++  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 10px 0 0; padding: 10px 14px; border-radius: 16px;
++  background: #EFE5CE; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3; color: #3E4436;
+ }
+ #choice-since:empty { display: none; }
+-#choice-since .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 16px; color: #5A6151; }
+-#choice-since .note { width: 100%; margin: 2px 0 0; font-style: italic; color: #5A6151; }
+-#options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 14px; }
++#choice-since .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 16px; color: #585A4A; }
++#choice-since .note { width: 100%; margin: 2px 0 0; font-style: italic; color: #585A4A; }
++#options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+ .option {
+-  position: relative; border: 2px solid #E7DDC5; border-radius: 20px; background: #F3ECDB; color: #2B3026;
+-  transition: border-color .2s ease, background .2s ease, opacity .3s ease, transform .2s ease;
++  position: relative; border-radius: 22px; background: #FBF7EC; color: #2A2B22;
++  box-shadow: 0 0 0 2px #E6DAC0, 0 6px 16px rgba(60, 44, 20, .1);
++  transition: box-shadow .3s ease, background .3s ease, opacity .4s ease, transform .2s ease;
+ }
+ .option .pick {
+-  display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; padding: 10px 12px 14px;
+-  border: 0; border-radius: 18px; background: none; color: inherit; cursor: pointer;
+-  font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.25; text-align: center;
++  display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; padding: 10px 10px 16px;
++  border: 0; border-radius: 20px; background: none; color: inherit; cursor: pointer;
++  font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 500; line-height: 1.22; text-align: center;
+ }
+-.option > .say { position: absolute; top: 8px; right: 8px; }
+-.option canvas { display: block; width: 100%; height: 168px; border-radius: 14px; }
++.option .words { display: flex; align-items: center; justify-content: center; padding: 0 30px; text-wrap: balance; }
++.option > .say { position: absolute; right: 6px; bottom: 8px; }
++.option canvas { display: block; width: 100%; height: 178px; border-radius: 16px; }
+ .option:active { transform: scale(.98); }
+-.option.picked { border-color: #14657F; background: #DCEDF2; }
++.option.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
+ .option.picked .swatch { background: #14657F; }
+-.option.not-picked { opacity: .4; }
+-#choice .timer { height: 6px; margin-top: 16px; border-radius: 99px; background: #E7DDC5; overflow: hidden; }
+-#choice .timer i { display: block; width: 100%; height: 100%; background: #14657F; }
+-#choice-note { min-height: 1.35em; margin-top: 8px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #8A5A14; }
++.option.not-picked { opacity: .38; }
++/* The time to choose, as a warm band that slowly shortens. */
++#choice .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
++#choice .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
++#choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
+ 
++/* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. ---- */
++#journal {
++  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
++  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
++  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
++  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
++  max-height: 74%; overflow-y: auto;
++}
++#journal.open { transform: none; }
++#journal[hidden] { display: none; }
++#journal .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
++#journal h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
++#journal-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
++#journal .answer {
++  position: relative; display: flex; align-items: center; border-radius: 20px; background: #FBF7EC;
++  box-shadow: 0 0 0 2px #E6DAC0, 0 4px 12px rgba(60, 44, 20, .08);
++  transition: box-shadow .3s ease, background .3s ease, opacity .4s ease, transform .2s ease;
++}
++#journal .answer .pick {
++  flex: 1; min-height: 64px; padding: 12px 8px 12px 18px; border: 0; background: none; color: #2A2B22; cursor: pointer;
++  font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.25; text-align: left; text-wrap: pretty;
++}
++#journal .answer > .say { margin: 0 8px 0 0; }
++#journal .answer:active { transform: scale(.98); }
++#journal .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
++#journal .answer.not-picked { opacity: .38; }
++#journal .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
++#journal .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
++#journal-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
++/* A prediction beside what really happened: a small written note on the page, in the next choice panel and the ending. */
++.prediction {
++  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; width: 100%; margin-top: 8px; padding: 10px 14px 12px;
++  border-radius: 14px; background: #F8F2E3; box-shadow: inset 0 0 0 1px #E3D6B8;
++}
++.prediction .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 15px; font-weight: 700; color: #585A4A; }
++.prediction .line { display: flex; align-items: center; width: 100%; margin: 0; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3; color: #2A2B22; }
++#ending-predictions[hidden] { display: none; }
++#ending-predictions-label { display: flex; align-items: center; margin: -4px 0 6px; font-family: Petrona, Georgia, serif; font-size: 15px; font-style: italic; color: #7E765E; }
++#ending-predictions-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
++#ending-predictions .prediction { margin-top: 0; background: #F1E8D4; box-shadow: none; }
++#ending-predictions .prediction .since-title { font-family: Petrona, Georgia, serif; font-size: 16px; }
++#ending-predictions .count { font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
++
++/* ---- The ending: a field-guide plate of what your animals became. ---- */
+ #ending {
+   position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+   padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+-  background: rgba(28, 33, 22, .5);
++  background: radial-gradient(ellipse at 50% 40%, rgba(60, 40, 16, .18), rgba(34, 28, 16, .52));
+ }
+ #ending[hidden] { display: none; }
+ #ending .card {
+-  width: 100%; max-width: 960px; max-height: 100%; overflow-y: auto; padding: 24px 30px 26px;
+-  background: #FBF6EA; border-radius: 28px; box-shadow: 0 14px 50px rgba(38, 32, 18, .45); color: #2B3026;
++  width: 100%; max-width: 1000px; max-height: 100%; overflow-y: auto; padding: 26px 34px 28px;
++  border-radius: 30px; box-shadow: 0 18px 60px rgba(40, 28, 12, .45), inset 0 0 0 1px rgba(255, 255, 255, .7); color: #2A2B22;
+ }
+-#ending h2 {
+-  margin: 5px 0 0; font-family: Petrona, Georgia, serif; font-size: 35px; font-weight: 600;
+-  letter-spacing: -.5px; line-height: 1.1; text-wrap: balance;
++#ending h2 { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 38px; font-weight: 600; letter-spacing: -.5px; line-height: 1.08; text-wrap: balance; }
++#ending .cols { display: flex; flex-wrap: wrap; gap: 10px 34px; margin-top: 16px; }
++#ending section { flex: 1 1 340px; min-width: 270px; }
++#ending section + section { flex: 1.15 1 380px; }
++#ending h3 { display: flex; align-items: center; margin: 18px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #9A8E70; }
++#ending-look { margin-top: 2px; }
++#ending-look-line { display: flex; align-items: center; margin: 0 0 8px; font-family: Petrona, Georgia, serif; font-size: 21px; font-style: italic; color: #3E4436; }
++#ending-animal {
++  display: block; width: 100%; height: 230px; border-radius: 20px;
++  box-shadow: 0 0 0 1px #E3D6B8, 0 0 0 6px #F7F0DF, 0 0 0 7px #E8DCC0, 0 10px 24px rgba(60, 44, 20, .16);
++  animation: breathe 4s ease-in-out infinite alternate;
+ }
+-#ending .cols { display: flex; flex-wrap: wrap; gap: 8px 30px; margin-top: 14px; }
+-#ending section { flex: 1 1 330px; min-width: 260px; }
+-#ending section + section { flex: 1.3 1 380px; }
+-#ending h3 { margin: 14px 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #A79B7C; }
+-/* The group's average body, drawn, with the real-animal reveal beside it (scope decision 21). */
+-#ending-look { margin-top: 4px; }
+-#ending-look-line { display: flex; align-items: center; margin: 0 0 6px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #3E4436; }
+-#ending-animal { display: block; width: 100%; height: 190px; border-radius: 18px; }
+-#ending-traits {
+-  display: grid; grid-template-columns: 1fr 1fr; gap: 1px; border: 1px solid #E7DDC5; border-radius: 16px;
+-  background: #E7DDC5; overflow: hidden;
++/* The reveal: a warm caption under the plate, light passing over it once. */
++#reveal {
++  position: relative; margin-top: 16px; padding: 14px 18px 16px; border-radius: 18px; overflow: hidden;
++  background: #F2E6C8; color: #3A3120; font-family: Petrona, Georgia, serif;
++  box-shadow: 0 0 0 2px rgba(217, 164, 65, .5);
+ }
+-#ending-traits .row { display: flex; flex-direction: column; gap: 1px; padding: 8px 13px; background: #FBF6EA; }
+-#ending-traits .k { font-size: 10.5px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: #A79B7C; }
+-#ending-traits .v { display: flex; align-items: center; gap: 7px; font-family: Petrona, Georgia, serif; font-size: 18px; }
+-#ending-traits .changed .v::after, #ending .legend .dot {
+-  content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: #14657F;
++#reveal::after {
++  content: ""; position: absolute; inset: 0; pointer-events: none;
++  background: linear-gradient(100deg, transparent 30%, rgba(255, 250, 230, .8) 50%, transparent 70%) no-repeat;
++  background-size: 60% 100%; background-position: -140% 0;
+ }
+-#ending .legend { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 13px; color: #7E765E; }
++#ending.show #reveal::after { animation: sheen 1.8s ease 1.9s 1 both; }
++#reveal-line { display: flex; align-items: center; margin: 0; font-size: 24px; font-weight: 600; line-height: 1.2; }
++#reveal-why { display: flex; align-items: center; margin: 8px 0 0; font-size: 18px; line-height: 1.35; color: #4A4030; }
++#reveal[hidden] { display: none; }
++#ending-traits { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; border-radius: 16px; background: #E3D6B8; overflow: hidden; box-shadow: 0 0 0 1px #E3D6B8; }
++#ending-traits .row { display: flex; flex-direction: column; gap: 2px; padding: 9px 14px; background: #FBF7EC; }
++#ending-traits .k { font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: #9A8E70; }
++#ending-traits .v { display: flex; align-items: center; gap: 8px; font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.2; }
++#ending-traits .changed .v::after, #ending .legend .dot { content: ""; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 3px rgba(20, 101, 127, .15); }
++#ending .legend { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13.5px; color: #7E765E; }
+ #ending .legend .dot { display: inline-block; }
+-#ending-choices { margin: 0; padding-left: 24px; font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.3; }
+-#ending-choices li { break-inside: avoid; }
+-#ending-choices li + li { margin-top: 3px; }
+-#ending-choices.many { columns: 2; column-gap: 34px; }
+-/* After a neutral trait: it made no difference to who survived (scope decision 8). */
+-#ending-choices .note { display: block; margin-top: 1px; font-size: 14px; font-style: italic; line-height: 1.25; color: #6E6A55; }
+-/* One line of real evidence from the world, not the answer. */
+-#ending-evidence[hidden], #ending-evidence [hidden] { display: none; }
+-/* The clue as both sides: a heading, then "With …" and "Without" as count rows with bars. */
+-#ending-compare {
+-  display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-left: 4px solid #D9892B;
+-  border-radius: 6px 12px 12px 6px; background: #F3ECDB; font-family: Petrona, Georgia, serif; font-size: 18px;
+-}
+-#ending-compare .heading { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+-#ending-evidence p {
+-  margin: 0; padding: 10px 14px; border-left: 4px solid #D9892B; border-radius: 6px 12px 12px 6px; background: #F3ECDB;
+-  font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3;
+-}
+-#ending-choices.none { padding-left: 0; list-style: none; font-style: italic; color: #5C5847; }
+ #ending-question {
+-  margin: 14px 0 0; padding: 14px 18px; border-radius: 16px; background: #14657F; color: #EFFAFD;
+-  font-family: Petrona, Georgia, serif; font-size: 23px; font-weight: 600; line-height: 1.3;
++  display: flex; align-items: center; margin: 4px 0 0; padding: 18px 20px; border-radius: 20px;
++  background: linear-gradient(160deg, #1B6F88, #14657F 60%, #115568); color: #F2FAFC;
++  font-family: Petrona, Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.25;
++  box-shadow: 0 10px 26px rgba(20, 80, 100, .25);
+ }
+-#reveal {
+-  margin-top: 12px; padding: 12px 16px 14px; border-radius: 16px; background: #E4F0F2; color: #1E3A40;
+-  font-family: Petrona, Georgia, serif;
++#ending-question .say { color: #F2FAFC; }
++#ending-evidence[hidden], #ending-evidence [hidden] { display: none; }
++/* The clue: both sides, with big bars, then and now. */
++#ending-compare { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; border-radius: 18px; background: #EFE5CE; font-family: Petrona, Georgia, serif; font-size: 20px; }
++#ending-compare .heading { display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 21px; }
++#ending-compare .count { gap: 12px; }
++#ending-compare .bars { height: 34px; gap: 4px; }
++#ending-compare .bars i { width: 14px; border-radius: 4px 4px 1px 1px; }
++#ending-evidence p { display: flex; align-items: center; margin: 0; padding: 14px 18px; border-radius: 18px; background: #EFE5CE; font-family: Petrona, Georgia, serif; font-size: 19px; line-height: 1.3; }
++/* The choices made: a trail of small tags, numbered. */
++#ending-choices { counter-reset: step; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; font-family: Petrona, Georgia, serif; font-size: 16.5px; line-height: 1.25; }
++#ending-choices li { counter-increment: step; display: flex; flex-wrap: wrap; align-items: center; padding: 2px 0 2px 6px; border-radius: 14px; background: #F1E8D4; }
++#ending-choices li::before { content: counter(step); display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 7px; border-radius: 50%; background: #E3D6B8; font-family: Karla, system-ui, sans-serif; font-size: 12px; font-weight: 700; color: #6E6750; }
++#ending-choices.many { columns: auto; }
++#ending-choices .note { display: block; flex-basis: 100%; margin: 2px 10px 0 35px; font-size: 14.5px; font-style: italic; line-height: 1.25; color: #6E6A55; }
++#ending-choices li:has(.note) { flex-basis: 100%; padding-bottom: 8px; }
++#ending-choices.none { display: block; }
++#ending-choices.none li { background: none; padding: 0; font-style: italic; color: #5C5847; }
++#ending-choices.none li::before { display: none; }
++/* "Did you know?": a small field-guide margin note under the reveal, each with its own speaker. */
++#reveal-facts .fact {
++  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 0; padding: 9px 6px 9px 14px;
++  border-radius: 14px; background: rgba(255, 252, 240, .7); box-shadow: inset 0 0 0 1px rgba(217, 164, 65, .35);
++  font-size: 17.5px; font-style: italic; line-height: 1.3; color: #4A3E24; text-wrap: pretty;
+ }
+-#reveal-line { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.25; }
+-#reveal-why { margin: 6px 0 0; font-size: 17px; line-height: 1.35; }
+-#reveal[hidden] { display: none; }
+-/* "Did you know?" facts about the real animal (scope decision 46). */
+-#reveal-facts .fact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 8px 0 0; padding-top: 7px; border-top: 1px solid #C6DDE1; font-size: 16px; font-style: italic; line-height: 1.3; color: #2E5058; }
+-#reveal-facts .fact + .fact { margin-top: 4px; padding-top: 0; border-top: 0; }
+-/* The buttons stay in view at the bottom of the card, however long the story's list is. */
++#reveal-facts .fact::before { content: ""; flex: 0 0 auto; align-self: flex-start; width: 8px; height: 8px; margin: 8px 2px 0 0; border-radius: 50%; background: #E8B64C; box-shadow: 0 0 8px rgba(255, 200, 100, .8); }
++#reveal-facts .fact .text { flex: 1; }
++#reveal-facts .fact + .fact { margin-top: 6px; }
++#ending.show #reveal-facts .fact { animation: rise .7s ease both 2.4s; }
++#ending.show #reveal-facts .fact + .fact { animation-delay: 2.8s; }
++#ending.died #reveal-facts .fact { background: rgba(250, 250, 255, .7); box-shadow: inset 0 0 0 1px rgba(110, 120, 160, .3); color: #3C4156; }
++#ending.died #reveal-facts .fact::before { background: #B9C3E0; box-shadow: 0 0 8px rgba(185, 200, 240, .8); }
+ #ending .buttons {
+-  position: sticky; bottom: -26px; display: flex; flex-wrap: wrap; gap: 12px; margin: 18px -30px -26px; padding: 14px 30px 26px;
+-  background: linear-gradient(to bottom, rgba(251, 246, 234, 0), #FBF6EA 14px);
++  position: sticky; bottom: -28px; display: flex; flex-wrap: wrap; gap: 14px; margin: 22px -34px -28px; padding: 16px 34px 28px;
++  background: linear-gradient(to bottom, rgba(247, 240, 223, 0), #F7F0DF 16px);
+ }
+ #ending .buttons button {
+-  flex: 1 1 240px; padding: 14px 20px; border: 2px solid #14657F; border-radius: 999px; cursor: pointer;
+-  background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 17px; font-weight: 700;
++  flex: 1 1 240px; min-height: 62px; padding: 16px 22px; border: 0; border-radius: 999px; cursor: pointer;
++  background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700;
++  box-shadow: 0 8px 20px rgba(20, 80, 100, .25);
+ }
+-#ending .buttons #new-world { background: #FBF6EA; color: #14657F; }
++#ending .buttons #new-world { background: #FBF7EC; color: #14657F; box-shadow: inset 0 0 0 2px #14657F; }
++/* One after another: title, drawing, reveal, then the rest. */
++#ending.show .card { animation: rise .6s cubic-bezier(.2, .9, .28, 1) both; }
++#ending.show .eyebrow, #ending.show h2 { animation: rise .7s ease both .15s; }
++#ending.show #ending-look { animation: rise .8s ease both .45s; }
++#ending.show #reveal { animation: rise .8s ease both 1.3s; }
++#ending.show #ending-traits-title, #ending.show #ending-traits, #ending.show .legend { animation: rise .7s ease both 1.8s; }
++#ending.show section + section { animation: rise .8s ease both 1s; }
++#ending.show .buttons { animation: rise .7s ease both 1.6s; }
++/* When the group died out: the same page at dusk, quieter and a little cooler. */
++#ending.died .card { background-color: #F1EEE4; }
++#ending.died h2 { color: #3B4258; }
++#ending.died #ending-animal { filter: saturate(.72) brightness(.98); }
++#ending.died #ending-question { background: linear-gradient(160deg, #5A6584, #4F5A78 60%, #434D68); box-shadow: 0 10px 26px rgba(50, 60, 90, .25); }
++#ending.died #ending-compare, #ending.died #ending-evidence p { background: #E7E4DA; }
+ 
+-/* ---- Read-aloud (scope decision 12): a small speaker beside every child-facing line. ---- */
++/* ---- Read-aloud: a speaker beside every line, with a hit area a finger finds (44 px). ---- */
+ .say {
+-  display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 32px; height: 32px;
+-  margin: -6px -4px -6px 2px; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit;
+-  vertical-align: middle; cursor: pointer; opacity: .6; pointer-events: auto;
++  display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 44px; height: 44px;
++  margin: -10px -8px -10px 0; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit;
++  vertical-align: middle; cursor: pointer; opacity: .62; pointer-events: auto;
+ }
++.say svg { width: 20px; height: 20px; }
+ .say:hover, .say:focus-visible { opacity: .95; }
+-.say.speaking { opacity: 1; animation: sayPulse .9s ease-in-out infinite alternate; }
+-@keyframes sayPulse { from { transform: scale(1); } to { transform: scale(1.15); } }
++.say:active { background: rgba(0, 0, 0, .06); }
++.say.speaking { opacity: 1; color: #C9822E; animation: sayPulse .9s ease-in-out infinite alternate; }
++@keyframes sayPulse { from { transform: scale(1); } to { transform: scale(1.14); } }
+ #logbar .ring { display: none; }
+-#logbar .say { margin-bottom: 2px; color: #F8F3E5; opacity: .8; }
++#logbar .say { color: #FBF5E6; opacity: .85; }
++#logbar .say.speaking { color: #FFE2A2; }
+ 
+-/* ---- Counts, never percentages (scope decision 12): "Yours: 20 → 31" beside two small bars, then and now. ---- */
+-.count { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
++/* ---- Counts, never percentages: "Yours: 20 → 31" beside two small bars, then and now. ---- */
++.count { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+ .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; flex: 0 0 auto; }
+-.bars i { display: block; width: 6px; min-height: 1px; border-radius: 2px 2px 0 0; background: var(--mark); }
++.bars i { display: block; width: 7px; min-height: 1px; border-radius: 2px 2px 0 0; background: var(--mark); }
+ .bars i.then { opacity: .4; }
+-#hud #others { flex-direction: column; gap: 3px; }
+-#hud #others .count { font-size: 12.5px; font-weight: 600; }
+-#hud #others .bars { height: 14px; }
++#hud #others .count { font-size: 13px; font-weight: 600; }
++#hud #others .bars { height: 15px; }
+ #hud #others .bars i { width: 5px; }
+-#ending-choices .count { display: flex; margin-top: 3px; font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
+-#ending-choices li > .say { margin-left: 4px; }
+-
+-/* ---- The prediction journal (Step 6): the choice panel's look, for a question with 3-4 answers. ---- */
+-#journal {
+-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+-  padding: 10px 26px calc(20px + env(safe-area-inset-bottom));
+-  background: #FBF6EA; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 50px rgba(38, 32, 18, .4);
+-  transform: translateY(104%); transition: transform .42s cubic-bezier(.2, .9, .28, 1);
+-  max-height: 72%; overflow-y: auto;
+-}
+-#journal.open { transform: none; }
+-#journal[hidden] { display: none; }
+-#journal .grab { width: 46px; height: 5px; margin: 0 auto 10px; border-radius: 99px; background: #E0D4B8; }
+-#journal h2 {
+-  display: flex; align-items: center; margin: 3px 0 0; font-family: Petrona, Georgia, serif; font-size: 30px; font-weight: 600;
+-  letter-spacing: -.4px; line-height: 1.15; color: #2B3026;
+-}
+-#journal-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
+-#journal .answer {
+-  position: relative; display: flex; align-items: center; border: 2px solid #E7DDC5; border-radius: 18px; background: #F3ECDB;
+-  transition: border-color .2s ease, background .2s ease, opacity .3s ease, transform .2s ease;
+-}
+-#journal .answer .pick {
+-  flex: 1; min-height: 58px; padding: 12px 8px 12px 16px; border: 0; background: none; color: #2B3026; cursor: pointer;
+-  font-family: Petrona, Georgia, serif; font-size: 19px; font-weight: 500; line-height: 1.25; text-align: left;
+-}
+-#journal .answer > .say { margin: 0 8px 0 0; }
+-#journal .answer:active { transform: scale(.98); }
+-#journal .answer.picked { border-color: #14657F; background: #DCEDF2; }
+-#journal .answer.not-picked { opacity: .4; }
+-#journal .timer { height: 6px; margin-top: 16px; border-radius: 99px; background: #E7DDC5; overflow: hidden; }
+-#journal .timer i { display: block; width: 100%; height: 100%; background: #14657F; }
+-#journal-note { display: flex; align-items: center; min-height: 1.35em; margin-top: 8px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #14657F; }
+-/* A prediction beside what really happened: in the next "Since your last choice" panel, and on the ending. */
+-.prediction {
+-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; width: 100%; margin-top: 8px; padding: 8px 12px 10px;
+-  border-left: 4px solid #14657F; border-radius: 6px 12px 12px 6px; background: #EEF3EF;
+-}
+-.prediction .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 16px; font-weight: 600; color: #2B3026; }
+-.prediction .line { width: 100%; margin: 0; font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.3; color: #2B3026; }
+-#ending-predictions[hidden] { display: none; }
+-#ending-predictions-label { display: flex; align-items: center; margin: -4px 0 6px; font-size: 13.5px; font-style: italic; color: #7E765E; }
+-#ending-predictions-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+-#ending-predictions .prediction { margin-top: 0; font-family: Petrona, Georgia, serif; font-size: 16px; }
+-#ending-predictions .prediction .since-title { font-family: Petrona, Georgia, serif; font-size: 16px; }
+-#ending-predictions .count { font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
+-
++#ending-choices .count { display: flex; flex-basis: 100%; margin: 4px 0 0 35px; font-family: Karla, system-ui, sans-serif; font-size: 13.5px; font-weight: 600; color: #5C5847; }
++#ending-choices li > .say { margin: -10px -4px -10px -4px; }
+ 
+-/* ---- Active choosing (scope decisions 32–34): follow a glowing newborn's variation as a fair test. ---- */
+-/* A glowing newborn's card: follow, or keep looking. */
+-#card-follow { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
++/* ---- Active choosing (scope decisions 32–34): the glowing newborn's card is the hero. ---- */
++/* The card of a glowing newborn catches the same warm light as its ring on the map. */
++#card.glowing { box-shadow: 0 14px 44px rgba(50, 36, 16, .36), 0 0 0 2px rgba(232, 184, 92, .7), 0 0 34px rgba(255, 206, 110, .45), inset 0 0 0 1px rgba(255, 255, 255, .7); }
++#card.glowing #card-animal { box-shadow: 0 0 0 1px #E8C98A, 0 0 0 5px #FBF1D6, 0 0 0 6px #E8C27A, 0 0 26px rgba(255, 206, 110, .5); }
++#card-follow { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+ #card-follow[hidden] { display: none; }
+-#card-follow .follow-row { display: flex; align-items: center; gap: 4px; }
++#card-follow .follow-row { display: flex; align-items: center; gap: 6px; }
+ #card-follow button:not(.say) {
+-  flex: 1; min-height: 46px; padding: 10px 14px; border: 2px solid #14657F; border-radius: 999px; cursor: pointer;
+-  background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.2;
++  position: relative; flex: 1; min-height: 60px; padding: 12px 20px; border: 0; border-radius: 999px; cursor: pointer;
++  font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700; line-height: 1.2; text-wrap: balance;
++  transition: transform .15s ease, box-shadow .3s ease;
+ }
+-#card-follow .keep button:not(.say) { background: #FBF6EA; border-color: #D8CDB1; color: #5A6151; }
++#card-follow button:not(.say):active { transform: scale(.97); }
++#card-follow .go button:not(.say) {
++  background: linear-gradient(170deg, #1C7894, #14657F 55%, #10566C); color: #F6FCFD;
++  box-shadow: 0 8px 20px rgba(20, 80, 100, .28), inset 0 1px 0 rgba(255, 255, 255, .22), 0 0 0 3px rgba(255, 214, 138, .0);
++  animation: followGlow 2.8s ease-in-out infinite alternate;
++}
++#card-follow .go .say { color: #14657F; }
++/* "Keep looking" is just as friendly: the same size and weight, warm paper with a golden ring. */
++#card-follow .keep button:not(.say) {
++  background: linear-gradient(170deg, #FFF8E6, #FBEBC4); color: #6B4A0E;
++  box-shadow: 0 0 0 2px #E3B35A, 0 6px 16px rgba(160, 110, 30, .16), inset 0 1px 0 rgba(255, 255, 255, .9);
++}
++#card-follow .keep .say { color: #8A5A14; }
+ #card.above #card-follow { grid-column: 2; }
+-/* The child's group is very small: no spread, only "Keep looking" (scope decision 44). */
++@keyframes followGlow { from { box-shadow: 0 8px 20px rgba(20, 80, 100, .28), inset 0 1px 0 rgba(255, 255, 255, .22), 0 0 0 3px rgba(255, 214, 138, .15); } to { box-shadow: 0 8px 22px rgba(20, 80, 100, .3), inset 0 1px 0 rgba(255, 255, 255, .22), 0 0 0 4px rgba(255, 214, 138, .55), 0 0 22px rgba(255, 206, 110, .45); } }
++
++/* The group is very small: a warm, calm note, not an alarm (scope decision 44). */
+ #card-follow .follow-note {
+-  display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; padding: 7px 4px 7px 12px;
+-  border-radius: 12px; background: #FBE3D0; box-shadow: inset 0 0 0 2px #E8A36B;
+-  font-family: Petrona, Georgia, serif; font-size: 17px; line-height: 1.25; color: #5B2E12;
++  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 10px 6px 10px 16px;
++  border-radius: 18px; background: #FCEBD8; box-shadow: inset 0 0 0 2px #EDB98A;
++  font-family: Petrona, Georgia, serif; font-size: 20px; line-height: 1.25; color: #5B3414; text-wrap: balance;
+ }
+-/* "Since your last choice", before a new follow: the choice panel's look. */
++/* ---- The fair test: yours and the others here, side by side, as counts with bars. ---- */
++.fair-board, #ending-fair-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
++#since-body .count, #choice-since .count, #ending-fair-rows .count {
++  display: flex; align-items: flex-end; gap: 14px; min-width: 0; padding: 12px 16px 14px; border-radius: 18px; white-space: normal;
++  background: #FBF7EC; box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mark) 45%, #E6DAC0);
++  font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 500; line-height: 1.2; color: #2A2B22;
++}
++#since-body .count .bars, #choice-since .count .bars, #ending-fair-rows .count .bars { height: 52px; gap: 5px; padding-bottom: 2px; border-bottom: 2px solid #E3D6B8; }
++#since-body .count .bars i, #choice-since .count .bars i, #ending-fair-rows .count .bars i { width: 16px; border-radius: 5px 5px 1px 1px; transition: height .9s cubic-bezier(.2, .9, .28, 1); }
++#since-body .count .bars i.now, #ending-fair-rows .count .bars i.now { box-shadow: 0 0 10px color-mix(in oklab, var(--mark) 40%, transparent); }
++#hud #others .count { white-space: normal; }
++
++/* "Since your last choice", before a new follow: the choice panel's paper. */
+ #since {
+   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+-  padding: 10px 26px calc(20px + env(safe-area-inset-bottom));
+-  background: #FBF6EA; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 50px rgba(38, 32, 18, .4);
+-  transform: translateY(104%); transition: transform .42s cubic-bezier(.2, .9, .28, 1);
+-  max-height: 72%; overflow-y: auto;
++  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
++  background-color: #F7F0DF; border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
++  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
++  max-height: 74%; overflow-y: auto;
+ }
+ #since.open { transform: none; }
+ #since[hidden] { display: none; }
+-#since .grab { width: 46px; height: 5px; margin: 0 auto 10px; border-radius: 99px; background: #E0D4B8; }
++#since .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+ #since-body {
+-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin: 6px 0 0;
++  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 8px 0 0;
+   font-family: Petrona, Georgia, serif; font-size: 20px; line-height: 1.3; color: #3E4436;
+ }
+-#since-body > .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 24px; font-weight: 600; color: #2B3026; }
+-#since-body .note { width: 100%; margin: 2px 0 0; font-style: italic; color: #5A6151; }
++#since-body > :not(.count) { grid-column: 1 / -1; }
++#since-body > .since-title { display: flex; align-items: center; gap: 4px; font-size: 30px; font-weight: 600; letter-spacing: -.3px; color: #2A2B22; }
++#since-body .note { margin: 0; font-style: italic; color: #585A4A; }
++#since-body .prediction { margin-top: 2px; }
+ #since-next {
+-  display: block; margin: 14px 0 0 auto; padding: 11px 30px; border: 0; border-radius: 999px; cursor: pointer;
+-  background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 17px; font-weight: 700;
++  display: block; min-width: 180px; min-height: 56px; margin: 16px 0 0 auto; padding: 14px 34px; border: 0; border-radius: 999px; cursor: pointer;
++  background: linear-gradient(170deg, #1C7894, #14657F 55%, #10566C); color: #F6FCFD;
++  font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700; box-shadow: 0 8px 20px rgba(20, 80, 100, .25);
+ }
+-#since .timer { height: 6px; margin-top: 14px; border-radius: 99px; background: #E7DDC5; overflow: hidden; }
+-#since .timer i { display: block; width: 100%; height: 100%; background: #14657F; }
+-/* The ending's last fair test, like the clue. */
++#since .timer { height: 8px; margin-top: 16px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
++#since .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
++#since.open #since-body > * { animation: rise .6s ease both; }
++#since.open #since-body > .count { animation-delay: .25s; }
++#since.open #since-body > .count ~ .count { animation-delay: .45s; }
++
++/* The ending's last fair test: the same scoreboard. */
+ #ending-fair[hidden] { display: none; }
+-#ending-fair-rows {
+-  display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-left: 4px solid #14657F;
+-  border-radius: 6px 12px 12px 6px; background: #EEF3EF; font-family: Petrona, Georgia, serif; font-size: 18px;
+-}
+-#ending-fair-rows .heading { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+-#hud #others .count { white-space: normal; }
++#ending-fair-rows { padding: 12px; border-radius: 20px; background: #EFE5CE; }
++#ending-fair-rows .heading { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; padding: 0 4px; font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 600; }
++#ending-fair-rows .count { font-size: 19px; }
+ 
+ /* ---- When the group died out after a follow, the ending leads with the fair test (scope decision 37). ---- */
+-#ending-lead { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 12px; }
++#ending-lead { display: flex; flex-wrap: wrap; gap: 14px 26px; margin-top: 14px; }
+ #ending-lead[hidden] { display: none; }
+-#ending-lead #ending-fair { flex: 1 1 330px; }
++#ending-lead #ending-fair { flex: 1.4 1 420px; }
+ #ending-lead #ending-fair h3 { margin-top: 0; }
+-#ending-lead #ending-question { flex: 1.3 1 360px; align-self: flex-end; margin: 0; }
+-#ending-fair-line { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; font-style: italic; color: #3E4436; }
++#ending-lead #ending-question { flex: 1 1 300px; align-self: stretch; margin: 26px 0 0; }
++#ending-fair-line { display: flex; align-items: center; margin: 10px 4px 0; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #3E4436; }
+ #ending-fair-line[hidden] { display: none; }
++#ending.died #ending-fair-rows { background: #E7E4DA; }
++#ending.died #ending-fair-rows .count { background: #F6F4EE; }
++#ending.show #ending-lead { animation: rise .8s ease both .5s; }
++#ending.died #reveal { background: #E9E6EE; color: #33384C; box-shadow: 0 0 0 2px rgba(110, 120, 160, .35); }
++#ending.died #reveal-why { color: #474C60; }
+ 
++/* ---- Will it spread? The counter rises like something growing; the world leans warm while it runs. ---- */
++#stage::after {
++  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
++  background: radial-gradient(ellipse 120% 90% at 50% 55%, transparent 55%, rgba(255, 196, 96, .28) 100%);
++}
++#stage.spreading::after { opacity: 1; animation: spreadBreathe 2s ease-in-out infinite alternate; }
++@keyframes spreadBreathe { from { opacity: .65; } to { opacity: 1; } }
++#logbar #log.spread {
++  padding: 8px 10px 8px 20px; border-radius: 999px;
++  background: rgba(40, 30, 12, .38); box-shadow: 0 0 0 2px rgba(255, 214, 138, .55), 0 0 30px rgba(255, 196, 96, .35);
++  color: #FFF4D8; font-variant-numeric: tabular-nums;
++}
++#logbar #log.spread.tick { animation: spreadTick .7s cubic-bezier(.2, 1.4, .4, 1) both; }
++@keyframes spreadTick {
++  0% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 214, 138, .55), 0 0 30px rgba(255, 196, 96, .35); }
++  35% { transform: scale(1.045); box-shadow: 0 0 0 3px rgba(255, 226, 160, .95), 0 0 46px rgba(255, 206, 110, .75); }
++  100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 214, 138, .55), 0 0 30px rgba(255, 196, 96, .35); }
++}
++/* It disappeared / didn't spread: the glow lets go softly, a little cooler, with no alarm. */
++#logbar #log.gentle { padding: 8px 10px 8px 20px; border-radius: 999px; background: rgba(34, 40, 52, .32); box-shadow: 0 0 0 1.5px rgba(210, 222, 240, .45); color: #F1F4FA; animation: gentleIn 1.4s ease both; }
++@keyframes gentleIn { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: none; } }
++/* Wait! Your group is getting very small: warm and clear, the camera already on them. */
++#logbar #log.danger { padding: 8px 10px 8px 20px; border-radius: 999px; background: rgba(120, 58, 20, .5); box-shadow: 0 0 0 2px rgba(255, 190, 130, .75); color: #FFF1E2; }
++#logbar #log.danger.tick { animation: dangerIn .9s ease both; }
++@keyframes dangerIn { 0% { opacity: 0; transform: translateY(8px); } 60% { opacity: 1; transform: translateY(-2px); } 100% { transform: none; } }
++
