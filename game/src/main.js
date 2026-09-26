@@ -26,11 +26,13 @@ import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
-  inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
+  evidenceLine, countLine, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
+  inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON, dangerLine, needsYou,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
+import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
+import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
   PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
 } from "./journal.js";
@@ -40,6 +42,10 @@ const LOG_MS = 3800;
 const CARD_CLOSE_MS = 150;
 /** During a choice, the gap kept between the card and the choice panel. */
 const CARD_GAP = 12;
+/** Where "sound off" is remembered on this device. */
+const SOUND_KEY = "lineage.sound";
+/** How often the sound follows the camera over the habitats, in ms. */
+const SOUND_MS = 250;
 /** The narration's room at the foot of the screen: a card at the side that reaches into it has the line wrap beside it. */
 const LOG_ROOM = 120;
 /** How long a chosen animal stays highlighted before the fast-forward. */
@@ -128,6 +134,10 @@ export class Game {
     this.journalOptionsEl = $("journal-options");
     this.journalBarEl = $("journal-bar");
     this.journalNoteEl = $("journal-note");
+    this.namingEl = $("naming");
+    this.namingOptionsEl = $("naming-options");
+    this.namingBarEl = $("naming-bar");
+    this.namingNoteEl = $("naming-note");
     this.endingPredictionsEl = $("ending-predictions");
     this.endingPredictionsListEl = $("ending-predictions-list");
     this.endingEl = $("ending");
@@ -159,9 +169,20 @@ export class Game {
     this.cardWhere = this.speakable($("card-where"));
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
+    this.namingQuestion = this.speakable($("naming-question"));
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.bloomEl = $("bloom");
+    // Sound (Step 5, sound.js): off until the first tap, and muted by ?sound=off or as it was last left here.
+    let stored = null;
+    try { stored = globalThis.localStorage?.getItem(SOUND_KEY) ?? null; } catch { /* storage blocked: sound on */ }
+    const asked = new URLSearchParams(globalThis.location?.search ?? "").get("sound");
+    this.sound = new Sound({ muted: asked === "off" || stored === "off" });
+    this.soundT = 0;
+    this.muteEl = $("mute");
+    this.showMute();
+    /** @type {Map<string, () => void>} a sound for a log line, played when the line shows */
+    this.logCues = new Map([[SPREAD_GONE, () => this.sound.goneTone()]]);
     this.hudEl = $("hud");
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
@@ -222,6 +243,11 @@ export class Game {
     this.predictions = [];
     this.journalEl.classList.remove("open");
     this.journalEl.hidden = true;
+    /** @type {null|NamingState} naming the family, right after the first tap */
+    this.naming = null;
+    this.namingEl.classList.remove("open");
+    this.namingEl.hidden = true;
+    this.setHomeLabel();
     this.since = null;
     this.sinceEl.classList.remove("open");
     this.sinceEl.hidden = true;
@@ -269,8 +295,10 @@ export class Game {
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
       // The log names only the babies that glow this generation (the calm rule), never more.
-      const lines = groupLines(ev.group, s.noun, s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v));
+      const born = s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v);
+      const lines = groupLines(ev.group, s.noun, born, s.name);
       this.namedBirths.add(ev.generation);
+      if (born.length) this.sound.chime();
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
@@ -295,7 +323,10 @@ export class Game {
   }
 
   /* ================= the story ================= */
-  /** The first tap: follow the family of the tapped animal's ancestor a few generations back. Time starts. */
+  /**
+   * The first tap: follow the family of the tapped animal's ancestor a few
+   * generations back. The child names it first; then time starts.
+   */
   begin(animal) {
     const f = this.story.begin(animal.id);
     this.syncGroups();
@@ -305,6 +336,104 @@ export class Game {
     this.say([followLine(this.bridge.zoneOf(animal.id), f.members.size)]);
     this.centerOnGroup();
     this.updateHud();
+    this.openNaming();
+  }
+
+  /* ================= naming the family (Step 5, names.js) ================= */
+  /**
+   * Right after the first tap, before generation 1: three names for the family,
+   * from its habitat and the traits that stand out in it, each with a speaker.
+   * Time waits and the animals wander on. As on the other panels, the countdown
+   * waits while a line is read aloud or a card is open.
+   */
+  openNaming() {
+    const s = this.story, doc = this.doc;
+    const names = familyNames(s.lastAnimals, s.startWorld, this.seed * 7919 + Math.min(...s.lastAnimals.map((a) => a.id)));
+    this.namingQuestion.set(NAME_QUESTION);
+    this.namingNoteEl.replaceChildren();
+    this.namingBarEl.style.width = "100%";
+    this.nameEls = names.map((name) => {
+      const el = Object.assign(doc.createElement("div"), { className: "answer" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: nameButton(name) });
+      button.addEventListener("click", () => this.pickName(name, false, performance.now()));
+      el.append(button, speakerButton(doc, () => `${nameButton(name)}.`));
+      return Object.assign(el, { name, button });
+    });
+    this.namingOptionsEl.replaceChildren(...this.nameEls);
+    clearTimeout(this.namingHideT);
+    this.namingEl.hidden = false;
+    requestAnimationFrame(() => this.namingEl.classList.add("open"));
+    this.naming = { names, left: NAMING_SECONDS * 1000, paused: 0, picked: null, goAt: 0 };
+    this.centerOnGroup(0.3);
+  }
+
+  /** The family has its name from now on, everywhere its animals are named. */
+  pickName(name, byChance, now) {
+    const n = this.naming;
+    if (!n || n.picked) return;
+    Object.assign(n, { picked: name, goAt: now + (byChance ? TIMES_UP_MS : PICKED_MS) });
+    for (const el of this.nameEls) {
+      el.button.disabled = true;
+      el.classList.add(el.name === name ? "picked" : "not-picked");
+    }
+    this.story.name = name;
+    this.updateHud();
+    this.updateCard();
+    this.setHomeLabel();
+    if (byChance) this.namingNoteEl.replaceChildren(NAME_PICKED, speakerButton(this.doc, () => NAME_PICKED));
+  }
+
+  /** The countdown; when it runs out, one of the names is picked at random. */
+  tickNaming(now, dt) {
+    const n = this.naming;
+    if (n.picked) {
+      if (now >= n.goAt) this.closeNaming();
+      return;
+    }
+    if (!this.card) {
+      if (isSpeaking() && n.paused < MAX_READING_PAUSE_MS) n.paused += dt;
+      else n.left = Math.max(0, n.left - dt);
+    }
+    this.namingBarEl.style.width = `${(100 * n.left / (NAMING_SECONDS * 1000)).toFixed(1)}%`;
+    if (n.left === 0) this.pickName(n.names[Math.floor(Math.random() * n.names.length)], true, now);
+  }
+
+  /** The sheet goes, and generation 1 begins its day. */
+  closeNaming() {
+    if (!this.naming) return;
+    this.naming = null;
+    this.namingEl.classList.remove("open");
+    this.namingHideT = setTimeout(() => { if (!this.naming) this.namingEl.hidden = true; }, 450);
+    this.placeCard();
+    this.centerOnGroup();
+  }
+
+  /** How much of each habitat is on screen: five points of the view, for the sound's crossfade. */
+  habitatUnderCamera() {
+    const v = this.view ?? { x: this.cam.x, y: this.cam.y, w: this.vw, h: this.vh }, w = [0, 0, 0];
+    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.3], [0.75, 0.3], [0.25, 0.75], [0.75, 0.75]]) {
+      const h = habitatWeights(this.world.zoneT(v.x + v.w * fx, v.y + v.h * fy));
+      for (let i = 0; i < 3; i++) w[i] += h[i] / 5;
+    }
+    return w;
+  }
+
+  /** The mute button shows what a tap will do, and remembers the choice on this device. */
+  showMute() {
+    const m = this.sound.muted;
+    this.muteEl.innerHTML = m ? SOUND_OFF_SVG : SOUND_ON_SVG;
+    this.muteEl.setAttribute("aria-pressed", String(m));
+  }
+  toggleSound() {
+    this.sound.setMuted(!this.sound.muted);
+    try { globalThis.localStorage?.setItem(SOUND_KEY, this.sound.muted ? "off" : "on"); } catch { /* storage blocked */ }
+    this.showMute();
+  }
+
+  /** "Back to my group", with the family's name once it has one. */
+  setHomeLabel() {
+    const text = [...this.homeEl.childNodes].find((n) => n.nodeType === 3);
+    if (text) text.nodeValue = homeLabel(this.story?.name ?? null);
   }
 
   /**
@@ -396,7 +525,7 @@ export class Game {
    */
   followFromMap(x) {
     const s = this.story;
-    if (!s.followOpen || this.since || this.journal || this.choice) return;
+    if (!s.followOpen || this.since || this.journal || this.choice || this.naming) return;
     if (!s.canStartFor(x) && s.inDanger) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
@@ -439,7 +568,7 @@ export class Game {
     const s = this.story, last = s.choices[s.choices.length - 1];
     if (!last) { el.replaceChildren(); return; }
     const rows = this.fairRows();
-    const note = last.neutral ? neutralLines(last.group, s.mine).join(" ") : "";
+    const note = last.neutral ? neutralLines(last.group, s.mine, s.name).join(" ") : "";
     const title = Object.assign(this.doc.createElement("div"), { className: "since-title", textContent: SINCE_TITLE });
     title.append(speakerButton(this.doc, () => [SINCE_TITLE, ...rows.map((r) => `${countLine(r.label, r)}.`), note].join(" ")));
     el.replaceChildren(title, ...this.countRows(rows),
@@ -511,6 +640,7 @@ export class Game {
   spreadCounter() {
     const s = this.story, sp = s.spread ?? s.lastSpread, line = spreadLine(sp.v.group, sp.counts);
     this.logMoods.set(line, "spread");
+    this.sound.spreadNote(sp.counts[sp.counts.length - 1]);
     if (!this.spreadShown) { this.spreadShown = true; this.say([line]); return line; }
     this.log.set(line);
     this.moodLog("spread");
@@ -525,8 +655,9 @@ export class Game {
    * happens to their group (scope decision 44). This was not a follow.
    */
   spreadDanger() {
-    this.logMoods.set(dangerLine(this.story.noun), "danger");
-    this.say([dangerLine(this.story.noun)]);
+    this.logMoods.set(dangerLine(this.story.noun, this.story.name), "danger");
+    this.say([dangerLine(this.story.noun, this.story.name)]);
+    this.sound.waitTone();
     this.centerOnGroup();
     this.updateCard(); // follow buttons again, or "Stay with them?"
   }
@@ -647,14 +778,14 @@ export class Game {
 
   fastForwardDone() {
     const s = this.story;
-    this.say(skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, changedTraits(s.formAtPoint, s.lastForm), s.noun));
+    this.say(skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, changedTraits(s.formAtPoint, s.lastForm), s.noun, s.name));
     this.updateCard(); // follow buttons again
   }
 
   /** The group died out, or the story reached its last generation. A moment, then the reflection screen. */
   storyEnded() {
     const s = this.story;
-    this.say([s.outcome === "died" ? lastPassed(s.noun) : madeIt(s.noun)]);
+    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : madeIt(s.noun, s.name)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
   }
@@ -663,12 +794,12 @@ export class Game {
   showEnding() {
     const s = this.story, doc = this.doc;
     this.closeCard(true);
-    this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun));
+    this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun, s.name));
     // The group's actual average body at the end (the last members alive), drawn and in words, not a
     // list of the choices. Each meaningful trait is compared with the whole world at the start (scope decision 20).
     const average = averageOf(s.lastAnimals.map((a) => a.genome)).map((a) => a.mean);
-    this.endingLook.set(lookLine(s.outcome));
-    this.endingTraitsTitle.set(`Your ${s.noun}'s traits`);
+    this.endingLook.set(lookLine(s.outcome, s.name));
+    this.endingTraitsTitle.set(traitsTitle(s.noun, s.name));
     const rows = comparedRows(average, s.startWorld, GAP);
     this.traitsSpoken = rows.map((r) => `${r.label}: ${r.value}.`).join(" ");
     this.endingTraitsEl.replaceChildren(...rows.map((r) => {
@@ -687,14 +818,14 @@ export class Game {
       // decision 8): said in words, with the group's size as counts and bars.
       if (c.neutral) {
         const size = { then: c.sizeAtChoice, now: c.sizeAtEnd };
-        const note = neutralLines(c.group, size).join(" ");
-        const row = { label: YOURS, ...size, color: MINE_COLOR };
+        const note = neutralLines(c.group, size, s.name).join(" ");
+        const row = { label: yoursLabel(s.name), ...size, color: MINE_COLOR };
         li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }), ...this.countRows([row]));
         spoken = `${spoken}. ${note} ${countLine(row.label, row)}.`;
       }
       return li;
-    }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome) })];
-    if (!s.choices.length) items[0].append(speakerButton(doc, () => noChoices(s.outcome)));
+    }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome, s.name) })];
+    if (!s.choices.length) items[0].append(speakerButton(doc, () => noChoices(s.outcome, s.name)));
     this.endingChoicesEl.replaceChildren(...items);
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
@@ -713,7 +844,7 @@ export class Game {
       heading.append(speakerButton(doc, () => [c.heading, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
       this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
     } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
-    this.endingQuestion.set(question(s.outcome, s.noun));
+    this.endingQuestion.set(question(s.outcome, s.noun, s.name));
     // The last fair test: your group beside the others here, from the follow to the end (scope decision 33).
     // When your group died out, the ending leads with it, then the question (scope decision 37).
     const last = s.choices[s.choices.length - 1];
@@ -729,7 +860,7 @@ export class Game {
     if (lead) this.endingFairLine.set(last.othersAtEnd === 0 ? OTHERS_DIED_TOO : OTHERS_ALIVE);
     if (last) {
       const rows = [
-        { label: yoursWith(last.group), then: last.sizeAtChoice, now: last.sizeAtEnd, color: MINE_COLOR },
+        { label: yoursWith(last.group, s.name), then: last.sizeAtChoice, now: last.sizeAtEnd, color: MINE_COLOR },
         { label: OTHERS_HERE, then: last.othersAtChoice, now: last.othersAtEnd, color: OTHERS_COLOR },
       ];
       const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: fairHeading(last.zone) });
@@ -751,7 +882,8 @@ export class Game {
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       const died = s.outcome === "died";
-      this.revealLine.set(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal);
+      this.revealLine.set(namedReveal(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name));
+      this.sound.revealChord(1.3); // as the reveal comes in (styles.css)
       this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" ")); // only the sentences whose traits the group has
       // Then "Did you know?": true facts about the real animal, each with its own speaker (scope decision 46).
       this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
@@ -796,7 +928,7 @@ export class Game {
     const following = s.phase !== "waiting" && s.phase !== "ended";
     this.genEl.textContent = String(this.bridge.generation);
     this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
-      (following ? `your ${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
+      (following ? `your ${s.name ? `${s.name} ` : ""}${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
     // The fair test since the last follow, as counts with bars: yours and the others here.
     const rows = following ? this.fairRows() : [];
@@ -853,10 +985,10 @@ export class Game {
   placeCard() {
     const c = this.card;
     if (!c) return;
-    const above = !!this.choice || !!this.journal || !!this.since;
+    const above = !!this.choice || !!this.journal || !!this.since || !!this.naming;
     this.cardEl.classList.toggle("above", above);
     if (above) {
-      const panel = this.journal ? this.journalEl : this.since ? this.sinceEl : this.choiceEl;
+      const panel = this.journal ? this.journalEl : this.since ? this.sinceEl : this.naming ? this.namingEl : this.choiceEl;
       const panelTop = this.stage.clientHeight - panel.offsetHeight;
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
@@ -884,7 +1016,7 @@ export class Game {
       return;
     }
     const theirs = !mine && this.bridge.isOther(c.id);
-    this.cardWho.set(mine ? inYour(s.noun) : theirs ? OTHERS_HERE : notInYour(s.noun));
+    this.cardWho.set(mine ? inYour(s.noun, s.name) : theirs ? OTHERS_HERE : notInYour(s.noun, s.name));
     this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : theirs ? OTHERS_COLOR : PLAIN_COLOR);
     // One of the others here: how they did since the follow, against yours, as counts with bars.
     this.cardCountsEl.hidden = !theirs;
@@ -911,12 +1043,12 @@ export class Game {
   renderFollow() {
     const c = this.card, s = this.story;
     const g = c && !c.gone ? s.glowFor(c.id) : null;
-    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice;
+    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice && !this.naming;
     this.cardFollowEl.hidden = !open;
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
     const now = s.canStartFor(g), stay = !now && s.inDanger;
-    const text = stay ? needsYou(s.noun) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
+    const text = stay ? needsYou(s.noun, s.name) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
     const key = `${g.id}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
@@ -962,7 +1094,7 @@ export class Game {
     const s = this.story;
     if (!s.fair) return [];
     return [
-      { label: yoursWith(s.fair.v.group), ...s.mine, color: MINE_COLOR },
+      { label: yoursWith(s.fair.v.group, s.name), ...s.mine, color: MINE_COLOR },
       { label: OTHERS_HERE, ...s.theirs, color: OTHERS_COLOR },
     ];
   }
@@ -1021,6 +1153,7 @@ export class Game {
       this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
       this.logEl.style.animation = mood ? "" : "lgIn .55s ease both";
       this.moodLog(mood);
+      this.logCues.get(line)?.();
       this.logTimer = LOG_MS;
     }
   }
@@ -1059,7 +1192,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running && !this.journal && !this.since) { // a panel on screen holds the world
+    if (s.running && !this.journal && !this.since && !this.naming) { // a panel on screen holds the world
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000;
       this.clock += Math.min(250, raw);
       if (this.clock >= genMs) {
@@ -1080,7 +1213,10 @@ export class Game {
     if (this.journal) this.tickJournal(now, Math.min(250, raw));
     else if (this.since) this.tickSince(now, Math.min(250, raw));
     else if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
-    else this.herd.tick(dt, now);
+    else {
+      if (this.naming) this.tickNaming(now, Math.min(250, raw)); // time waits; the animals wander on
+      this.herd.tick(dt, now);
+    }
     if (this.endingAt !== null && now >= this.endingAt) { this.endingAt = null; this.showEnding(); }
 
     // Where "Back to my group" goes: the group's largest cluster.
@@ -1088,6 +1224,7 @@ export class Game {
 
     this.pumpLog(dt);
     this.updateLight(now, dt);
+    if ((this.soundT -= dt) <= 0) { this.soundT = SOUND_MS; if (this.sound.on) this.sound.update(this.habitatUnderCamera()); }
     if (this.camTween) {
       const tw = this.camTween;
       tw.t = Math.min(1, tw.t + dt / 620);
@@ -1197,14 +1334,14 @@ export class Game {
    */
   placeBloom(now, view) {
     const named = (id) => this.namedBirths.has(this.story.glowFor(id)?.generation ?? -1);
-    const b = !this.choice && !this.journal && !this.since && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
+    const b = !this.choice && !this.journal && !this.since && !this.naming && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
     if (!b) {
       if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
       return;
     }
     if (this.bloomId !== b.id) {
       this.bloomId = b.id;
-      this.bloomLine.set(bornLine(this.story.glowFor(b.id).v.group));
+      this.bloomLine.set(bornLine(this.story.glowFor(b.id).v.group, this.story.name));
       this.bloomEl.hidden = false;
       // Its size and the generation panel's, measured once, to keep it on the screen and off the panel.
       const hud = this.hudEl;
@@ -1260,6 +1397,11 @@ export class Game {
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
     this.againEl.addEventListener("click", () => this.restart(this.seed));
+    // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
+    const unlock = () => this.sound.unlock();
+    for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });
+    this.muteEl.addEventListener("click", () => this.toggleSound());
+    this.doc.addEventListener("visibilitychange", () => this.sound.setHidden(this.doc.hidden));
     this.newWorldEl.addEventListener("click", () => this.newWorld());
   }
   showHint() {
@@ -1305,6 +1447,13 @@ export class Game {
  * @property {number} paused ms stood still for read-aloud
  * @property {null|import("./journal.js").Answer} answer the child's answer, once given
  * @property {number} goAt when an answered question closes
+ *
+ * @typedef {Object} NamingState
+ * @property {string[]} names the three names offered
+ * @property {number} left ms left to pick one
+ * @property {number} paused ms stood still for read-aloud
+ * @property {null|string} picked the name picked, once there is one
+ * @property {number} goAt when the sheet closes after a pick
  *
  * @typedef {Object} CardState
  * @property {number} id the animal on the card

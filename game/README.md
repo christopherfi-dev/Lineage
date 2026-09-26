@@ -203,6 +203,27 @@ number is as it was.
 - **Smooth on an iPad:** the warm light and the vignette are drawn on a small canvas that the
   page stretches over the map (`#air`), not painted over the whole map each frame.
 
+## Names, sound and motion (Step 5, part two)
+
+- **The family's name** (`src/names.js`, word lists and rule in `docs/LINEAGE_FAMILY_NAMES.md`).
+  Right after the first tap, before generation 1, time waits for "What will you call your
+  family?": three names made from the family's habitat and the traits that stand out in it
+  ("The Mossfoot family"), each with a speaker. After 20 seconds one is picked for you ("We
+  picked a name for you."). The name then appears everywhere the child's animals are named:
+  "Your Mossfoot family is smaller than last generation.", "Your Mossfoot animals with smaller
+  eyes: 20 → 27", the ending title. Every new story asks again.
+- **Sound** (`src/sound.js`): Web Audio, made in the browser, no sound files. A soft bed for the
+  habitat on screen, crossfading as the camera moves: leaves and now and then a bird in the high
+  leaves, a breeze over a low hum on open ground, waves at the water's edge. Quiet cues: a chime
+  when a newborn glows, a note that rises with each count of a spread, a low tone for "Wait!", a
+  falling tone for "It disappeared", a warm chord for the reveal. Sound starts on the first tap;
+  the button in the top-right corner turns it off and on, remembered on the device;
+  `?sound=off` starts muted.
+- **Animals that move like animals** (`src/herd.js`): a small bob and nod with each step, now
+  and then a flick of the tail, a pause to look one way and then the other, the head down while
+  grazing. Babies still stay near their mothers. The motion has its own random numbers, so the
+  animals' wandering and home spots are as they were.
+
 ## What is real
 
 - Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
@@ -216,9 +237,9 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` too. The links are on `moments.html`, which the game does not link to.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, naming, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` (and `?sound=off`) too. The links are on `moments.html`, which the game does not link to.
 
-`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before the look) and `design/after/` (after it).
+`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it); `design/compare.html` shows them side by side.
 
 ## Smoke test
 

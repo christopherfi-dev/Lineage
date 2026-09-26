@@ -24,7 +24,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
-#hud, #hint, #card, #choice, #journal, #since, #ending .card, #home, #bloom {
+#hud, #hint, #card, #choice, #journal, #naming, #since, #ending .card, #home, #bloom, #mute {
   background-color: #F7F0DF;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -51,6 +51,16 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
   box-shadow: 0 6px 22px rgba(60, 44, 20, .24), inset 0 0 0 1px rgba(255, 255, 255, .6);
   opacity: 0; pointer-events: none; transition: opacity .5s ease;
 }
+/* Sound on or off: a round paper button in the top-right corner (an open card covers it, with its own close button there). */
+#mute {
+  position: absolute; top: calc(16px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); z-index: 35;
+  display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; padding: 0; border: 0; border-radius: 50%;
+  color: #14657F; cursor: pointer; box-shadow: 0 4px 20px rgba(60, 44, 20, .18), inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+#mute svg { width: 26px; height: 26px; }
+#mute[aria-pressed="true"] { color: #8C8267; }
+#mute:active { transform: scale(.94); }
+#stage.arriving #mute { visibility: hidden; }
 #home .ring { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 2px solid #14657F; border-radius: 50%; }
 #home .ring i { width: 6px; height: 6px; border-radius: 50%; background: #14657F; }
 
@@ -230,35 +240,38 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #choice .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
 
-/* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. ---- */
-#journal {
+/* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
+#journal, #naming {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
   border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
   transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
   max-height: 74%; overflow-y: auto;
 }
-#journal.open { transform: none; }
-#journal[hidden] { display: none; }
-#journal .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
-#journal h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
-#journal-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
-#journal .answer {
+#journal.open, #naming.open { transform: none; }
+#journal[hidden], #naming[hidden] { display: none; }
+#journal .grab, #naming .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#journal h2, #naming h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
+#journal-options, #naming-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
+#journal .answer, #naming .answer {
   position: relative; display: flex; align-items: center; border-radius: 20px; background: #FBF7EC;
   box-shadow: 0 0 0 2px #E6DAC0, 0 4px 12px rgba(60, 44, 20, .08);
   transition: box-shadow .3s ease, background .3s ease, opacity .4s ease, transform .2s ease;
 }
-#journal .answer .pick {
+#journal .answer .pick, #naming .answer .pick {
   flex: 1; min-height: 64px; padding: 12px 8px 12px 18px; border: 0; background: none; color: #2A2B22; cursor: pointer;
   font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.25; text-align: left; text-wrap: pretty;
 }
-#journal .answer > .say { margin: 0 8px 0 0; }
-#journal .answer:active { transform: scale(.98); }
-#journal .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
-#journal .answer.not-picked { opacity: .38; }
-#journal .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#journal .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
-#journal-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
+#journal .answer > .say, #naming .answer > .say { margin: 0 8px 0 0; }
+#journal .answer:active, #naming .answer:active { transform: scale(.98); }
+#journal .answer.picked, #naming .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
+#journal .answer.not-picked, #naming .answer.not-picked { opacity: .38; }
+#journal .timer, #naming .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
+#journal .timer i, #naming .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
+#journal-note, #naming-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
+/* The three names: bigger, like name plates. */
+#naming-options { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+#naming .answer .pick { min-height: 72px; font-size: 23px; font-weight: 600; text-align: center; letter-spacing: -.2px; }
 /* A prediction beside what really happened: a small written note on the page, in the next choice panel and the ending. */
 .prediction {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; width: 100%; margin-top: 8px; padding: 10px 14px 12px;

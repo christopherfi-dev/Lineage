@@ -22,6 +22,7 @@
   h1 { margin: 0 0 4px; font: 600 30px/1.1 Petrona, Georgia, serif; }
   p { margin: 0 0 16px; color: #5A6151; }
   label { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-weight: 600; color: #5A6151; }
+  input[type="checkbox"] { width: 28px; height: 28px; padding: 0; accent-color: #14657F; }
   input {
     width: 96px; padding: 8px 10px; border: 1px solid #E2D8BE; border-radius: 10px; background: #FBF6EA;
     font: inherit; color: #2B3026;
@@ -43,8 +44,10 @@
   <h1>LINEAGE moments</h1>
   <p>Each link opens the game straight into one moment, in a real game state. The ones deep in a story take a few seconds.</p>
   <label>Seed <input id="seed" type="number" min="1" inputmode="numeric" placeholder="6"></label>
+  <label><input id="quiet" type="checkbox"> Start with the sound off</label>
   <ol id="moments">
     <li><a data-moment="arrival" href="./?moment=arrival"><b>Arrival</b><span>The opening, before the first tap.</span></a></li>
+    <li><a data-moment="naming" href="./?moment=naming"><b>Naming the family</b><span>Right after the first tap: three names, and time waits.</span></a></li>
     <li><a data-moment="generation" href="./?moment=generation"><b>A generation</b><span>Mid-story, just before a generation passes.</span></a></li>
     <li><a data-moment="variation" href="./?moment=variation"><b>A variation</b><span>One newborn with a new trait, glowing.</span></a></li>
     <li><a data-moment="follow" href="./?moment=follow"><b>Following a trait</b><span>A glowing newborn's card, with its follow buttons.</span></a></li>
@@ -65,14 +68,15 @@
   <footer>Screenshots of each moment are in <code>design/current/</code> (before the look) and <code>design/after/</code> (after it). Side by side: <a class="inline" href="../design/compare.html">before and after</a>.</footer>
 </main>
 <script>
-  // A seed, if given, goes on every link (?moment=…&seed=…).
-  const seed = document.getElementById("seed");
+  // A seed, if given, goes on every link (?moment=…&seed=…), and so does ?sound=off when ticked.
+  const seed = document.getElementById("seed"), quiet = document.getElementById("quiet");
   const links = [...document.querySelectorAll("#moments a")];
   const update = () => {
     const n = Number.parseInt(seed.value, 10);
-    for (const a of links) a.href = `./?moment=${a.dataset.moment}` + (n > 0 ? `&seed=${n}` : "");
+    for (const a of links) a.href = `./?moment=${a.dataset.moment}` + (n > 0 ? `&seed=${n}` : "") + (quiet.checked ? "&sound=off" : "");
   };
   seed.addEventListener("input", update);
+  quiet.addEventListener("change", update);
   update();
 </script>
 </body>

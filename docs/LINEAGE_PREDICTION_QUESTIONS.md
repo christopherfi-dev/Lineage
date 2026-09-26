@@ -4,6 +4,8 @@ Purpose: after some follows, the child predicts what will happen next. The game 
 
 Principle: nothing is ever called wrong, and there are no scores or points. Each question has one reasonable answer and two or three common Grade 3 misconceptions. The result only says what the child thought and what happened. After two of the misconceptions, one short line says why. Everything happens inside the game. There are no network calls, and no student data leaves the device (scope decision 25).
 
+*Updated 2026-09-26 for family names (Step 5, `docs/LINEAGE_FAMILY_NAMES.md`): once the family has a name, the lines below name it. "Yours" reads "Your Mossfoot animals" (in the answers, the rows and the results), "yours" reads "your Mossfoot animals", and "your new group" reads "your new Mossfoot group". The lines below are shown without a name.*
+
 *Updated 2026-09-24 for active choosing (scope decisions 32–35). A choice is now a follow, which starts a fair test: your group and "the others here", the same number of animals from the same habitat (10 to 20; scope decision 36). The question types changed to match.*
 
 ## When

@@ -62,6 +62,9 @@ export class Herd {
      * a measurement run (fair-test cohorts are the animals nearest a home spot).
      */
     this.placeRnd = mulberry(seed ^ 0x5bd1e995);
+    /** Idle motion (tail flicks, looking around) from a generator of its own, so wandering stays as it was. */
+    this.moveRnd = mulberry(seed ^ 0x2c1b3c6d);
+    this.mr = (a, b) => a + this.moveRnd() * (b - a);
     /** @type {Map<number, Animal>} */
     this.animals = new Map();
     /** @type {Animal[]} dead animals shrinking away */
@@ -238,6 +241,7 @@ export class Herd {
         if (Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
         continue;
       }
+      this.idle(c, dt, now);
       const drive = c.mode === "walk" ? 1 : 0.12;
       c.vx += this.rr(-1, 1) * 0.013 * drive * s + (c.home.x - c.x) * 0.000048 * s;
       c.vy += this.rr(-1, 1) * 0.013 * drive * s + (c.home.y - c.y) * 0.000048 * s;
@@ -259,9 +263,25 @@ export class Herd {
       // Each animal stays in the habitat its inherited time allocation gives it.
       if (this.world.zoneAt(c.x, c.y) !== c.band) { c.x = px; c.y = py; c.vx *= -0.6; c.vy *= -0.6; }
       c.x = clamp(c.x, 20, W - 20); c.y = clamp(c.y, 20, H - 20);
-      if (Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
+      if (c.mode !== "pause" && Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
+  }
+
+  /**
+   * Visual only: how an animal holds itself. Now and then its tail flicks. On a
+   * pause it lifts its head and turns to look one way, then the other; grazing,
+   * its head goes down. The head eases between these, never jumps.
+   */
+  idle(c, dt, now) {
+    if (c.flickAt === undefined) { c.flickAt = now + this.mr(1500, 9000); c.head = 0; }
+    if (now >= c.flickAt) { c.flick = now; c.flickAt = now + this.mr(3500, 11000); }
+    if (c.mode === "pause") {
+      if (c.lookAt === undefined) c.lookAt = now + this.mr(250, 900);
+      if (now >= c.lookAt) { c.face = -(c.face || 1); c.lookAt = now + this.mr(900, 1900); }
+    } else c.lookAt = undefined;
+    const want = c.mode === "pause" ? 1 : c.mode === "graze" ? -1 : 0;
+    c.head += (want - c.head) * Math.min(1, dt / 260);
   }
 
   /* ================= drawing ================= */
@@ -445,7 +465,10 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   const legL = u * (0.34 + g.legLength * 0.30);
   const bRX = u * 0.80, bRY = u * 0.50 * (1.12 - g.snout * 0.12), hR = u * 0.47;
   const bodyY = -(legL + bRY) - bob;
-  const headX = bRX * 0.74, headY = bodyY - bRY * 0.52 - hR * 0.42;
+  // The head: up and alert on a pause, down while grazing, a small nod with each step (idle, tick).
+  const head = c.head ?? 0, up = Math.max(0, head), down = Math.max(0, -head);
+  const nod = walk ? Math.sin(ph * 2) * u * 0.03 : 0;
+  const headX = bRX * (0.74 + 0.1 * down), headY = bodyY - bRY * 0.52 - hR * 0.42 - u * 0.08 * up + u * 0.2 * down + nod;
   const nose = hR * (0.72 + g.snout * 0.26);
   const web = gray ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
@@ -490,8 +513,11 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   leg(-bRX * 0.52 - u * 0.16, 0, far);
 
   const tl = u * (0.22 + g.tail * 0.36);
-  const sway = Math.sin(c.ph * 1.7) * u * 0.16;
-  const tipX = -bRX * 0.70 - tl * 1.00, tipY = bodyY - tl * 0.72 + sway;
+  // Now and then a quick flick of the tail (idle, tick), over its slow sway.
+  const fk = c.flick === undefined ? 1 : (now - c.flick) / 420;
+  const flick = fk < 1 ? Math.sin(fk * Math.PI) * Math.sin(fk * Math.PI * 3) * u * 0.42 : 0;
+  const sway = Math.sin(c.ph * 1.7) * u * 0.16 + flick;
+  const tipX = -bRX * 0.70 - tl * 1.00, tipY = bodyY - tl * 0.72 + sway - Math.abs(flick) * 0.4;
   x.globalAlpha = A(1);
   x.strokeStyle = dark; x.lineCap = "round"; x.lineWidth = mine ? u * 0.13 : u * 0.11;
   x.beginPath();
