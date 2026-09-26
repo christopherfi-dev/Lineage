@@ -267,10 +267,9 @@ async function playTo(game, plan) {
   }
 }
 
-/** Put the camera on a point of the map at once, `fx` of the way across the screen. */
+/** Put the camera on a point of the map at once, `fx` of the way across the screen, at the game's zoom. */
 function lookAt(game, x, y, fx = 0.5, fy = 0.5) {
-  game.cam.x = x - game.vw * fx; game.cam.y = y - game.vh * fy;
-  game.clampCam(); game.camTween = null;
+  game.lookAt(x, y, fx, fy);
 }
 function lookAtGroup(game, high = 0) {
   const p = game.herd.largestCluster(game.herd.followed);

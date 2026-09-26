@@ -190,8 +190,9 @@ number is as it was.
   a soft night with fireflies, then dawn again. The day stands still at a choice point, is a
   morning before the story starts, and turns golden behind the ending (a blue dusk when the
   group died out). Pollen, glints on the water and now and then a bird's shadow.
-- **The arrival:** morning mist lifts as the camera drifts down into the leaves. A tap on an
-  animal still follows its family at once; a tap anywhere else lets the mist go.
+- **The arrival:** morning mist lifts as the camera drifts down into the leaves and settles close
+  on a family (see "Small screens and touch"). A tap on an animal still follows its family at
+  once; a tap anywhere else lets the mist go.
 - **The mood:** the light turns a little warmer as your group grows, a little cooler as it shrinks.
 - **Your animals** are drawn last and brightest, lit from the sun's side (`src/herd.js`). Babies
   stay a little smaller beside their mothers for 7 s, and a death fades with a little light.
@@ -224,6 +225,26 @@ number is as it was.
   grazing. Babies still stay near their mothers. The motion has its own random numbers, so the
   animals' wandering and home spots are as they were.
 
+## Small screens and touch
+
+- **A phone** (a screen under 600 px high or wide, `styles.css`): the generation panel is a slim
+  bar with the generation number, the sun on its bar and your group's count beside its dot. A
+  tap opens the whole panel and another tap closes it. On an iPad the panel is as it was. On a
+  short screen (a phone held sideways) the narration is smaller, so the line and its speaker
+  take about a fifth of the screen at most; the hint sits beside the bar, or under it on a phone
+  held upright.
+- **Zoom** (`src/main.js`): two fingers pinch the map from 0.6× to 2.5×, around the spot between
+  them. Panels, buttons and text never zoom, and neither does the page. One finger still drags
+  and a tap still taps; a pinch never counts as a tap. Zoomed out, a tap reaches an animal from
+  as far on the screen as at 1× (34 px from its middle, 46 px for a glowing newborn); zoomed in,
+  a little farther (`Herd.hit`). The + and − buttons under the sound button zoom by a quarter;
+  a card or a panel covers them. A trackpad pinch (ctrl and the wheel) zooms the map too.
+- **The story's zoom** is 1× on an iPad and 1.25× on a phone, so an animal is about as big
+  under a finger. "Back to my family" / "Back to my group" goes back to it.
+- **The arrival** settles on the first family up to 1.5× closer than that, where the panels,
+  the hint and the narration leave most of the family clear (`bestFrame`). The first tap goes
+  back to the story's zoom, unless the child has zoomed.
+
 ## What is real
 
 - Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
@@ -239,7 +260,7 @@ number is as it was.
 
 `?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, naming, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` (and `?sound=off`) too. The links are on `moments.html`, which the game does not link to.
 
-`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it); `design/compare.html` shows them side by side.
+`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 
 ## Smoke test
 

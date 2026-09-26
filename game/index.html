@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Two fingers zoom the map, never the page: the panels keep their size. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>LINEAGE</title>
 <meta name="theme-color" content="#EFE6D2">
 <link rel="icon" href="data:,">
@@ -15,9 +16,11 @@
   <!-- The warm light from the sun's side and the soft vignette: a small canvas stretched over the map (light.js). -->
   <canvas id="air" width="256" height="256" aria-hidden="true"></canvas>
 
+  <!-- On a phone this is a slim bar (the number, the sun on its bar, your group's count); a tap opens it whole. -->
   <div id="hud">
-    <div class="gen">Generation <b id="gen">0</b><span id="fast" hidden>Fast-forward</span></div>
+    <div class="gen"><span class="label">Generation</span> <b id="gen">0</b><span id="fast" hidden>Fast-forward</span></div>
     <div class="bar"><i id="genbar"></i></div>
+    <div class="mini" id="mini" hidden><i class="dot"></i><span id="mini-count"></span></div>
     <div class="line" id="counts"></div>
     <div class="line small" id="zones"></div>
     <div class="line small" id="others" hidden></div>
@@ -47,6 +50,12 @@
 
   <!-- Sound on or off (Step 5): remembered on this device. -->
   <button id="mute" type="button" aria-label="Sound off" aria-pressed="false"></button>
+
+  <!-- Zoom the map, for anyone who can't pinch: under the sound button, never over the narration or a panel. -->
+  <div id="zoom">
+    <button id="zoom-in" type="button" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+    <button id="zoom-out" type="button" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+  </div>
 
   <div id="logbar"><span class="ring"></span><span id="log"></span></div>
 
