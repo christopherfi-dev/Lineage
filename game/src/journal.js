@@ -10,7 +10,7 @@
 
 import { TRAITS, EFFECT, UPKEEP, currentModelConfig } from "./engine.js";
 import { TRAIT_WORDS, hasWords, isNeutral, levelOf } from "./variations.js";
-import { ZONE_AT, YOURS, OTHERS_HERE } from "./narration.js";
+import { ZONE_AT, OTHERS_HERE, your, yoursLabel, yoursWith } from "./narration.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
 export const PREDICT_AFTER = [1, 4, 7, 10, 13];
@@ -108,21 +108,22 @@ function growOptions(trait, dir, zone, animals) {
  * @param {import("./cohorts.js").Variation} v the variation followed
  * @param {number} zone the habitat of the test
  * @param {Array<{genome:ArrayLike<number>}>} animals your group
+ * @param {null|string} [name] the family's name: "Yours" becomes "Your Mossfoot animals"
  */
-function fairOptions(v, zone, animals) {
-  const words = v.group, options = [];
+function fairOptions(v, zone, animals, name = null) {
+  const words = v.group, options = [], yours = yoursLabel(name);
   if (v.neutral) {
     options.push({ text: `About the same. ${cap(words)} won't matter.`, outcome: "same", reasonable: true });
-    options.push({ text: `Yours. ${cap(words)} will help them.`, outcome: "mine", tag: "matters" });
+    options.push({ text: `${yours}. ${cap(words)} will help them.`, outcome: "mine", tag: "matters" });
   } else {
     const helps = v.dir * netEffect(v.t, zone) > 0;
     options.push(helps ?
-      { text: `Yours. ${cap(words)} ${PLURAL.has(v.trait) ? "help" : "helps"} ${ZONE_AT[zone]}.`, outcome: "mine", reasonable: true } :
+      { text: `${yours}. ${cap(words)} ${PLURAL.has(v.trait) ? "help" : "helps"} ${ZONE_AT[zone]}.`, outcome: "mine", reasonable: true } :
       { text: `The others. ${cap(words)} ${PLURAL.has(v.trait) ? "don't" : "doesn't"} help ${ZONE_AT[zone]}.`, outcome: "theirs", reasonable: true });
   }
-  options.push({ text: "Yours, because I picked them.", outcome: "mine", tag: "chose" });
+  options.push({ text: `${yours}, because I picked them.`, outcome: "mine", tag: "chose" });
   const need = needTrait(zone, animals);
-  if (need) options.push({ text: `Yours. They'll grow ${hasWords(need, 2)} because they need ${PLURAL_HAS.has(need) ? "them" : "it"}.`, outcome: "mine", tag: "need", need });
+  if (need) options.push({ text: `${yours}. They'll grow ${hasWords(need, 2)} because they need ${PLURAL_HAS.has(need) ? "them" : "it"}.`, outcome: "mine", tag: "need", need });
   if (options.length < 4 && !v.neutral) options.push({ text: "About the same. It's all luck.", outcome: "same", tag: "luck" });
   return options;
 }
@@ -140,16 +141,17 @@ export function questionFor(story, bridge, chosen, slot) {
   const fits = { mine: true, fair: bridge.otherIds().length > 0 };
   const start = CYCLE[slot % CYCLE.length];
   const type = [start, ...CYCLE.filter((x) => x !== start)].find((x) => fits[x]);
+  const name = story.name ?? null;
   if (type === "mine") {
     return {
-      type, text: "Will your new group grow or shrink?",
+      type, text: `Will your new ${name ? `${name} ` : ""}group grow or shrink?`,
       options: growOptions(v.trait, v.dir, zone, group),
       subject: { v, then: story.mine.then },
     };
   }
   return {
-    type, text: "Which will do better: yours or the others here?",
-    options: fairOptions(v, zone, group),
+    type, text: `Which will do better: ${name ? your("animals", name) : "yours"} or the others here?`,
+    options: fairOptions(v, zone, group, name),
     subject: { v, mine: story.mine.then, theirs: story.theirs.then },
   };
 }
@@ -161,6 +163,9 @@ const THOUGHT = { grow: "would grow", shrink: "would shrink", same: "would stay 
 const HAPPENED = { grow: "grew", shrink: "shrank", same: "stayed the same", died: "died out" };
 const THOUGHT_FAIR = { mine: "You thought yours would do better.", theirs: "You thought the others would do better.", same: "You thought they'd do about the same." };
 const HAPPENED_FAIR = { mine: "Yours did.", theirs: "The others did.", same: "They did the same." };
+/** Once the family has a name, "yours" in the fair-test result reads "your Mossfoot animals". */
+const thoughtFair = (outcome, name) => (name && outcome === "mine" ? `You thought ${your("animals", name)} would do better.` : THOUGHT_FAIR[outcome]);
+const happenedFair = (actual, name) => (name && actual === "mine" ? `${yoursLabel(name)} did.` : HAPPENED_FAIR[actual]);
 
 /**
  * What really happened since the prediction, as count rows and short lines.
@@ -171,12 +176,12 @@ const HAPPENED_FAIR = { mine: "Yours did.", theirs: "The others did.", same: "Th
  * @returns {Result}
  */
 export function resultOf(p, story) {
-  const q = p.question, a = p.answer, lines = [];
+  const q = p.question, a = p.answer, lines = [], name = story.name ?? null;
   const mine = story.mine.now, reasonable = q.options.find((o) => o.reasonable);
   let rows, came;
   if (q.type === "mine") {
     const actual = went(q.subject.then, mine);
-    rows = [{ label: YOURS, then: q.subject.then, now: mine, mine: true }];
+    rows = [{ label: yoursLabel(name), then: q.subject.then, now: mine, mine: true }];
     lines.push(a.outcome === "nomatter" ?
       `You thought ${a.words} wouldn't matter. It didn't.` :
       `You thought it ${THOUGHT[a.outcome]}. It ${HAPPENED[actual]}.`);
@@ -185,10 +190,10 @@ export function resultOf(p, story) {
     const theirs = story.theirs.now;
     const actual = mine > theirs ? "mine" : theirs > mine ? "theirs" : "same";
     rows = [
-      { label: `${YOURS} (${q.subject.v.group})`, then: q.subject.mine, now: mine, mine: true },
+      { label: yoursWith(q.subject.v.group, name), then: q.subject.mine, now: mine, mine: true },
       { label: OTHERS_HERE, then: q.subject.theirs, now: theirs, mine: false },
     ];
-    lines.push(`${THOUGHT_FAIR[a.outcome]} ${mine + theirs === 0 ? "Both died out." : HAPPENED_FAIR[actual]}`);
+    lines.push(`${thoughtFair(a.outcome, name)} ${mine + theirs === 0 ? "Both died out." : happenedFair(actual, name)}`);
     came = reasonable.outcome === actual;
   }
   if (a.tag === "need") lines.push(NEED_LINE);

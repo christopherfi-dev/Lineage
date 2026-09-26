@@ -45,6 +45,9 @@
 
   <button id="home" type="button"><span class="ring"><i></i></span>Back to my group</button>
 
+  <!-- Sound on or off (Step 5): remembered on this device. -->
+  <button id="mute" type="button" aria-label="Sound off" aria-pressed="false"></button>
+
   <div id="logbar"><span class="ring"></span><span id="log"></span></div>
 
   <!-- The backup choice panel: after a while with no follow, the world pauses (scope decision 34). -->
@@ -75,6 +78,15 @@
     <div id="journal-options"></div>
     <div class="timer"><i id="journal-bar"></i></div>
     <div id="journal-note"></div>
+  </div>
+
+  <!-- Naming the family (Step 5): right after the first tap, before generation 1. Time waits. -->
+  <div id="naming" hidden>
+    <div class="grab"></div>
+    <h2 id="naming-question"></h2>
+    <div id="naming-options"></div>
+    <div class="timer"><i id="naming-bar"></i></div>
+    <div id="naming-note"></div>
   </div>
 
   <!-- Every ending is a reflection screen, not a game-over screen. -->

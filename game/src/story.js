@@ -124,6 +124,8 @@ export class Story {
     this.reveal = null;
     /** @type {Map<number, {id:number, genome:ArrayLike<number>, zone:number}>} everyone in the group since it last formed */
     this.segment = new Map();
+    /** @type {null|string} the family's name, picked by the child right after the first tap ("Mossfoot", names.js) */
+    this.name = null;
   }
 
   get running() { return this.phase === "watch" || this.phase === "skip" || this.phase === "spread"; }

@@ -21,7 +21,7 @@ import { netEffect } from "./journal.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "generation", "variation", "follow", "spreading", "fizzled", "danger", "blocked", "fairtest", "grow", "shrink",
+  "arrival", "naming", "generation", "variation", "follow", "spreading", "fizzled", "danger", "blocked", "fairtest", "grow", "shrink",
   "choice", "prediction", "prediction-result", "ending", "extinct", "card",
 ];
 
@@ -242,6 +242,8 @@ async function playTo(game, plan) {
   const byGeneration = new Map();
   for (const a of plan.actions) byGeneration.set(a.generation, [...(byGeneration.get(a.generation) ?? []), a]);
   G.begin(G.herd.animals.get(G.bridge.families.founding[plan.family].ids[0]));
+  // The child names the family (Step 5): the first of the three names, at once.
+  if (G.naming) { G.pickName(G.naming.names[0], false, performance.now()); G.closeNaming(); }
   G.clock = hold;
   while (G.bridge.generation < plan.generation && G.story.phase !== "ended") {
     wander(G);
@@ -298,6 +300,13 @@ export async function goToMoment(game, moment) {
   const doc = game.doc;
   if (!MOMENTS.includes(moment)) { console.warn(`[lineage] unknown moment "${moment}"; try one of ${MOMENTS.join(", ")}`); return; }
   if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself, with its mist
+  if (moment === "naming") { // right after the first tap on the webbed family in the high leaves: time waits for a name
+    const G = game;
+    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+    G.begin(G.herd.animals.get(G.bridge.families.founding[0].ids[0]));
+    globalThis.lineageMoment = { moment, seed: G.seed, family: 0, generation: G.bridge.generation, names: G.naming?.names ?? [] };
+    return;
+  }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
   await frame();
   const plan = (await findStory(game, moment)) ?? (MOMENT[moment].relaxed ? await findStory(game, moment, true) : null);

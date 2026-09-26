@@ -4,6 +4,8 @@ Purpose: on every ending (scope decision 40), the game shows which real animal t
 
 Principle: there is no correct answer. Every group becomes something. Each "why" line only credits what the engine actually rewards in that habitat, so the reveal never claims a trait helped for a reason the simulation did not model: no digging, gliding, hunting, darkness or danger.
 
+*2026-09-26, Step 5 (family names, `docs/LINEAGE_FAMILY_NAMES.md`): once the family has a name, the reveal line names it: "Your animals became paddlers, a lot like a beaver." reads "Your Mossfoot animals became paddlers, a lot like a beaver.", in both tenses. The "why" lines and the facts don't change. The lines below are shown without a name.*
+
 *2026-09-24, Marc's wording fixes after checking every fact: the bear became "big wanderers" (it is an open-ground animal here), its fact became "Many bears sleep all winter without eating.", and the platypus's small eyes "use less energy to grow" and its strong tail "helps them steer".*
 
 *2026-09-24, scope decisions 45 and 46: seventeen animals instead of eight (six at the water's edge, six in the high leaves, five on open ground), and a "Did you know?" fact for each. The eight earlier animals stay; the capybara's profile gains "dense fur low" (thin fur, true of its sparse, coarse hair), with a "why" line for it.*
