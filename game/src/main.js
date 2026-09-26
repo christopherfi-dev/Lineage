@@ -14,6 +14,7 @@
 import { Bridge } from "./bridge.js";
 import { FIXTURE_URL } from "./engine.js";
 import { World, clamp } from "./world.js";
+import { Sky, skyAt } from "./light.js";
 import { Herd, GROUP_COLORS } from "./herd.js";
 import { paintCreature } from "./creature.js";
 import {
@@ -23,7 +24,7 @@ import { isGoodSeed, goodSeed } from "./seeds.js";
 import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
 import {
-  START_LINE, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
+  START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
   evidenceLine, countLine, YOURS, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine,
@@ -39,6 +40,8 @@ const LOG_MS = 3800;
 const CARD_CLOSE_MS = 150;
 /** During a choice, the gap kept between the card and the choice panel. */
 const CARD_GAP = 12;
+/** The narration's room at the foot of the screen: a card at the side that reaches into it has the line wrap beside it. */
+const LOG_ROOM = 120;
 /** How long a chosen animal stays highlighted before the fast-forward. */
 const PICKED_MS = 1200;
 /** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
@@ -68,6 +71,14 @@ const PLAIN_COLOR = "#B3AA92";
  * it can stand still at one choice point, in case a browser's speech gets stuck.
  */
 const MAX_READING_PAUSE_MS = 60000;
+/** The arrival (Step 4 look): mist lifts and the camera drifts down into the leaves. */
+const ARRIVAL_MS = 7200;
+/** "Try another family" and "New world": a shorter mist. */
+const RETURN_MS = 3000;
+/** How quickly the light follows the group's mood (growing warmer, shrinking cooler). */
+const MOOD_MS = 1800;
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = (k) => k * k * (3 - 2 * k);
 
 export class Game {
   /**
@@ -84,6 +95,9 @@ export class Game {
     this.hintEl = $("hint");
     this.homeEl = $("home");
     this.logEl = $("log");
+    this.logbarEl = $("logbar");
+    /** @type {Map<string, string>} visual moods for spread lines, by text */
+    this.logMoods = new Map();
     this.genEl = $("gen");
     this.barEl = $("genbar");
     this.fastEl = $("fast");
@@ -147,10 +161,16 @@ export class Game {
     this.journalQuestion = this.speakable($("journal-question"));
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
+    this.bloomEl = $("bloom");
+    this.hudEl = $("hud");
+    this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
 
     this.world = new World();
+    this.sky = new Sky(this.world, $("air"));
+    this.zoom = 1; this.camOff = 0; this.mist = 1; this.mood = 0; this.moodTarget = 0; this.dayPhase = 0.12;
+    this.painted = false;
     this.seed = seed;
     this.makeWorld = makeWorld;
     this.cam = { x: 0, y: 0 };
@@ -168,7 +188,12 @@ export class Game {
     this.setupCanvas();
     this.bindInput();
     this.start(bridge);
-    this.world.paint();
+    // The world is painted behind the mist; the arrival starts when it is ready (or the mist would never lift).
+    const painted = () => {
+      this.painted = true;
+      if (this.arrival && this.arrival.t0 === null) this.arrival.t0 = performance.now();
+    };
+    this.world.paint().then(painted, (err) => { console.error("lineage terrain paint failed", err); painted(); });
 
     this.step = (t) => {
       try { this.frame(t); } catch (err) { console.error("lineage frame failed", err); return; }
@@ -203,7 +228,13 @@ export class Game {
     /** the spread's line is on screen, so each generation only changes its counter */
     this.spreadShown = false;
     this.toldGlow = false;
+    /** @type {Set<number>} generations whose glowing newborns the log named: only those get a caption on the map */
+    this.namedBirths = new Set();
     this.endingEl.hidden = true;
+    this.mood = this.moodTarget = 0;
+    this.dayPhase = 0;
+    this.arrival = { t0: this.painted ? performance.now() : null, dur: this.painted ? RETURN_MS : ARRIVAL_MS };
+    this.stage.classList.add("arriving");
     // The camera opens on the first founding family, high in the leaves.
     const first = this.herd.centroidOf(bridge.families.founding[0].ids);
     this.camTween = null;
@@ -219,6 +250,11 @@ export class Game {
     if (!ev) return;
     const s = this.story, fast = s.fast;
     this.herd.applyGeneration(ev, this.bridge, now);
+    // The mood of the light: a little warmer when your group grows, cooler when it shrinks.
+    if (ev.group && !fast) {
+      const d = ev.group.count - ev.group.before, k = ev.group.before ? d / ev.group.before : 0;
+      this.moodTarget = Math.abs(d) >= 2 && Math.abs(k) >= 0.08 ? clamp(k * 3, -1, 1) : 0;
+    }
     const what = s.afterGeneration(ev);
     this.syncGroups();
     this.updateHud();
@@ -234,6 +270,7 @@ export class Game {
       // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
       // The log names only the babies that glow this generation (the calm rule), never more.
       const lines = groupLines(ev.group, s.noun, s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v));
+      this.namedBirths.add(ev.generation);
       if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
       this.say(lines);
     }
@@ -461,7 +498,7 @@ export class Game {
     this.syncGroups(); // the tapped newborn stops glowing
     this.updateHud();
     // Most here have it already: too few others for a fair test, and no spread can change that.
-    if (what === "spread-failed") { this.say([SPREAD_COMMON]); this.updateCard(); return; }
+    if (what === "spread-failed") { this.logMoods.set(SPREAD_COMMON, "gentle"); this.say([SPREAD_COMMON]); this.updateCard(); return; }
     this.preRoll();
     this.spreadShown = false;
     this.spreadCounter();
@@ -473,8 +510,10 @@ export class Game {
    */
   spreadCounter() {
     const s = this.story, sp = s.spread ?? s.lastSpread, line = spreadLine(sp.v.group, sp.counts);
+    this.logMoods.set(line, "spread");
     if (!this.spreadShown) { this.spreadShown = true; this.say([line]); return line; }
     this.log.set(line);
+    this.moodLog("spread");
     this.logQueue = [];
     this.logTimer = LOG_MS;
     return line;
@@ -486,6 +525,7 @@ export class Game {
    * happens to their group (scope decision 44). This was not a follow.
    */
   spreadDanger() {
+    this.logMoods.set(dangerLine(this.story.noun), "danger");
     this.say([dangerLine(this.story.noun)]);
     this.centerOnGroup();
     this.updateCard(); // follow buttons again, or "Stay with them?"
@@ -506,6 +546,7 @@ export class Game {
     const outcome = this.story.lastSpread.outcome;
     this.spreadCounter();
     this.logQueue = [outcome === "gone" ? SPREAD_GONE : outcome === "common" ? SPREAD_COMMON : SPREAD_SHORT];
+    for (const l of [SPREAD_GONE, SPREAD_COMMON, SPREAD_SHORT]) this.logMoods.set(l, "gentle");
     this.updateCard(); // follow buttons again
   }
 
@@ -719,7 +760,11 @@ export class Game {
         return p;
       }));
     }
+    this.endingEl.classList.toggle("died", s.outcome === "died");
+    this.endingEl.classList.remove("show");
     this.endingEl.hidden = false;
+    void this.endingEl.offsetWidth; // the parts come in one after another (styles.css)
+    this.endingEl.classList.add("show");
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
   }
 
@@ -816,6 +861,7 @@ export class Game {
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
     }
+    this.fitLog();
     const cv = this.cardAnimalEl, size = `${cv.clientWidth}x${cv.clientHeight}`;
     if (size !== c.size) {
       c.size = size;
@@ -848,6 +894,7 @@ export class Game {
       this.cardCountsEl.replaceChildren(...this.countRows(rows), say);
     }
     this.renderFollow();
+    this.fitLog(); // the card's height may have changed
   }
 
   /**
@@ -866,6 +913,7 @@ export class Game {
     const g = c && !c.gone ? s.glowFor(c.id) : null;
     const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice;
     this.cardFollowEl.hidden = !open;
+    this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
     const now = s.canStartFor(g), stay = !now && s.inDanger;
     const text = stay ? needsYou(s.noun) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
@@ -887,10 +935,21 @@ export class Game {
     this.cardFollowEl.replaceChildren(note, keep);
   }
 
+  /**
+   * Visual only: while a card at the side reaches down to the narration (an iPad
+   * held sideways), the line wraps beside it, so the line and its speaker stay in reach.
+   */
+  fitLog() {
+    const el = this.cardEl, side = !!this.card && !el.hidden && !el.classList.contains("above");
+    const reach = side && el.offsetTop + el.offsetHeight > this.stage.clientHeight - LOG_ROOM;
+    this.logbarEl.style.paddingRight = reach ? `${this.stage.clientWidth - el.offsetLeft + 16}px` : "";
+  }
+
   /** Closes quickly; `now` skips the transition. */
   closeCard(now = false) {
     this.card = null;
     this.herd.selected = null;
+    this.fitLog();
     this.cardEl.classList.remove("open");
     clearTimeout(this.cardHideT);
     if (now) this.cardEl.hidden = true;
@@ -942,14 +1001,26 @@ export class Game {
     return { set: (t) => { text.textContent = t; } };
   }
   /* ================= narration ================= */
+  /** Visual only: the log's look for a spread's counter, a gentle fizzle, or "Wait!". A tick replays its pop. */
+  moodLog(mood) {
+    const c = this.logEl.classList;
+    c.remove("spread", "gentle", "danger", "tick");
+    if (!mood) return;
+    c.add(mood);
+    void this.logEl.offsetWidth;
+    c.add("tick");
+  }
   /** Replace whatever is queued: the log only ever speaks about now. */
   say(lines) { this.logQueue = lines.slice(); this.logTimer = 0; }
   pumpLog(dt) {
     this.logTimer -= dt;
     if (this.logTimer <= 0 && this.logQueue.length) {
-      this.log.set(this.logQueue.shift());
+      const line = this.logQueue.shift();
+      this.log.set(line);
+      const mood = this.logMoods.get(line) ?? "";
       this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
-      this.logEl.style.animation = "lgIn .55s ease both";
+      this.logEl.style.animation = mood ? "" : "lgIn .55s ease both";
+      this.moodLog(mood);
       this.logTimer = LOG_MS;
     }
   }
@@ -1004,6 +1075,7 @@ export class Game {
       this.fastEl.hidden = !fastNow;
       this.herd.pace = fastNow ? FAST_PACE : 1;
     }
+    this.stage.classList.toggle("spreading", !!(s.spread && fastNow));
     // On the backup choice panel, and while a prediction or "Since your last choice" is up, the world pauses.
     if (this.journal) this.tickJournal(now, Math.min(250, raw));
     else if (this.since) this.tickSince(now, Math.min(250, raw));
@@ -1015,6 +1087,7 @@ export class Game {
     if ((this.homeT -= dt) <= 0) { this.homeT = HOME_MS; this.home = this.herd.largestCluster(this.herd.followed); }
 
     this.pumpLog(dt);
+    this.updateLight(now, dt);
     if (this.camTween) {
       const tw = this.camTween;
       tw.t = Math.min(1, tw.t + dt / 620);
@@ -1027,37 +1100,126 @@ export class Game {
     this.render(now);
   }
 
+  /**
+   * One generation is one day (light.js): dawn when it arrives, golden hours,
+   * dusk, a soft night, dawn again. The day stands still at a choice point, is
+   * a gentle morning before the story starts, and golden (or, when the group
+   * died out, a blue dusk) behind the ending. A fast-forward's days are quicker
+   * and shallower, so they never flicker. Also the arrival and the mood.
+   */
+  updateLight(now, dt) {
+    const s = this.story, a = this.arrival;
+    let k = 1;
+    if (a) {
+      k = a.t0 === null ? 0 : clamp((now - a.t0) / a.dur, 0, 1);
+      const long = a.dur >= ARRIVAL_MS, e = ease(k);
+      this.zoom = long ? lerp(0.68, 1, 1 - Math.pow(1 - k, 2.2)) : 1;
+      this.camOff = long ? -170 * (1 - e) : 0;
+      this.mist = 1 - ease(clamp((k - 0.04) / (long ? 0.72 : 0.8), 0, 1));
+      this.arrivalK = k;
+      if (k >= 1) this.endArrival();
+    }
+    const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000;
+    if (!this.endingEl.hidden || s.phase === "ended") {
+      const want = s.outcome === "died" ? 0.735 : 0.6;
+      this.dayPhase += (want - this.dayPhase) * Math.min(1, dt / 1400);
+    } else if (s.phase === "waiting") this.dayPhase = a ? lerp(0, 0.12, ease(k)) : 0.12;
+    else if (s.running) this.dayPhase = clamp(this.clock / genMs, 0, 0.999);
+    const L = skyAt(this.dayPhase);
+    if (s.fast && this.clock >= 0) { L.tA *= 0.6; L.night *= 0.35; }
+    this.light = L;
+    this.mood += (this.moodTarget - this.mood) * Math.min(1, dt / MOOD_MS);
+    this.herd.light = L; this.herd.mood = this.mood;
+    const cls = this.stage.classList;
+    cls.toggle("mood-grow", this.mood > 0.25);
+    cls.toggle("mood-shrink", this.mood < -0.25);
+    cls.toggle("night", L.night > 0.6);
+  }
+
+  /** The mist has lifted: the panels and the one line come in. */
+  endArrival() {
+    this.arrival = null;
+    this.zoom = 1; this.camOff = 0; this.mist = 0;
+    this.stage.classList.remove("arriving");
+    if (this.story.phase === "waiting") this.showHint();
+    this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
+    this.logEl.style.animation = "lgIn .9s ease both";
+  }
+
   render(now) {
     const x = this.ctx, vw = this.vw, vh = this.vh, W = this.world.W, H = this.world.H;
+    const z = this.zoom, ww = vw / z, wh = vh / z, L = this.light ?? skyAt(this.dayPhase);
     x.setTransform(this.DPR, 0, 0, this.DPR, 0, 0);
     x.fillStyle = "#A2977C"; x.fillRect(0, 0, vw, vh);
+    // What is visible, kept inside the world while the arrival's camera is higher up.
+    const vx = clamp(this.cam.x + (vw - ww) / 2, 0, Math.max(0, W - ww));
+    const vy = clamp(this.cam.y + this.camOff + (vh - wh) / 2, 0, Math.max(0, H - wh));
+    const view = { x: vx, y: vy, w: ww, h: wh };
+    this.view = view;
     x.save();
-    x.translate(-this.cam.x, -this.cam.y);
+    x.scale(z, z);
+    x.translate(-vx, -vy);
 
-    const vx = this.cam.x, vy = this.cam.y;
     const terrain = this.world.terrain;
     if (terrain) {
-      const sx = clamp(vx, 0, W), sy = clamp(vy, 0, H);
-      const sw = clamp(vw + (vx - sx), 0, W - sx), sh = clamp(vh + (vy - sy), 0, H - sy);
-      if (sw > 0 && sh > 0) x.drawImage(terrain, sx, sy, sw, sh, sx, sy, sw, sh);
+      const sw = Math.min(ww, W - vx), sh = Math.min(wh, H - vy);
+      if (sw > 0 && sh > 0) x.drawImage(terrain, vx, vy, sw, sh, vx, vy, sw, sh);
     }
 
     /* classroom light: a warm lift so the world survives fluorescent tubes */
     x.fillStyle = "rgba(255,247,227," + (0.05 + 0.17 * 0.35).toFixed(3) + ")";
-    x.fillRect(vx, vy, vw, vh);
+    x.fillRect(vx, vy, ww, wh);
 
-    /* the animals; every member of your group stands in a soft glow (herd.js) */
-    this.herd.draw(x, { x: vx, y: vy, w: vw, h: vh }, now);
+    /* everyone else, then the day's light over the world, then your animals over it (herd.js, light.js) */
+    this.herd.draw(x, view, now, "world");
+    this.sky.drawWorld(x, view, L, this.mood, now);
+    this.herd.draw(x, view, now, "mine");
     x.restore();
+    this.sky.drawAir(x, vw, vh, L, this.mood, now, this.mist, this.cam);
+    if (this.arrival && this.arrival.dur >= ARRIVAL_MS) this.sky.drawCanopyPass(x, vw, vh, this.arrivalK ?? 0);
+    this.placeBloom(now, view);
 
     const home = this.home;
-    const onScreen = home && home.x > vx && home.x < vx + vw && home.y > vy && home.y < vy + vh;
+    const onScreen = home && home.x > vx && home.x < vx + ww && home.y > vy && home.y < vy + wh;
     const want = !!home && !onScreen && this.story.phase !== "choice" && !this.since;
     if (want !== this.homeShown) {
       this.homeShown = want;
       this.homeEl.style.opacity = want ? "1" : "0";
       this.homeEl.style.pointerEvents = want ? "auto" : "none";
     }
+  }
+
+  /**
+   * A short caption beside the first of your newborns blooming now: its new
+   * trait, in the log's own words ("thicker fur"), with a speaker. Only for
+   * newborns the log has named, so the map never says more than the log does
+   * (nothing about babies born during a fast-forward).
+   */
+  placeBloom(now, view) {
+    const named = (id) => this.namedBirths.has(this.story.glowFor(id)?.generation ?? -1);
+    const b = !this.choice && !this.journal && !this.since && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
+    if (!b) {
+      if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
+      return;
+    }
+    if (this.bloomId !== b.id) {
+      this.bloomId = b.id;
+      this.bloomLine.set(bornLine(this.story.glowFor(b.id).v.group));
+      this.bloomEl.hidden = false;
+      // Its size and the generation panel's, measured once, to keep it on the screen and off the panel.
+      const hud = this.hudEl;
+      this.bloomBox = { w: this.bloomEl.offsetWidth, h: this.bloomEl.offsetHeight, hudRight: hud.offsetLeft + hud.offsetWidth, hudBottom: hud.offsetTop + hud.offsetHeight };
+    }
+    const age = now - this.herd.glowSince.get(b.id);
+    const op = age < 500 ? age / 500 : age > 5600 ? Math.max(0, 1 - (age - 5600) / 1000) : 1;
+    // Above the newborn, inside the screen; below it when the top edge or the generation panel is in the way.
+    const sx = (b.x - view.x) * this.zoom, sy = (b.y - view.y) * this.zoom, box = this.bloomBox, M = 10;
+    const left = clamp(sx - box.w / 2, M, Math.max(M, this.vw - box.w - M)), byHud = left < box.hudRight + M;
+    let top = sy - 40 - box.h;
+    if (top < M || (byHud && top < box.hudBottom + M)) top = Math.max(sy + 18, byHud ? box.hudBottom + M : M);
+    top = Math.min(top, this.vh - LOG_ROOM - box.h); // and clear of the narration
+    this.bloomEl.style.opacity = op.toFixed(3);
+    this.bloomEl.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
   }
 
   /* ================= input ================= */
@@ -1112,8 +1274,17 @@ export class Game {
     this.hintEl.style.opacity = "0";
   }
   tapAt(px, py) {
-    const rect = this.stage.getBoundingClientRect();
-    const a = this.herd.hit(this.cam.x + px - rect.left, this.cam.y + py - rect.top);
+    // What is under the finger, in the view on screen (wider while the arrival's camera is higher up).
+    const rect = this.stage.getBoundingClientRect(), v = this.view ?? this.cam, z = this.zoom;
+    const a = this.herd.hit(v.x + (px - rect.left) / z, v.y + (py - rect.top) / z);
+    // A tap during the arrival lets the mist go at once. A tap on an animal still follows its family, as before.
+    if (this.arrival) {
+      if (!a) {
+        if (this.arrival.t0 !== null) this.arrival.t0 = Math.min(this.arrival.t0, performance.now() - this.arrival.dur * 0.88);
+        return;
+      }
+      this.endArrival();
+    }
     if (!a) { this.closeCard(); return; }
     // Before the story starts, a tap chooses the family to follow. After that, a tap opens the animal's card.
     if (this.story.phase === "waiting") this.begin(a);

@@ -15,6 +15,9 @@ const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const START_LINE = "Tap an animal to follow its family.";
 
+/** One glowing baby's new variation: in the log, and beside the baby on the map. */
+export const bornLine = (group) => `One of your babies was born with ${group}.`;
+
 export function followLine(zone, n) {
   return `You're following a family of ${plural(n, "animal", "animals")} ${ZONE_AT[zone]}.`;
 }
@@ -44,7 +47,7 @@ export function groupLines(f, noun, glowing = []) {
     lines.push(`Your ${noun} is the same size as last generation: ${plural(f.count, "animal", "animals")}.`);
   }
   if (glowing.length === 1) {
-    lines.push(`One of your babies was born with ${glowing[0].group}.`);
+    lines.push(bornLine(glowing[0].group));
   } else if (glowing.length > 1) {
     lines.push(`${capital(number(glowing.length))} of your babies were born with something new.`);
     lines.push(`One has ${glowing[0].group}.`);

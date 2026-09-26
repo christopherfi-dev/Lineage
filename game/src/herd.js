@@ -15,7 +15,11 @@ import { TRAIT_INDEX } from "./engine.js";
 
 const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
-const FADE_MS = 700;   // a death shrinks away
+const BABY_MS = 7000;  // and stays a little smaller for a while, beside its mother
+const FADE_MS = 1500;  // a death fades softly, a little light rising from it
+
+/** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then breathes. */
+const BLOOM_MS = 3400;
 
 /** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
@@ -70,10 +74,16 @@ export class Herd {
     this.marks = new Map();
     /** @type {Set<number>} newborns with a new variation that glow now (the calm rule, story.js) */
     this.glowing = new Set();
+    /** @type {Map<number, number>} when each glowing newborn began to glow (visual only) */
+    this.glowSince = new Map();
     /** how fast the world moves: 1 while watching, faster in a fast-forward */
     this.pace = 1;
     /** @type {null|number} the animal whose creature card is open: ringed on the map */
     this.selected = null;
+    /** the light now (light.js skyAt): shadows lean away from the sun, glows grow at night */
+    this.light = { sun: -0.6, low: 0.6, night: 0 };
+    /** -1 shrinking .. 1 growing */
+    this.mood = 0;
   }
 
   make(id, zone, genome, x, y, home, bornAt) {
@@ -149,6 +159,20 @@ export class Herd {
       this.animals.set(b.childId, a);
     }
     // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.
+  }
+
+  /**
+   * The glowing newborn whose ring opened most recently, for its caption; null when none is new.
+   * @param {(id:number) => boolean} [named] only newborns the log has named
+   */
+  bloomNow(now, named = () => true) {
+    let best = null;
+    for (const id of this.glowing) {
+      const a = this.animals.get(id), t0 = this.glowSince.get(id);
+      if (!a || t0 === undefined || now - t0 > BLOOM_MS + 3200 || !named(id)) continue;
+      if (!best || t0 > this.glowSince.get(best.id)) best = a;
+    }
+    return best;
   }
 
   /** Centre of a set of animals on the map, or null when none are alive. */
@@ -242,12 +266,18 @@ export class Herd {
 
   /* ================= drawing ================= */
   /**
+   * Two passes, so your animals are the brightest thing on screen: "world" (every
+   * other animal and the groups' rings, drawn under the day's light) and "mine"
+   * (your group's glow, your animals, blooms and the card's ring, drawn over it).
    * @param {CanvasRenderingContext2D} x
    * @param {{x:number,y:number,w:number,h:number}} view visible world rect
    * @param {number} now
+   * @param {"all"|"world"|"mine"} [pass]
    */
-  draw(x, view, now) {
-    const m = 70, vis = [];
+  draw(x, view, now, pass = "all") {
+    for (const id of this.glowSince.keys()) if (!this.glowing.has(id)) this.glowSince.delete(id);
+    const m = 70, vis = [], L = this.light;
+    const worldPass = pass !== "mine", minePass = pass !== "world";
     const inView = (c) => !(c.x < view.x - m || c.x > view.x + view.w + m || c.y < view.y - m || c.y > view.y + view.h + m);
     for (const c of this.animals.values()) if (inView(c)) vis.push(c);
     for (const c of this.fading) if (inView(c)) vis.push(c);
@@ -259,28 +289,30 @@ export class Herd {
     };
     const lifeOf = (c) => {
       if (c.diedAt !== null) return clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
-      if (now - c.bornAt < c.growMs) return 0.35 + 0.65 * clamp((now - c.bornAt) / c.growMs, 0, 1);
+      const age = now - c.bornAt, baby = BABY_MS / this.pace;
+      if (age < c.growMs) return 0.35 + 0.35 * clamp(age / c.growMs, 0, 1);
+      if (age < baby) return 0.7 + 0.3 * (age - c.growMs) / (baby - c.growMs);
       return 1;
     };
-    // Under everyone: a soft glow under every member of your group, wherever
-    // she is, then a ring in its colour under every member of a group not chosen.
-    if (this.following) {
+    // Under your animals: a soft warm glow, a little stronger at night and when the group grows.
+    if (minePass && this.following) {
       const sprite = glowSprite(), r = sprite.width / 2;
+      const k = (0.8 + 0.9 * L.night) * (1 + 0.35 * Math.max(0, this.mood) - 0.3 * Math.max(0, -this.mood));
       for (const c of vis) {
         if (c.diedAt !== null || !this.followed.has(c.id)) continue;
-        x.globalAlpha = lifeOf(c);
+        x.globalAlpha = clamp(lifeOf(c) * k, 0, 1);
         x.drawImage(sprite, c.x - r, c.y - 12 - r);
       }
       x.globalAlpha = 1;
     }
-    for (const c of vis) {
+    if (worldPass) for (const c of vis) {
       const colors = marksOf(c);
       if (!colors) continue;
-      const life = lifeOf(c), rx = style(c) === "mine" ? 17 : 14;
+      const life = c.diedAt !== null ? lifeOf(c) : 1, rx = 13;
       colors.forEach((col, k) => {
-        x.beginPath(); x.ellipse(c.x, c.y + 1, rx + 5 * k, (rx + 5 * k) * 0.4, 0, 0, TAU);
-        x.globalAlpha = 0.34 * life; x.fillStyle = col; if (k === 0) x.fill();
-        x.globalAlpha = 0.95 * life; x.strokeStyle = col; x.lineWidth = 2.2; x.stroke();
+        x.beginPath(); x.ellipse(c.x, c.y + 1, rx + 5 * k, (rx + 5 * k) * 0.38, 0, 0, TAU);
+        x.globalAlpha = 0.24 * life; x.fillStyle = col; if (k === 0) x.fill();
+        x.globalAlpha = 0.8 * life; x.strokeStyle = col; x.lineWidth = 1.8; x.stroke();
       });
       x.globalAlpha = 1;
     }
@@ -288,35 +320,96 @@ export class Herd {
     const rank = { gray: 0, plain: 1, other: 2, mine: 2 };
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
+      const st = style(c);
+      if (st === "mine" ? !minePass : !worldPass) continue;
       const life = lifeOf(c);
-      if (life > 0) drawCreature(x, c, style(c), life, marksOf(c)?.[0], this.glowing.has(c.id) && c.diedAt === null ? now : null);
+      if (life <= 0) continue;
+      const dying = c.diedAt !== null;
+      let glowAt = null;
+      if (!dying && this.glowing.has(c.id)) {
+        if (!this.glowSince.has(c.id)) this.glowSince.set(c.id, now);
+        glowAt = this.glowSince.get(c.id);
+      }
+      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt);
     }
     // The animal whose card is open: a ring that breathes, so you can find it on the map.
     const sel = this.selected !== null ? this.animals.get(this.selected) : null;
-    if (sel && inView(sel)) {
-      const k = (Math.sin(now * 0.005) + 1) / 2, rad = 24 + 3 * k;
-      x.lineWidth = 5; x.strokeStyle = "rgba(38,32,18,0.35)";
+    if (minePass && sel && inView(sel)) {
+      const k = (Math.sin(now * 0.004) + 1) / 2, rad = 22 + 3 * k;
+      x.lineWidth = 5; x.strokeStyle = "rgba(38,32,18,0.28)";
       x.beginPath(); x.ellipse(sel.x, sel.y - 11, rad, rad * 0.92, 0, 0, TAU); x.stroke();
-      x.lineWidth = 2.6; x.strokeStyle = "#FFF3D2";
+      x.lineWidth = 2.4; x.strokeStyle = "#FFF3D2";
       x.beginPath(); x.ellipse(sel.x, sel.y - 11, rad, rad * 0.92, 0, 0, TAU); x.stroke();
     }
   }
 }
 
-/** The glow under each member of your group, drawn once. */
-let glow = null;
+/** Sprites drawn once: the glow under your animals, and the warm light of a bloom. */
+let glow = null, bloomGlow = null, speck = null;
 function glowSprite() {
   if (glow) return glow;
-  const R = 44;
-  glow = Object.assign(document.createElement("canvas"), { width: 2 * R, height: 2 * R });
-  const x = /** @type {CanvasRenderingContext2D} */ (glow.getContext("2d"));
-  const grd = x.createRadialGradient(R, R, 0, R, R, R);
-  grd.addColorStop(0, "rgba(255,246,214,0.42)");
-  grd.addColorStop(0.55, "rgba(255,244,208,0.16)");
-  grd.addColorStop(1, "rgba(255,244,208,0)");
-  x.fillStyle = grd;
-  x.fillRect(0, 0, 2 * R, 2 * R);
+  glow = radialSprite(44, [[0, "rgba(255,238,196,0.5)"], [0.5, "rgba(255,234,190,0.2)"], [1, "rgba(255,232,186,0)"]]);
   return glow;
+}
+function radialSprite(R, stops) {
+  const c = Object.assign(document.createElement("canvas"), { width: 2 * R, height: 2 * R });
+  const x = /** @type {CanvasRenderingContext2D} */ (c.getContext("2d"));
+  const grd = x.createRadialGradient(R, R, 0, R, R, R);
+  for (const [o, col] of stops) grd.addColorStop(o, col);
+  x.fillStyle = grd; x.fillRect(0, 0, 2 * R, 2 * R);
+  return c;
+}
+const bloomSprite = () => bloomGlow ?? (bloomGlow = radialSprite(64, [[0, "rgba(255,226,160,0.7)"], [0.45, "rgba(255,214,140,0.28)"], [1, "rgba(255,210,130,0)"]]));
+const speckSprite = () => speck ?? (speck = radialSprite(12, [[0, "rgba(255,246,214,1)"], [0.3, "rgba(255,228,160,0.8)"], [1, "rgba(255,220,150,0)"]]));
+
+/** A soft four-pointed sparkle. */
+function sparkle(x, cx, cy, s) {
+  x.beginPath();
+  x.moveTo(cx, cy - s);
+  x.quadraticCurveTo(cx + s * 0.14, cy - s * 0.14, cx + s, cy);
+  x.quadraticCurveTo(cx + s * 0.14, cy + s * 0.14, cx, cy + s);
+  x.quadraticCurveTo(cx - s * 0.14, cy + s * 0.14, cx - s, cy);
+  x.quadraticCurveTo(cx - s * 0.14, cy - s * 0.14, cx, cy - s);
+  x.fill();
+}
+
+/**
+ * A new trait on the map. A bloom: a ring of light opens around the newborn with
+ * a few sparkles drifting up, then settles into a slow breathing ring for the
+ * rest of the day. A quiet mark: a small speck of light above the back.
+ */
+function drawMark(x, c, u, midY, now, night, glowAt) {
+  {
+    const t = (now - glowAt) / BLOOM_MS;
+    const open = 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+    const breathe = (Math.sin(now * 0.0024 + c.id) + 1) / 2;
+    const rad = u * (0.9 + 1.2 * open) + (t >= 1 ? breathe * u * 0.1 : 0);
+    const g = bloomSprite(), R = rad * 2.2;
+    x.globalAlpha = t < 1 ? 0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.2)) * 0.8 + 0.2 * open : 0.32 + 0.14 * breathe;
+    x.drawImage(g, c.x - R, midY - R, 2 * R, 2 * R);
+    x.strokeStyle = night > 0.5 ? "#FFF0C8" : "#FFE2A2";
+    x.lineWidth = 2.2;
+    x.globalAlpha = t < 1 ? 0.95 - 0.4 * open : 0.42 + 0.14 * breathe;
+    x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
+    if (t < 1) {
+      x.lineWidth = 1.2; x.globalAlpha = 0.5 * (1 - open);
+      x.beginPath(); x.ellipse(c.x, midY, rad * 1.3, rad * 1.2, 0, 0, TAU); x.stroke();
+    }
+    // A few sparkles drift up and fade.
+    if (t < 1.9) {
+      x.fillStyle = "#FFF4D6";
+      for (let k = 0; k < 5; k++) {
+        const tk = t * 0.75 - k * 0.07;
+        if (tk <= 0 || tk >= 1) continue;
+        const a = (k / 5) * TAU + c.id * 0.7, r0 = rad * (0.55 + 0.1 * k);
+        const sx = c.x + Math.cos(a) * r0 + Math.sin(now * 0.002 + k) * u * 0.15;
+        const sy = midY + Math.sin(a) * r0 * 0.6 - tk * u * 2.4;
+        x.globalAlpha = Math.sin(Math.PI * tk) * 0.9;
+        sparkle(x, sx, sy, u * (0.16 + 0.06 * (k % 2)));
+      }
+    }
+    x.globalAlpha = 1;
+  }
 }
 
 /** Mix a #rrggbb colour toward white (k > 0) or black (k < 0). */
@@ -327,25 +420,24 @@ function shade(hex, k) {
 }
 
 /**
- * World-scale creature, ported from the mockup's drawCreature (halo ring,
- * creature scale 1). Styles: "mine" — your group, larger, sharper and with
- * detail; "other" — a group you did not choose, in its colour; "gray" —
- * everyone else while you follow a group, smaller and faded; "plain" —
- * everyone while you have no group. One animal drawn large (the creature
- * card, the choice options, the ending) is creature.js.
+ * World-scale creature, ported from the mockup's drawCreature. Styles: "mine" —
+ * your group, larger, sharper, lit by the sun with a warm rim and a light ring on
+ * the ground; "other" — a group you did not choose, in its colour; "gray" —
+ * everyone else while you follow a group, smaller and faded; "plain" — everyone
+ * while you have no group. One animal drawn large is creature.js.
  * @param {CanvasRenderingContext2D} x
  * @param {string} [color] an "other" animal's group colour
- * @param {null|number} [glowAt] the clock, when this newborn glows: a new variation you can follow
+ * @param {{sun:number, low:number, night:number}} L the light now
+ * @param {number} alpha 1, or less while a death fades
+ * @param {null|number} [glowAt] when this newborn began to glow (a new variation you can follow), else null
  */
-function drawCreature(x, c, style, scale, color, glowAt = null) {
+function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
-  const fade = gray ? 0.9 : 1;
+  const fade = (gray ? 0.9 : 1) * alpha;
   const A = (a) => a * fade;
-  /* side-on figures, flipped by travel direction: at 25px a rotating
-     top-down silhouette reads as an insect, a standing animal doesn't. */
-  const u = (mine ? 11.2 : gray ? 7.4 : 8.4) * (0.84 + g.bodySize * 0.20) * scale;
+  const u = (mine ? 11.6 : gray ? 7.4 : 8.4) * (0.84 + g.bodySize * 0.20) * scale;
   const dir = c.face || 1;
   const walk = c.mode === "walk" || !c.inZone;
   const ph = c.ph * 2.0;
@@ -357,20 +449,27 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
   const nose = hR * (0.72 + g.snout * 0.26);
   const web = gray ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
-  x.globalAlpha = A(mine ? 0.26 : 0.14);
-  x.fillStyle = "#332F1E";
-  x.beginPath(); x.ellipse(c.x + u * 0.10, c.y + u * 0.06, u * 1.05, u * 0.30, 0, 0, TAU); x.fill();
+  /* the shadow leans away from the sun, long when the sun is low */
+  const lean = -L.sun * (0.25 + 0.75 * L.low), stretch = 1 + 0.55 * L.low * Math.abs(L.sun);
+  x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
+  x.fillStyle = "#2E2616";
+  x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
+  /* your animals: a light ring on the ground, the non-colour sign of your group */
+  if (mine) {
+    x.globalAlpha = A(0.6 * Math.min(1, scale + 0.2));
+    x.strokeStyle = L.night > 0.5 ? "#D6F0F6" : "#FFF3D6"; x.lineWidth = 1.5;
+    x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU); x.stroke();
+  }
 
   x.save();
   x.translate(c.x, c.y);
   x.scale(dir, 1);
 
-  /* the coat shade lightens or darkens the body */
-  const body = shade(mine ? "#1A657E" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.7 : 0.4));
-  const dark = mine ? "#0C3B4D" : other ? shade(color, -0.45) : "#7C7463";
-  const far = mine ? "#124F65" : other ? shade(color, -0.25) : "#807867";
-  const rim = mine ? "#8FD2E6" : other ? shade(color, 0.5) : "#BAB29C";
-  const webCol = mine ? "#A6DDEB" : other ? shade(color, 0.65) : "#D9D2BE";
+  const body = shade(mine ? "#237089" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
+  const dark = mine ? "#0E4051" : other ? shade(color, -0.45) : "#7C7463";
+  const far = mine ? "#15546A" : other ? shade(color, -0.25) : "#807867";
+  const rim = mine ? (L.night > 0.5 ? "#BDE8F2" : "#FFDDA4") : other ? shade(color, 0.5) : "#C4B9A0";
+  const webCol = mine ? "#F2C7B8" : other ? shade(color, 0.65) : "#D9D2BE";
 
   const fw = u * (0.15 + 0.14 * g.feet);
   const legW = mine ? u * 0.15 : u * 0.12;
@@ -381,18 +480,15 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
     x.strokeStyle = col; x.lineWidth = legW; x.lineCap = "round";
     x.beginPath(); x.moveTo(px, bodyY + bRY * 0.55); x.lineTo(px + sw, -lift); x.stroke();
     x.beginPath(); x.moveTo(px + sw - fw * 0.30, -lift); x.lineTo(px + sw + fw * 0.70, -lift); x.stroke();
-    /* webbed feet show as pale paddles */
     if (web > 0) {
       x.globalAlpha = A(0.9 * web);
       x.fillStyle = webCol;
       x.beginPath(); x.ellipse(px + sw + fw * 0.22, -lift, fw * 0.62, u * 0.085, 0, 0, TAU); x.fill();
     }
   };
-  /* far pair */
   leg(bRX * 0.50 - u * 0.16, Math.PI, far);
   leg(-bRX * 0.52 - u * 0.16, 0, far);
 
-  /* tail */
   const tl = u * (0.22 + g.tail * 0.36);
   const sway = Math.sin(c.ph * 1.7) * u * 0.16;
   const tipX = -bRX * 0.70 - tl * 1.00, tipY = bodyY - tl * 0.72 + sway;
@@ -404,12 +500,11 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
   x.stroke();
   const mark = clamp((g.tailTip / 2 - 0.3) / 0.4, 0, 1);
   if (mine && mark > 0) {
-    x.globalAlpha = mark;
-    x.fillStyle = "#D8F0F6";
+    x.globalAlpha = A(mark);
+    x.fillStyle = "#F0A868";
     x.beginPath(); x.arc(tipX, tipY, u * 0.1, 0, TAU); x.fill();
   }
 
-  /* one silhouette: body, head, muzzle, ears */
   const P = new Path2D();
   P.ellipse(0, bodyY, bRX, bRY, 0, 0, TAU);
   P.ellipse(headX, headY, hR, hR * 0.94, 0, 0, TAU);
@@ -417,7 +512,6 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
   P.quadraticCurveTo(headX + nose * 1.18, headY - hR * 0.10, headX + nose * 1.10, headY + hR * 0.30);
   P.quadraticCurveTo(headX + hR * 0.50, headY + hR * 0.62, headX + hR * 0.20, headY + hR * 0.50);
   P.closePath();
-  /* ears: rounded tips, or pointed ones */
   const point = g.ears / 2, earW = u * 0.13, earH = u * 0.27;
   const ear = (ex, ey, lean) => {
     const k = 1.05 - 0.45 * point;
@@ -428,13 +522,11 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
   };
   ear(headX - hR * 0.34, headY - hR * 0.62, -u * 0.05);
   ear(headX + hR * 0.28, headY - hR * 0.66, u * 0.03);
-  /* haunch */
   P.ellipse(-bRX * 0.46, bodyY + bRY * 0.16, bRX * 0.50, bRY * 0.86, 0, 0, TAU);
 
-  /* shaggy coat grows in with dense fur */
   const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
   if (shag > 0.05) {
-    x.strokeStyle = mine ? "#1E7086" : other ? shade(color, -0.15) : "#A69E8C";
+    x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
     for (let k = 0; k < 10; k++) {
       const a = k / 10 * TAU;
@@ -443,31 +535,35 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
     }
   }
 
-  /* sunlit rim holds its world direction through the flip */
+  /* the rim of light is on the sun's side, whichever way the animal faces */
   x.save();
-  x.translate(-0.9 * dir, -1.0);
-  x.fillStyle = rim; x.globalAlpha = A(mine ? 0.95 : 0.5);
+  x.translate(-(L.sun || -0.8) * (mine ? 1.3 : 0.9) * dir, -1.0);
+  x.fillStyle = rim; x.globalAlpha = A(mine ? 1 : 0.5);
   x.fill(P);
   x.restore();
   x.globalAlpha = A(mine || other ? 1 : 0.82);
   x.fillStyle = body; x.fill(P);
-  if (mine) { x.strokeStyle = "#08333F"; x.globalAlpha = 0.6; x.lineWidth = u * 0.08; x.stroke(P); }
+  if (mine) {
+    x.strokeStyle = "#08333F"; x.globalAlpha = A(0.5); x.lineWidth = u * 0.07; x.stroke(P);
+    /* a soft light on the back */
+    x.globalAlpha = A(0.22 * (1 - L.night));
+    x.fillStyle = "#FFE9C0";
+    x.beginPath(); x.ellipse(-bRX * 0.1, bodyY - bRY * 0.45, bRX * 0.55, bRY * 0.28, 0, 0, TAU); x.fill();
+  }
 
-  /* near pair, on top of the body */
   leg(bRX * 0.52, 0, dark);
   leg(-bRX * 0.46, Math.PI, dark);
 
-  /* curved claws hook from the front foot */
   const hook = clamp((g.claws / 2 - 0.35) / 0.35, 0, 1);
   if (mine && hook > 0) {
-    x.globalAlpha = hook; x.strokeStyle = "#DDEFF3"; x.lineWidth = u * 0.06; x.lineCap = "round";
+    x.globalAlpha = A(hook); x.strokeStyle = "#F4EBD6"; x.lineWidth = u * 0.06; x.lineCap = "round";
     x.beginPath(); x.moveTo(bRX * 0.52 + fw * 0.6, -u * 0.02); x.quadraticCurveTo(bRX * 0.52 + fw * 0.95, -u * 0.02, bRX * 0.52 + fw * 0.9, u * 0.08); x.stroke();
   }
 
   if (!gray) {
     const eR = u * (0.07 + g.eyes * 0.055);
-    x.globalAlpha = 1;
-    x.fillStyle = mine ? "#F0FAFC" : "#EFEAD9";
+    x.globalAlpha = A(1);
+    x.fillStyle = mine ? "#F6F4EA" : "#EFEAD9";
     x.beginPath(); x.arc(headX + hR * 0.30, headY - hR * 0.10, eR, 0, TAU); x.fill();
     x.fillStyle = mine ? "#08333F" : "#3B372B";
     x.beginPath(); x.arc(headX + hR * 0.36, headY - hR * 0.08, eR * 0.55, 0, TAU); x.fill();
@@ -475,24 +571,15 @@ function drawCreature(x, c, style, scale, color, glowAt = null) {
   x.restore();
 
   const midY = c.y + bodyY;
-  if (mine) {
-    /* halo ring — the non-colour lineage indicator */
-    x.strokeStyle = "#1E7E9C"; x.globalAlpha = 0.5; x.lineWidth = 1.8;
-    x.beginPath(); x.ellipse(c.x, midY, u * 1.58, u * 1.46, 0, 0, TAU); x.stroke();
+  /* a fading member of your group: a little light rises from it */
+  if (mine && alpha < 1) {
+    const k = 1 - alpha, sp = speckSprite();
+    for (let i = 0; i < 3; i++) {
+      x.globalAlpha = Math.sin(Math.PI * clamp(k * 1.2 - i * 0.12, 0, 1)) * 0.8;
+      x.drawImage(sp, c.x + (i - 1) * u * 0.5 - 5, midY - k * u * (2.2 + i * 0.5) - 5, 10, 10);
+    }
   }
-
-  /* a newborn with a new variation you can follow: a soft ring of light that breathes */
-  if (glowAt !== null) {
-    const puls = (Math.sin((glowAt + c.id * 97) * 0.0042) + 1) / 2;
-    const a = 0.36 + puls * 0.44, rad = u * (2.0 + puls * 1.2);
-    const grd = x.createRadialGradient(c.x, midY, 0, c.x, midY, rad * 1.7);
-    grd.addColorStop(0, "rgba(255,214,138," + (0.24 * a).toFixed(3) + ")");
-    grd.addColorStop(1, "rgba(255,214,138,0)");
-    x.fillStyle = grd; x.globalAlpha = 1;
-    x.beginPath(); x.arc(c.x, midY, rad * 1.7, 0, TAU); x.fill();
-    x.strokeStyle = "#FFCE70"; x.globalAlpha = a; x.lineWidth = 2.8;
-    x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
-  }
+  if (glowAt !== null && alpha === 1) drawMark(x, c, u, midY, now, L.night, glowAt);
   x.globalAlpha = 1;
 }
 

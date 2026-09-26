@@ -297,7 +297,7 @@ function badge(doc, text) {
 export async function goToMoment(game, moment) {
   const doc = game.doc;
   if (!MOMENTS.includes(moment)) { console.warn(`[lineage] unknown moment "${moment}"; try one of ${MOMENTS.join(", ")}`); return; }
-  if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself
+  if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself, with its mist
   const note = badge(doc, `Moment: ${moment} · getting there…`);
   await frame();
   const plan = (await findStory(game, moment)) ?? (MOMENT[moment].relaxed ? await findStory(game, moment, true) : null);
@@ -310,9 +310,10 @@ export async function goToMoment(game, moment) {
   await playTo(game, plan);
   const G = game, genMs = 20000;
   G.clock = 0;
+  if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
   if (moment === "generation") {
-    G.clock = genMs - 3000; // the next generation passes three seconds from now
+    G.clock = genMs - 3000; // the next generation passes three seconds from now, at the night's end
     lookAtGroup(G);
   } else if (moment === "variation") {
     const a = G.herd.animals.get(plan.hit.id);
