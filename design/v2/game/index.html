@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LINEAGE</title>
+<meta name="theme-color" content="#EFE6D2">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Karla:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="world"></canvas>
+
+  <div id="hud">
+    <div class="gen">Generation <b id="gen">0</b><span id="fast" hidden>Fast-forward</span></div>
+    <div class="bar"><i id="genbar"></i></div>
+    <div class="line" id="counts"></div>
+    <div class="line small" id="zones"></div>
+    <div class="line small" id="others" hidden></div>
+  </div>
+
+  <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
+
+  <!-- The creature card (Step 3): tap any animal to see it up close. The world keeps running behind it. -->
+  <div id="card" hidden>
+    <div class="head">
+      <div id="card-who"></div>
+      <button id="card-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <canvas id="card-animal"></canvas>
+    <p id="card-where"></p>
+    <p id="card-new" hidden></p>
+    <div id="card-counts" hidden></div>
+    <!-- A glowing newborn: follow its new variation, or keep looking (scope decisions 32, 42 and 43). -->
+    <div id="card-follow" hidden></div>
+    <div id="card-traits"></div>
+  </div>
+
+  <!-- A variation: a short caption beside the newborn that blooms (Step 4). -->
+  <div id="bloom" hidden><span class="spark"></span><span id="bloom-line"></span></div>
+
+  <button id="home" type="button"><span class="ring"><i></i></span>Back to my group</button>
+
+  <div id="logbar"><span class="ring"></span><span id="log"></span></div>
+
+  <!-- The backup choice panel: after a while with no follow, the world pauses (scope decision 34). -->
+  <div id="choice" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow" id="choice-count"></div>
+    <h2>Which one will you follow?</h2>
+    <div id="choice-since"></div>
+    <div id="options"></div>
+    <div class="timer"><i id="choice-bar"></i></div>
+    <div id="choice-note"></div>
+  </div>
+
+  <!-- Since your last choice: at the next follow, how the last fair test went (scope decision 34). -->
+  <div id="since" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow" id="since-count"></div>
+    <div id="since-body"></div>
+    <button id="since-next" type="button">Next</button>
+    <div class="timer"><i id="since-bar"></i></div>
+  </div>
+
+  <!-- The prediction journal (Step 6): one question after every third follow, before the fast-forward. -->
+  <div id="journal" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow">A prediction</div>
+    <h2 id="journal-question"></h2>
+    <div id="journal-options"></div>
+    <div class="timer"><i id="journal-bar"></i></div>
+    <div id="journal-note"></div>
+  </div>
+
+  <!-- Every ending is a reflection screen, not a game-over screen. -->
+  <div id="ending" hidden>
+    <div class="card">
+      <div class="eyebrow">The end of this story</div>
+      <h2 id="ending-title"></h2>
+      <!-- When the group died out after a follow, the ending leads with the fair test, then the question (scope decision 37). -->
+      <div id="ending-lead" hidden></div>
+      <div class="cols">
+        <section>
+          <!-- The group's average body, drawn (scope decision 21), with the real-animal reveal beside it. -->
+          <div id="ending-look">
+            <p id="ending-look-line"></p>
+            <canvas id="ending-animal"></canvas>
+            <!-- The real-animal reveal (scope decision 10): a surviving group's actual average traits and main
+                 habitat, matched in src/reveal.js by docs/LINEAGE_REAL_ANIMAL_REVEAL.md. -->
+            <div id="reveal" hidden>
+              <p id="reveal-line"></p>
+              <p id="reveal-why"></p>
+              <!-- "Did you know?" facts about the real animal, each with a speaker (scope decision 46). -->
+              <div id="reveal-facts"></div>
+            </div>
+          </div>
+          <h3 id="ending-traits-title">Your group's traits</h3>
+          <div id="ending-traits"></div>
+          <div class="legend"><span class="dot"></span>different from the start</div>
+        </section>
+        <section>
+          <!-- The reflection first, the story's history after it: a long story only scrolls the list. -->
+          <p id="ending-question"></p>
+          <div id="ending-evidence" hidden>
+            <h3>A clue</h3>
+            <div id="ending-compare" hidden></div>
+            <p id="ending-evidence-line"></p>
+          </div>
+          <!-- The last fair test: your group beside the others here (scope decision 33). -->
+          <div id="ending-fair" hidden>
+            <h3>Your last fair test</h3>
+            <div id="ending-fair-rows"></div>
+            <p id="ending-fair-line" hidden></p>
+          </div>
+          <!-- The prediction journal (Step 6): each prediction beside what happened. -->
+          <div id="ending-predictions" hidden>
+            <h3>Your predictions</h3>
+            <p id="ending-predictions-label"></p>
+            <ol id="ending-predictions-list"></ol>
+          </div>
+          <h3 id="ending-choices-title">Your choices</h3>
+          <ol id="ending-choices"></ol>
+        </section>
+      </div>
+      <div class="buttons">
+        <button id="again" type="button">Try another family in this world</button>
+        <button id="new-world" type="button">New world</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

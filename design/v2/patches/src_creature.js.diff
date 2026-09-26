@@ -1,0 +1,219 @@
+--- a/game/src/creature.js
++++ b/game/src/creature.js
+@@ -42,7 +42,9 @@
+ }
+ const CREAM = rgb("#f4e7cc"), INK = rgb("#20150d"), BAND = rgb("#e1782f"), SKIN = rgb("#e2ae98");
+ /** The ring and close-up around the part a choice is about. */
+-const FOCUS = "#d9892b";
++const FOCUS = "#c9822e";
++/** The golden-hour light on the creature's back and edges. */
++const RIM = rgb("#ffdca0");
+ /** The wash behind an animal: high leaves, open ground, water's edge. */
+ const WASH = [rgb("#7fa36a"), rgb("#c9a86a"), rgb("#6f9fb8")];
+ 
+@@ -72,6 +74,12 @@
+   return layer;
+ }
+ 
++let rimLayer = null;
++function rimFor(w, h) {
++  if (!rimLayer || rimLayer.width !== w || rimLayer.height !== h) rimLayer = Object.assign(document.createElement("canvas"), { width: w, height: h });
++  return rimLayer;
++}
++
+ /* ================= shapes ================= */
+ /** A closed polygon path. */
+ function polygon(pts) {
+@@ -146,6 +154,96 @@
+   }
+ }
+ 
++/* ================= where it lives (Step 4 look) ================= */
++/**
++ * A little of the animal's habitat behind it, painted softly so the animal stays
++ * the brightest thing: a mossy branch under leaves, the open ground with grass,
++ * or the water's edge with reeds. In frame units, (0, 0) on the ground.
++ */
++function habitatScene(x, habitat, seed) {
++  const r = mulberry(seed * 53 + 11 + habitat);
++  const blob = (cx, cy, rx, ry, rot, col, a) => {
++    x.save(); x.translate(cx, cy); x.rotate(rot);
++    x.fillStyle = css(col, a); x.beginPath();
++    const n = 9;
++    for (let i = 0; i <= n; i++) {
++      const t = (i / n) * TAU, k = 1 + (r() - 0.5) * 0.28;
++      const px = Math.cos(t) * rx * k, py = Math.sin(t) * ry * k;
++      i ? x.lineTo(px, py) : x.moveTo(px, py);
++    }
++    x.closePath(); x.fill(); x.restore();
++  };
++  const leaf = (cx, cy, l, rot, col, a) => {
++    x.save(); x.translate(cx, cy); x.rotate(rot);
++    x.fillStyle = css(col, a);
++    x.beginPath(); x.moveTo(-l, 0); x.quadraticCurveTo(0, -l * 0.46, l, 0); x.quadraticCurveTo(0, l * 0.46, -l, 0); x.fill();
++    x.strokeStyle = css(mix(col, INK, 0.3), a * 0.5); x.lineWidth = 0.8;
++    x.beginPath(); x.moveTo(-l * 0.9, 0); x.lineTo(l * 0.85, 0); x.stroke();
++    x.restore();
++  };
++  const tuft = (cx, cy, h, col, a) => {
++    x.strokeStyle = css(col, a); x.lineCap = "round";
++    for (let k = 0; k < 5; k++) {
++      const ang = -Math.PI / 2 + (k - 2) * 0.28 + (r() - 0.5) * 0.2, len = h * (0.6 + r() * 0.5);
++      x.lineWidth = 1.4 + r();
++      x.beginPath(); x.moveTo(cx + (k - 2) * 1.5, cy);
++      x.quadraticCurveTo(cx + Math.cos(ang) * len * 0.4, cy + Math.sin(ang) * len * 0.6, cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
++      x.stroke();
++    }
++  };
++  if (habitat === 0) {
++    // High leaves: leaves hang in from the top corners, sun through them, a mossy branch underfoot.
++    const G = [rgb("#4d7446"), rgb("#6a8f55"), rgb("#8cab6c"), rgb("#3f6340")];
++    for (let i = 0; i < 16; i++) {
++      const left = i % 2 === 0, cx = left ? -142 + r() * 70 : 158 - r() * 70, cy = -188 + r() * 64;
++      leaf(cx, cy, 14 + r() * 12, (left ? 0.5 : 2.6) + (r() - 0.5) * 1.4, G[i % 4], 0.34 + r() * 0.24);
++    }
++    for (let i = 0; i < 5; i++) {
++      const gx = -110 + r() * 240, gy = -150 + r() * 90, rad = 14 + r() * 22;
++      const g = x.createRadialGradient(gx, gy, 0, gx, gy, rad);
++      g.addColorStop(0, "rgba(255,246,206,0.5)"); g.addColorStop(1, "rgba(255,246,206,0)");
++      x.fillStyle = g; x.beginPath(); x.arc(gx, gy, rad, 0, TAU); x.fill();
++    }
++    const bark = rgb("#7a5a3c");
++    x.save(); x.rotate(-0.035);
++    x.fillStyle = css(bark, 0.55); x.beginPath(); x.moveTo(-150, 2); x.quadraticCurveTo(0, -4, 162, 3); x.lineTo(162, 13); x.quadraticCurveTo(0, 8, -150, 14); x.closePath(); x.fill();
++    x.fillStyle = css(rgb("#a78462"), 0.45); x.beginPath(); x.moveTo(-150, 2); x.quadraticCurveTo(0, -4, 162, 3); x.lineTo(162, 6); x.quadraticCurveTo(0, -1, -150, 5); x.closePath(); x.fill();
++    for (let i = 0; i < 7; i++) blob(-130 + r() * 280, 1 + r() * 2, 7 + r() * 9, 2.4 + r() * 1.6, 0, rgb("#7f9b52"), 0.5);
++    x.restore();
++    leaf(-104, 8, 11, 2.2, G[1], 0.5); leaf(120, 10, 9, 0.6, G[2], 0.45);
++  } else if (habitat === 1) {
++    // Open ground: warm earth, grass tufts, a pebble and a fallen leaf.
++    const earth = x.createLinearGradient(0, -24, 0, 22);
++    earth.addColorStop(0, "rgba(196,160,104,0)"); earth.addColorStop(0.5, "rgba(190,152,98,0.32)"); earth.addColorStop(1, "rgba(170,132,84,0.45)");
++    x.fillStyle = earth; x.fillRect(-142, -24, 300, 46);
++    for (let i = 0; i < 9; i++) blob(-130 + r() * 280, 6 + r() * 12, 10 + r() * 22, 3 + r() * 3, (r() - 0.5) * 0.3, rgb("#b38b5c"), 0.18);
++    const greens = [rgb("#7c9358"), rgb("#94a863"), rgb("#6c8450")];
++    [-122, -88, 96, 132, -40, 60].forEach((tx, i) => tuft(tx + (r() - 0.5) * 10, 6 + r() * 8, i < 4 ? 20 + r() * 12 : 11 + r() * 5, greens[i % 3], 0.6));
++    blob(78, 12, 7, 4.6, 0.2, rgb("#9c8e76"), 0.7); blob(76, 10, 3.4, 2, 0.2, rgb("#d8ccb0"), 0.6);
++    leaf(-66, 14, 8, 0.4, rgb("#b27a3e"), 0.55);
++  } else if (habitat === 2) {
++    // The water's edge: damp sand, a band of water with pale ripples, reeds.
++    const sand = x.createLinearGradient(0, -18, 0, 8);
++    sand.addColorStop(0, "rgba(222,204,164,0)"); sand.addColorStop(1, "rgba(214,196,156,0.5)");
++    x.fillStyle = sand; x.fillRect(-142, -18, 300, 26);
++    const water = x.createLinearGradient(0, 6, 0, 22);
++    water.addColorStop(0, "rgba(120,176,196,0.55)"); water.addColorStop(1, "rgba(86,146,172,0.7)");
++    x.fillStyle = water; x.beginPath(); x.moveTo(-142, 10); x.quadraticCurveTo(0, 5, 158, 9); x.lineTo(158, 22); x.lineTo(-142, 22); x.closePath(); x.fill();
++    x.strokeStyle = "rgba(255,252,244,0.7)"; x.lineCap = "round";
++    for (let i = 0; i < 7; i++) {
++      const wx = -130 + r() * 270, wy = 11 + r() * 9, l = 8 + r() * 18;
++      x.lineWidth = 1 + r(); x.beginPath(); x.moveTo(wx - l, wy); x.quadraticCurveTo(wx, wy - 1.6, wx + l, wy); x.stroke();
++    }
++    const reed = rgb("#6f8a5a");
++    for (let i = 0; i < 7; i++) {
++      const bx = -138 + i * 7 + r() * 5, h = 60 + r() * 60, bend = 6 + r() * 10;
++      x.strokeStyle = css(reed, 0.5 + r() * 0.2); x.lineWidth = 1.6 + r() * 1.2;
++      x.beginPath(); x.moveTo(bx, 8); x.quadraticCurveTo(bx + bend * 0.3, 8 - h * 0.5, bx + bend, 8 - h); x.stroke();
++      if (i % 3 === 1) { x.fillStyle = css(rgb("#8a6440"), 0.6); x.beginPath(); x.ellipse(bx + bend * 0.9, 8 - h * 0.86, 2.2, 7, 0.15, 0, TAU); x.fill(); }
++    }
++  }
++}
++
+ /* ================= the animal ================= */
+ /**
+  * Everything about one animal's drawing, from its genome, in frame units with
+@@ -384,6 +482,13 @@
+   y.setTransform(1, 0, 0, 1, 0, 0);
+   y.globalCompositeOperation = "source-atop";
+   y.fillStyle = y.createPattern(grain().coat, "repeat"); y.fillRect(0, 0, w, h);
++  // Golden-hour light from behind and above: a warm rim along the upper edges.
++  const rim = rimFor(w, h), rx = /** @type {CanvasRenderingContext2D} */ (rim.getContext("2d")), d = Math.max(2, Math.round(w / 170));
++  rx.globalCompositeOperation = "copy"; rx.drawImage(lay, 0, 0);
++  rx.globalCompositeOperation = "source-in"; rx.fillStyle = css(RIM); rx.fillRect(0, 0, w, h);
++  rx.globalCompositeOperation = "destination-out"; rx.drawImage(lay, d * 1.2, d * 1.6);
++  rx.globalCompositeOperation = "source-over";
++  y.globalAlpha = 0.75; y.drawImage(rim, 0, 0); y.globalAlpha = 1;
+   y.globalCompositeOperation = "source-over";
+   return { lay, a, ...where };
+ }
+@@ -413,20 +518,22 @@
+ 
+   // Paper.
+   x.setTransform(dpr, 0, 0, dpr, 0, 0);
+-  x.fillStyle = "#f3ead6"; x.fillRect(0, 0, w, h);
+-  const light = x.createRadialGradient(w * 0.45, h * 0.35, 0, w * 0.45, h * 0.35, Math.max(w, h) * 0.75);
+-  light.addColorStop(0, "rgba(255,252,242,0.7)"); light.addColorStop(1, "rgba(214,196,160,0.35)");
++  x.fillStyle = "#f4ead3"; x.fillRect(0, 0, w, h);
++  // Warm light from the upper left, the paper deepening toward its edges.
++  const light = x.createRadialGradient(w * 0.38, h * 0.28, 0, w * 0.45, h * 0.4, Math.max(w, h) * 0.78);
++  light.addColorStop(0, "rgba(255,248,226,0.85)"); light.addColorStop(0.6, "rgba(246,230,196,0.2)"); light.addColorStop(1, "rgba(196,168,120,0.45)");
+   x.fillStyle = light; x.fillRect(0, 0, w, h);
+   x.fillStyle = x.createPattern(paper, "repeat"); x.fillRect(0, 0, w, h);
+ 
+   // A soft wash in the habitat's colour: leaves, open ground, water's edge.
+   toFrame(x);
++  if (habitat !== null) habitatScene(x, habitat, seed);
+   if (habitat !== null && WASH[habitat]) {
+     const wr = mulberry(seed * 31 + 7);
+     for (let i = 0; i < 3; i++) {
+       const wx = -10 + (wr() - 0.5) * 40, wy = -60 + (wr() - 0.5) * 22, rad = 86 + wr() * 24;
+       const wg = x.createRadialGradient(wx, wy, rad * 0.2, wx, wy, rad);
+-      wg.addColorStop(0, css(WASH[habitat], 0.26)); wg.addColorStop(1, css(WASH[habitat], 0));
++      wg.addColorStop(0, css(WASH[habitat], 0.16)); wg.addColorStop(1, css(WASH[habitat], 0));
+       x.fillStyle = wg; x.beginPath(); x.ellipse(wx, wy, rad * 1.35, rad * 0.8, 0, 0, TAU); x.fill();
+     }
+   }
+@@ -435,8 +542,8 @@
+   const { lay, a, tl, hd, frontFoot } = creatureLayer(cv.width, cv.height, genome, seed, toFrame);
+   // Ground shadow.
+   const sh = x.createRadialGradient(0, 0, 4, 0, 0, a.L * 0.75);
+-  sh.addColorStop(0, "rgba(70,52,30,0.28)"); sh.addColorStop(1, "rgba(70,52,30,0)");
+-  x.save(); x.scale(1, 0.16); x.fillStyle = sh; x.beginPath(); x.arc(0, 0, a.L * 0.75, 0, TAU); x.fill(); x.restore();
++  sh.addColorStop(0, "rgba(64,44,24,0.34)"); sh.addColorStop(1, "rgba(64,44,24,0)");
++  x.save(); x.translate(10, 0); x.scale(1.15, 0.16); x.fillStyle = sh; x.beginPath(); x.arc(0, 0, a.L * 0.75, 0, TAU); x.fill(); x.restore();
+ 
+   // Where each trait's part is, in frame units, for glows and focus rings.
+   const bodyC = [(a.hip[0] + a.shoulder[0]) / 2, (a.hip[1] + a.shoulder[1]) / 2 - a.Hh * 0.2];
+@@ -455,11 +562,13 @@
+   };
+ 
+   // Glows under the parts that are new in this animal.
++  // The part that is new in this animal: warm light under it (a soft ring and a few
++  // sparkles are drawn over the creature, below), like a bloom on the map.
+   for (const trait of glow) {
+     const p = fp[trait]; if (!p) continue;
+-    const rad = Math.max(22, Math.max(p[2], p[3]) * 1.35);
++    const rad = Math.max(24, Math.max(p[2], p[3]) * 1.5);
+     const gr = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], rad);
+-    gr.addColorStop(0, "rgba(255,196,64,0.95)"); gr.addColorStop(0.45, "rgba(255,206,96,0.55)"); gr.addColorStop(1, "rgba(255,214,120,0)");
++    gr.addColorStop(0, "rgba(255,224,150,0.85)"); gr.addColorStop(0.5, "rgba(255,222,150,0.35)"); gr.addColorStop(1, "rgba(255,222,150,0)");
+     x.fillStyle = gr; x.beginPath(); x.arc(p[0], p[1], rad, 0, TAU); x.fill();
+   }
+   // The creature, softened at the edges like paint on paper.
+@@ -469,6 +578,27 @@
+   x.drawImage(lay, 0, 0);
+   x.restore();
+ 
++  if (glow.length) {
++    toFrame(x);
++    const sr = mulberry(seed * 7 + 3);
++    for (const trait of glow) {
++      const p = fp[trait]; if (!p) continue;
++      const rad = Math.max(16, Math.max(p[2], p[3]) * 1.15);
++      x.strokeStyle = "rgba(255,236,190,0.95)"; x.lineWidth = 2.4 / k;
++      x.beginPath(); x.ellipse(p[0], p[1], rad, rad * 0.92, 0, 0, TAU); x.stroke();
++      x.strokeStyle = "rgba(214,150,60,0.55)"; x.lineWidth = 1 / k;
++      x.beginPath(); x.ellipse(p[0], p[1], rad + 2.6, rad * 0.92 + 2.6, 0, 0, TAU); x.stroke();
++      x.fillStyle = "rgba(255,246,220,0.95)";
++      for (let i = 0; i < 4; i++) {
++        const ang = -Math.PI * (0.2 + 0.6 * sr()), d = rad * (1.1 + 0.5 * sr()), s = 2.6 + sr() * 2.4;
++        const cx = p[0] + Math.cos(ang) * d, cy = p[1] + Math.sin(ang) * d;
++        x.beginPath(); x.moveTo(cx, cy - s);
++        x.quadraticCurveTo(cx + s * 0.15, cy - s * 0.15, cx + s, cy); x.quadraticCurveTo(cx + s * 0.15, cy + s * 0.15, cx, cy + s);
++        x.quadraticCurveTo(cx - s * 0.15, cy + s * 0.15, cx - s, cy); x.quadraticCurveTo(cx - s * 0.15, cy - s * 0.15, cx, cy - s);
++        x.fill();
++      }
++    }
++  }
+   // A ring around the part a choice is about.
+   const p = focus && fp[focus];
+   if (p) {
