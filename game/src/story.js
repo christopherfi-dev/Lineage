@@ -77,6 +77,8 @@ export const DANGER_SIZE = 5;
 export const GLOW_MIN_SECONDS = 10;
 /** New glows start at least this far apart (seconds of watching), so babies light up one at a time. */
 export const GLOW_GAP_SECONDS = 4;
+/** The family tree strip shows at most this many of a baby's mother line, the baby included (scope decision 61). */
+export const TREE_DEPTH = 4;
 /** A watched generation's babies appear over this much of its day; the rest of the day is quiet. */
 export const APPEAR_SPAN = 0.8;
 /** A chosen trait has faded from the family when fewer of its animals than this still have it ("Your family so far"). */
@@ -268,6 +270,8 @@ export class Story {
   /** The child taps an animal and follows its family. Time starts now. */
   begin(id) {
     const follow = this.bridge.followFamilyOf(id);
+    /** the animal the child tapped first: the family tree's first mother (scope decision 61) */
+    this.firstId = id;
     this.startGeneration = this.bridge.generation;
     this.remember();
     this.phase = "watch";
@@ -542,6 +546,32 @@ export class Story {
   /** The table's reason for a variation in the family's place, for the passed-on lines (scope decision 60). */
   whyHere(v) { return whyLine(v.t, this.testZone()); }
 
+  /**
+   * The family tree strip (scope decision 61): the animal the child tapped
+   * first, then the real mother line of the latest followed baby, from
+   * great-grandmother to mother to this baby, drawn from their real bodies.
+   * Followed babies are not each other's mothers, so the line is the baby's
+   * own. It goes back as far as the story knows a mother's body (every family
+   * member since the story began, and anyone alive). Before any follow, the
+   * line is the first one tapped and her own mothers.
+   * @returns {{first:TreeAnimal, line:TreeAnimal[], joined:boolean}} joined: the first one is in the line
+   */
+  familyTree() {
+    const last = this.choices[this.choices.length - 1], baby = last ? last.anchor : this.firstId;
+    const known = (id) => this.segment.get(id) ?? (this.bridge.get(id) ? this.bridge.animal(id) : null);
+    const line = [];
+    for (let id = baby; typeof id === "number" && line.length < TREE_DEPTH; id = this.bridge.families.mother.get(id)) {
+      const a = known(id);
+      if (!a) break;
+      line.unshift(a);
+    }
+    const labels = last ? ["This baby", "Mother", "Grandmother", "Great-grandmother"] : ["First mother", "Mother", "Grandmother", "Great-grandmother"];
+    const tree = line.map((a, i) => ({ ...a, label: labels[line.length - 1 - i] }));
+    const joined = tree.some((a) => a.id === this.firstId);
+    for (const a of tree) if (a.id === this.firstId && last) a.label = `${a.label}, first mother`;
+    return { first: { ...(known(this.firstId) ?? tree[0]), label: "First mother" }, line: tree, joined };
+  }
+
   /** The glows started since the last call, oldest first. */
   takeStarted() {
     const started = this.started;
@@ -669,7 +699,7 @@ export class Story {
     this.fair = { v: x.v, zone, anchor: x.id, generation, mineThen: test.mine.length, theirsThen: test.theirs.length,
       fromFamily: test.fromFamily, fromNearby: test.fromNearby };
     this.choices.push({
-      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, byChance, generation, zone, back,
+      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, byChance, generation, zone, back, anchor: x.id,
       sizeAtChoice: test.mine.length, sizeAtEnd: null, othersAtChoice: test.theirs.length, othersAtEnd: null,
       fromFamily: test.fromFamily, fromNearby: test.fromNearby,
     });
@@ -762,6 +792,11 @@ export class Story {
  * @property {null|number} sizeAtEnd yours when the next follow replaced it or the story ended
  * @property {number} othersAtChoice @property {null|number} othersAtEnd the twins without it, the same way
  * @property {number} fromFamily @property {number} fromNearby
+ * @property {number} anchor the baby (or animal) the follow started from
+ *
+ * @typedef {Object} TreeAnimal an animal on the family tree strip
+ * @property {number} id @property {ArrayLike<number>} genome its real body @property {number} zone
+ * @property {string} label "Great-grandmother", "Mother", "This baby", "First mother"
  *
  * @typedef {Object} Chip a trait on "Your family so far" (scope decision 59)
  * @property {import("./cohorts.js").Variation} v

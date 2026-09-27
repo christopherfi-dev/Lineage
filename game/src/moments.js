@@ -29,7 +29,7 @@ export const MOMENTS = [
   "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
-  "reason", "why", "why-answer", "why-drop",
+  "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
 ];
 
 /**
@@ -283,6 +283,8 @@ const MOMENT = {
    * sudden drops have no such trait, so the moments page opens this one in seed 1 (its first family, generation 3).
    */
   "why-drop": { families: FROM_OTHERS, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why is/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  /** "Your animals, on average", opened from the living portrait, with the family tree strip (scope decision 61). */
+  average: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length >= 2 && s.familyTree().line.length >= 4 },
   /** A member of your family with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
@@ -478,11 +480,17 @@ export async function goToMoment(game, moment) {
   const doc = game.doc;
   if (!MOMENTS.includes(moment)) { console.warn(`[lineage] unknown moment "${moment}"; try one of ${MOMENTS.join(", ")}`); return; }
   if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself, with its mist
-  if (moment === "naming") { // right after the first tap on the first founding family: time waits for a name
+  if (moment === "naming" || moment === "type-name" || moment === "my-name") { // right after the first tap on the first founding family: time waits for a name
     const G = game;
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
     G.begin(G.herd.animals.get(G.bridge.families.founding[0].ids[0]));
-    globalThis.lineageMoment = { moment, seed: G.seed, family: 0, generation: G.bridge.generation, names: G.naming?.names ?? [] };
+    // Typing a name (scope decision 61): the child's own name, "Mia", makes "the Miapaddle family".
+    if (moment === "type-name") { G.startTyping("own"); G.namingInputEl.value = "Zoe"; }
+    if (moment === "my-name") {
+      G.startTyping("mine"); G.namingInputEl.value = "Mia"; G.submitTyping();
+      if (G.naming) G.naming.goAt = Infinity; // the picked name stays up to be seen
+    }
+    globalThis.lineageMoment = { moment, seed: G.seed, family: 0, generation: G.bridge.generation, names: G.naming?.names ?? [], name: G.story.name };
     return;
   }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
@@ -560,6 +568,9 @@ export async function goToMoment(game, moment) {
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
+  } else if (moment === "average") {
+    lookAtGroup(G);
+    G.openAverage();
   } else if (moment === "why" || moment === "why-answer" || moment === "why-drop") {
     lookAtGroup(G, 0.3);
     if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);

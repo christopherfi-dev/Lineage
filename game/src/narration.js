@@ -183,6 +183,14 @@ export function hurtingLine(words) { return `Hurting here: ${words.length ? word
 export const SAME_TRAIT = "Same trait, different place:";
 export const sameTraitLabel = (trait, zone) => `${capital(hasWords(trait, 2))} ${ZONE_AT[zone]}`;
 
+/** The living portrait's sheet (scope decision 61): "Your Mossfoot animals, on average". */
+export const averageTitle = (name = null) => `${capital(your("animals", name))}, on average`;
+/** Above the family tree strip. */
+export const TREE_TITLE = "Your family tree";
+/** The strip read aloud: "Your family tree: first mother, then great-grandmother, grandmother, mother, this baby." */
+export const treeSpoken = (first, labels) =>
+  `${TREE_TITLE}: ${[first, ...labels].filter(Boolean).map((l) => l.toLowerCase()).join(", then ")}.`;
+
 /** "Your family so far" (scope decision 59): each chosen trait, and why one faded. */
 export const SO_FAR = "Your family so far";
 export const chipWords = (group) => capital(shortGroup(group));

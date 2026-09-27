@@ -31,13 +31,16 @@ import {
   evidenceLine, countLine, SINCE_TITLE, withLabel, WITHOUT, NEARBY_IN_TEST, fairHeading,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
-  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel,
+  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { nothingToTest, explainGuess, variationEffect } from "./why.js";
-import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
+import {
+  familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS, TYPE_OWN, USE_MY_NAME, TYPE_PROMPT, MY_NAME_PROMPT,
+  TRY_ANOTHER_NAME, NAME_MAX, typedName, myNameFamily, standoutWord,
+} from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
   PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
@@ -175,6 +178,15 @@ export class Game {
     this.namingOptionsEl = $("naming-options");
     this.namingBarEl = $("naming-bar");
     this.namingNoteEl = $("naming-note");
+    this.namingMoreEl = $("naming-more");
+    this.namingTypingEl = $("naming-typing");
+    this.namingInputEl = /** @type {HTMLInputElement} */ ($("naming-input"));
+    this.portraitEl = /** @type {HTMLButtonElement} */ ($("portrait"));
+    this.portraitCanvas = /** @type {HTMLCanvasElement} */ (this.portraitEl.querySelector("canvas"));
+    this.averageEl = $("average");
+    this.averageAnimalEl = /** @type {HTMLCanvasElement} */ ($("average-animal"));
+    this.averageTraitsEl = $("average-traits");
+    this.treeEl = $("tree");
     this.endingPredictionsEl = $("ending-predictions");
     this.endingPredictionsListEl = $("ending-predictions-list");
     this.endingEl = $("ending");
@@ -210,6 +222,9 @@ export class Game {
     this.journalQuestion = this.speakable($("journal-question"));
     this.namingQuestion = this.speakable($("naming-question"));
     this.guessQuestion = this.speakable($("guess-question"));
+    this.namingPrompt = this.speakable($("naming-prompt"));
+    this.averageTitle = this.speakable($("average-title"));
+    this.treeTitle = this.speakable($("tree-title"), () => this.treeSaid ?? TREE_TITLE);
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.bloomEl = $("bloom");
@@ -338,6 +353,10 @@ export class Game {
     this.guessEl.classList.remove("open");
     this.guessEl.hidden = true;
     this.whyKey = "";
+    this.averageOpen = false;
+    this.averageEl.classList.remove("open");
+    this.averageEl.hidden = true;
+    this.portraitEl.hidden = true;
     /** @type {null|NamingState} naming the family, right after the first tap */
     this.naming = null;
     this.namingEl.classList.remove("open");
@@ -404,6 +423,7 @@ export class Game {
     const what = s.afterGeneration(ev);
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
     this.syncGroups();
+    this.updatePortrait();
     this.updateHud();
     this.updateCard(); // counts change each generation, and the animal may pass away
     if (what === "ended") this.storyEnded();
@@ -544,10 +564,21 @@ export class Game {
    */
   openNaming() {
     const s = this.story, doc = this.doc;
-    const names = familyNames(s.lastAnimals, s.startWorld, this.seed * 7919 + Math.min(...s.lastAnimals.map((a) => a.id)));
+    // Fresh names every story (scope decision 61), from the browser's own random numbers, never the engine's.
+    const names = familyNames(s.lastAnimals, s.startWorld, Math.floor(Math.random() * 2 ** 31));
     this.namingQuestion.set(NAME_QUESTION);
     this.namingNoteEl.replaceChildren();
     this.namingBarEl.style.width = "100%";
+    this.namingEl.classList.remove("typing");
+    this.namingTypingEl.hidden = true;
+    // Or type a name, or use your own: "Mia" makes "the Miapaddle family".
+    this.namingMoreEl.replaceChildren(...[[TYPE_OWN, "own"], [USE_MY_NAME, "mine"]].map(([text, kind]) => {
+      const el = Object.assign(doc.createElement("div"), { className: "more" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", textContent: text });
+      button.addEventListener("click", () => this.startTyping(kind));
+      el.append(button, speakerButton(doc, () => `${text}.`));
+      return el;
+    }));
     this.nameEls = names.map((name) => {
       const el = Object.assign(doc.createElement("div"), { className: "answer" });
       const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: nameButton(name) });
@@ -559,7 +590,7 @@ export class Game {
     clearTimeout(this.namingHideT);
     this.namingEl.hidden = false;
     requestAnimationFrame(() => this.namingEl.classList.add("open"));
-    this.naming = { names, left: NAMING_SECONDS * 1000, paused: 0, picked: null, goAt: 0 };
+    this.naming = { names, left: NAMING_SECONDS * 1000, paused: 0, picked: null, goAt: 0, typing: null, word: standoutWord(s.lastAnimals, s.startWorld) };
     this.centerOnGroup(0.3);
   }
 
@@ -572,6 +603,14 @@ export class Game {
       el.button.disabled = true;
       el.classList.add(el.name === name ? "picked" : "not-picked");
     }
+    // A typed name shows as a picked plate too.
+    if (!this.nameEls.some((el) => el.name === name)) {
+      const el = Object.assign(this.doc.createElement("div"), { className: "answer picked" });
+      el.append(Object.assign(this.doc.createElement("button"), { type: "button", className: "pick", textContent: nameButton(name), disabled: true }),
+        speakerButton(this.doc, () => `${nameButton(name)}.`));
+      this.namingOptionsEl.prepend(el);
+    }
+    this.namingMoreEl.replaceChildren();
     this.story.name = name;
     this.updateHud();
     this.updateCard();
@@ -579,13 +618,56 @@ export class Game {
     if (byChance) this.namingNoteEl.replaceChildren(NAME_PICKED, speakerButton(this.doc, () => NAME_PICKED));
   }
 
-  /** The countdown; when it runs out, one of the names is picked at random. */
+  /**
+   * Typing a name (scope decision 61): "own", a whole name, or "mine", the
+   * child's own name joined to the family's standout trait word. The sheet
+   * moves to the top, clear of the keyboard, and the countdown waits.
+   * Letters only, up to NAME_MAX; nothing typed leaves the iPad.
+   * @param {"own"|"mine"} kind
+   */
+  startTyping(kind) {
+    const n = this.naming;
+    if (!n || n.picked) return;
+    n.typing = kind;
+    this.namingPrompt.set(kind === "own" ? TYPE_PROMPT : MY_NAME_PROMPT);
+    this.namingNoteEl.replaceChildren();
+    this.namingInputEl.value = "";
+    this.namingTypingEl.hidden = false;
+    this.namingEl.classList.add("typing");
+    this.namingInputEl.focus();
+  }
+
+  /** OK: the typed name, if it can be used; else "Let's try a different name." */
+  submitTyping() {
+    const n = this.naming;
+    if (!n?.typing || n.picked) return;
+    const name = n.typing === "own" ? typedName(this.namingInputEl.value) : myNameFamily(this.namingInputEl.value, n.word);
+    if (!name) {
+      this.namingNoteEl.replaceChildren(TRY_ANOTHER_NAME, speakerButton(this.doc, () => TRY_ANOTHER_NAME));
+      this.namingInputEl.focus();
+      return;
+    }
+    this.namingInputEl.blur();
+    this.stopTyping();
+    this.pickName(name, false, performance.now());
+  }
+
+  /** Back to the three names. */
+  stopTyping() {
+    const n = this.naming;
+    if (n) n.typing = null;
+    this.namingTypingEl.hidden = true;
+    this.namingEl.classList.remove("typing");
+  }
+
+  /** The countdown; when it runs out, one of the names is picked at random. It waits while the child types. */
   tickNaming(now, dt) {
     const n = this.naming;
     if (n.picked) {
       if (now >= n.goAt) this.closeNaming();
       return;
     }
+    if (n.typing) return;
     if (!this.card) {
       if (isSpeaking() && n.paused < MAX_READING_PAUSE_MS) n.paused += dt;
       else n.left = Math.max(0, n.left - dt);
@@ -598,6 +680,7 @@ export class Game {
   closeNaming() {
     if (!this.naming) return;
     this.naming = null;
+    this.updatePortrait();
     this.namingEl.classList.remove("open");
     this.namingHideT = setTimeout(() => { if (!this.naming) this.namingEl.hidden = true; }, 450);
     this.placeCard();
@@ -612,6 +695,84 @@ export class Game {
       for (let i = 0; i < 3; i++) w[i] += h[i] / 5;
     }
     return w;
+  }
+
+  /* ================= your animals, on average (scope decision 61) ================= */
+  /** The family's average body now, and where most of it lives. */
+  averageNow() {
+    const s = this.story, animals = s.lastAnimals.length ? s.lastAnimals : s.startAnimals;
+    return { genome: averageOf(animals.map((a) => a.genome)).map((a) => a.mean), zone: s.place };
+  }
+
+  /** The living portrait in the corner, redrawn each generation while a family is followed. */
+  updatePortrait() {
+    const s = this.story, on = s.phase !== "waiting" && s.phase !== "ended" && s.lastAnimals.length > 0;
+    this.portraitEl.hidden = !on;
+    if (!on) return;
+    const a = this.averageNow();
+    paintCreature(this.portraitCanvas, a.genome, { seed: s.startGeneration + 1, habitat: a.zone });
+  }
+
+  /**
+   * "Your animals, on average": the family's average body now, drawn large,
+   * each meaningful trait against the world at the start (as on the ending),
+   * and the family tree strip. The world waits while it is open.
+   */
+  openAverage() {
+    const s = this.story, doc = this.doc;
+    if (this.portraitEl.hidden || this.naming || this.journal || this.since || this.guess || this.choice) return;
+    const a = this.averageNow();
+    this.averageTitle.set(averageTitle(s.name));
+    this.averageTraitsEl.replaceChildren(...comparedRows(a.genome, s.startWorld, GAP).map((r) => {
+      const row = Object.assign(doc.createElement("div"), { className: r.changed ? "row changed" : "row" });
+      row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
+        Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }), speakerButton(doc, () => `${r.label}: ${r.value}.`));
+      return row;
+    }));
+    this.closeCard(true);
+    this.averageOpen = true;
+    this.averageEl.hidden = false;
+    requestAnimationFrame(() => this.averageEl.classList.add("open"));
+    // Drawn once the sheet has its size.
+    requestAnimationFrame(() => {
+      paintCreature(this.averageAnimalEl, a.genome, { seed: s.startGeneration + 1, habitat: a.zone });
+      this.renderTree(this.treeEl, s.familyTree());
+    });
+  }
+
+  closeAverage() {
+    if (!this.averageOpen) return;
+    this.averageOpen = false;
+    this.averageEl.classList.remove("open");
+    this.averageHideT = setTimeout(() => { if (!this.averageOpen) this.averageEl.hidden = true; }, 450);
+  }
+
+  /**
+   * The family tree strip (story.js familyTree): the first one tapped, then
+   * great-grandmother → grandmother → mother → this baby, each drawn from its
+   * real body, with one speaker for the strip.
+   * @param {HTMLElement} el @param {ReturnType<import("./story.js").Story["familyTree"]>} tree
+   */
+  renderTree(el, tree) {
+    const doc = this.doc, items = [];
+    const who = (a, cls) => {
+      const w = Object.assign(doc.createElement("div"), { className: `who ${cls}` });
+      const cv = doc.createElement("canvas");
+      w.append(cv, Object.assign(doc.createElement("span"), { textContent: a.label }));
+      return { w, cv, a };
+    };
+    const step = (text) => Object.assign(doc.createElement("span"), { className: "step", textContent: text });
+    if (!tree.joined) items.push(who(tree.first, "first"));
+    tree.line.forEach((a, i) => items.push(who(a, `${i === tree.line.length - 1 ? "baby" : ""} ${a.id === tree.first.id ? "first" : ""}`)));
+    const nodes = [];
+    items.forEach((x, i) => {
+      if (i) nodes.push(step(!tree.joined && i === 1 ? "…" : "→"));
+      nodes.push(x.w);
+    });
+    el.replaceChildren(...nodes);
+    this.treeSaid = treeSpoken(tree.joined ? null : tree.first.label, tree.line.map((a) => a.label));
+    this.treeTitle.set(TREE_TITLE);
+    for (const x of items) paintCreature(x.cv, x.a.genome, { seed: x.a.id, habitat: x.a.zone });
   }
 
   /** The mute button shows what a tap will do, and remembers the choice on this device. */
@@ -1847,7 +2008,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running && !this.journal && !this.since && !this.naming && !this.guess) { // a panel on screen holds the world
+    if (s.running && !this.journal && !this.since && !this.naming && !this.guess && !this.averageOpen) { // a panel on screen holds the world
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000, step = Math.min(250, raw);
       this.clock += step;
       if (s.phase === "watch" && this.clock >= 0) this.dayGoesOn(step / 1000, now); // (a moment being reached holds the clock below 0)
@@ -1917,7 +2078,7 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess || this.averageOpen) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -2050,7 +2211,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #average, #ending, #bloom, #log.link")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -2090,7 +2251,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #average, #ending")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -2123,7 +2284,17 @@ export class Game {
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
     this.guessNextEl.addEventListener("click", () => this.closeGuess());
-    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
+    // Naming: typing a name; letters only, as the child types.
+    this.namingInputEl.addEventListener("input", () => {
+      const clean = this.namingInputEl.value.replace(/[^\p{L}]/gu, "").slice(0, NAME_MAX);
+      if (clean !== this.namingInputEl.value) this.namingInputEl.value = clean;
+    });
+    this.namingInputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); this.submitTyping(); } });
+    this.doc.getElementById("naming-ok").addEventListener("click", () => this.submitTyping());
+    this.doc.getElementById("naming-back").addEventListener("click", () => this.stopTyping());
+    this.portraitEl.addEventListener("click", () => this.openAverage());
+    this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();

@@ -487,6 +487,18 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - *The same-trait clue: 90 of 90 endings.*
      - *Stories: median 19.2 minutes (10th 15.9, 90th 21.6), 4 follows (90th 7); 33% of glowing babies can be followed.*
 
+61. **Part 4: Connection** (2026-09-27, `docs/LINEAGE_NEXT_ROUND.md`). Changes the naming of Step 5.
+   - **The family tree strip:** the animal the child tapped first ("First mother"), then the real mother line of the latest followed baby: great-grandmother → grandmother → mother → this baby, each drawn from its real body (up to 4). Followed babies are not each other's mothers, so the strip doesn't chain them: it shows the latest baby's own mothers, as far back as the story knows a body (every family member since the story began, and anyone alive). When the first mother is in that line she is marked there; otherwise she comes first, then "…". Before any follow, the strip is the first mother and her own mothers. One speaker reads the strip.
+   - **The living portrait:** the family's average body, in the corner under the zoom buttons, drawn in the family's place and redrawn every generation. A tap opens "Your animals, on average" (with the family's name, "Your Mossfoot animals, on average"): the body drawn large, each trait against the world at the start (as on the ending), and the family tree strip. The world waits while it is open; × closes it.
+   - **Names** (`docs/LINEAGE_FAMILY_NAMES.md`):
+     - bigger lists: 12 habitat words for each place and up to 4 words for each trait, 1,338 names (before: 323). "shag" was left out for its British meaning; "Rockhopper" (a penguin) and "Sunspot" are never made;
+     - fresh names every story, from the browser's own random numbers (before, the same family in the same world always got the same three);
+     - "Type your own" ("Type a name for your family.") and "Use my name" ("Type your first name.": "Mia" and the family's standout trait word make "the Miapaddle family"). Letters only, in any alphabet, 1 to 12, capitalised. The sheet moves to the top, clear of the keyboard, and the countdown waits while the child types;
+     - a small filter: a few rude or unkind words, whole or inside a name (a few only as the whole name, because they hide inside real names such as "Cassie"), get "Let's try a different name.";
+     - nothing typed leaves the iPad: no network call, and the name is kept only for the story.
+   - **Moments:** `type-name`, `my-name` and `average`.
+   - *Measured (seed 13, iPad landscape 1180×820 at 2×, headless Chromium): redrawing the portrait takes 2.4 ms a generation (12.8 ms with a 4× slower CPU); opening "Your animals, on average" takes 121 ms over two frames (640 ms), 31 ms of it for the tree strip's five drawings (74 ms).*
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.

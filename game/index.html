@@ -66,6 +66,21 @@
     <button type="button" data-zone="2">Water</button>
   </div>
 
+  <!-- A living portrait of your animals' average body, redrawn each generation; a tap opens it (scope decision 61). -->
+  <button id="portrait" type="button" aria-label="Your animals, on average" hidden><canvas></canvas></button>
+
+  <!-- "Your animals, on average": the average body, how it changed, and the family tree strip (scope decision 61). -->
+  <div id="average" hidden>
+    <div class="grab"></div>
+    <div class="head"><h2 id="average-title"></h2><button id="average-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cols">
+      <canvas id="average-animal"></canvas>
+      <div id="average-traits"></div>
+    </div>
+    <h3 id="tree-title"></h3>
+    <div id="tree" class="tree"></div>
+  </div>
+
   <!-- A glowing baby off the screen: an arrow at the edge points to it, and a tap flies there (playtest). -->
   <div id="arrows"></div>
 
@@ -123,6 +138,16 @@
     <div class="grab"></div>
     <h2 id="naming-question"></h2>
     <div id="naming-options"></div>
+    <!-- Or the child types a name, or uses their own (scope decision 61). Nothing typed leaves the iPad. -->
+    <div id="naming-more"></div>
+    <div id="naming-typing" hidden>
+      <p id="naming-prompt"></p>
+      <div class="typing-row">
+        <input id="naming-input" type="text" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Name">
+        <button id="naming-ok" type="button">OK</button>
+      </div>
+      <button id="naming-back" type="button">Back</button>
+    </div>
     <div class="timer"><i id="naming-bar"></i></div>
     <div id="naming-note"></div>
   </div>
