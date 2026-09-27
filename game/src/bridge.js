@@ -8,17 +8,16 @@
  * death events, mating events, body-mutation events) and hands them to the
  * canvas as plain events.
  *
- * The child follows a family (families.js), then a line (scope decision 66):
- * each follow starts a fair test inside the line, the animals with the
- * chosen variation and their twins without it (cohorts.js), and narrows the
- * line to its carriers there and their future babies. The rest of the old
- * line are the child's relatives. The twins are counted
- * by who made it: they only ever lose their dead (scope decision 65). The
- * family, and the side with the variation with its babies (for the
- * predictions), grow by babies whose mother is in them and shrink by deaths.
- * A pair's two babies have one mother each: the first joins parent A's
- * family, the second parent B's (scope decision 58). Following is observer
- * state only and cannot change the biology.
+ * The child follows a family (families.js), then a line (scope decisions 66
+ * and 67): each follow narrows the line to its animals with the chosen
+ * variation in its place, and from then on a baby joins the line when a
+ * parent is in it and it inherited the variation. The rest of the old line in
+ * its place, and the line's babies that didn't inherit it, are the child's
+ * relatives, each marked with the follow that made them relatives, so a
+ * follow that didn't make it can give the previous line back. The family
+ * grows by babies whose mother is in it (a pair's two babies have one mother
+ * each: the first joins parent A's family, the second parent B's, scope
+ * decision 58). Following is observer state only and cannot change the biology.
  */
 
 import {
@@ -27,13 +26,14 @@ import {
   createWebbedDemoWorld,
   classroomConfig,
   isExtinct,
+  whoDoesNotMakeIt,
   TRAITS,
   currentZoneBinIndex,
   zoneBinCounts,
   assertFixtureConsistency,
 } from "./engine.js";
 import { Families } from "./families.js";
-import { APART } from "./variations.js";
+import { APART, carries } from "./variations.js";
 
 export class Bridge {
   /**
@@ -47,10 +47,16 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, then line (scope decision 66) */
+    /**
+     * @type {null|{roots?:Array<number|string>, members:Set<number>, v?:null|import("./cohorts.js").Variation}} the child's
+     * family, then line (scope decisions 66 and 67); v: the variation a baby of the line must inherit to join it (none for a family)
+     */
     this.follow = null;
-    /** @type {Set<number>} the child's relatives: the rest of each line the child narrowed from, in its place, and their babies */
-    this.relatives = new Set();
+    /**
+     * @type {Map<number, number>} the child's relatives: the rest of each line the child narrowed from, in its place, the
+     * line's babies that didn't inherit its variation, and their babies; each with the follow that made it a relative
+     */
+    this.relatives = new Map();
     /**
      * @type {null|{mine:Set<number>, theirs:Set<number>, line:Set<number>}} the latest fair test: its twins with the
      * variation and without it, still alive (who made it), and the side with it with its babies since
@@ -58,6 +64,8 @@ export class Bridge {
     this.test = null;
     /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
     this.newAtBirth = new Map();
+    /** "inherit": a baby joins the line only if it inherited the line's variation (scope decision 67); "all": any baby of the line, for comparison */
+    this.lineBabies = "inherit";
   }
 
   /**
@@ -108,39 +116,74 @@ export class Bridge {
   followLinesOf(roots) {
     const living = this.livingIds(), members = new Set();
     for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
-    this.follow = { roots: [...roots], members };
-    this.relatives = new Set();
+    this.follow = { roots: [...roots], members, v: null };
+    this.relatives = new Map();
     this.test = null;
     return this.follow;
   }
 
   /**
-   * A follow narrows the child's line (scope decision 66): these animals, and
-   * every baby born to them from now on (a baby joins through its line parent,
-   * the each-parent rule), are the line. The rest of the old line in the same
-   * place become relatives, who keep their own babies; the old line's animals
-   * in other places are no one's now (scope decision 67).
+   * A follow narrows the child's line (scope decisions 66 and 67): these
+   * animals, the line's animals with the variation in its place, are the line,
+   * and from now on a baby joins it when a parent is in it and it inherited the
+   * variation. The rest of the old line in the same place become relatives,
+   * marked with this follow; the old line's animals in other places are no
+   * one's now.
    * @param {number[]} ids the carriers followed, in the line's place
    * @param {number} zone the line's place
+   * @param {null|import("./cohorts.js").Variation} [v] the variation followed; null keeps decision 66's rule, where
+   *   every baby of the line joins it through its mother
+   * @param {number} [mark] this follow's number (1 for the first)
    */
-  narrowTo(ids, zone) {
+  narrowTo(ids, zone, v = null, mark = 0) {
     const keep = new Set(ids);
-    for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.add(id);
+    for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.set(id, mark);
     for (const id of keep) this.relatives.delete(id);
-    this.follow = { roots: [...keep], members: keep };
+    this.follow = { roots: [...keep], members: keep, v, mark };
     return this.follow;
+  }
+
+  /**
+   * A follow didn't make it ("Back to your line", scope decision 67): the
+   * relatives it made, the rest of the previous line and its babies since,
+   * are the line again, with the previous line's variation (none for a family).
+   * @param {number} mark the follow that didn't make it
+   * @param {null|import("./cohorts.js").Variation} v the previous line's variation
+   * @returns {Set<number>} the line now (empty when none of them is alive)
+   */
+  restore(mark, v) {
+    const members = new Set();
+    for (const [id, m] of this.relatives) if (m === mark) members.add(id);
+    for (const id of members) this.relatives.delete(id);
+    this.follow = { roots: [...members], members, v, mark: mark - 1 };
+    return members;
   }
 
   /** A new story in this world: no line, relatives or fair test until the child taps a family. */
   unfollow() {
     this.follow = null;
-    this.relatives = new Set();
+    this.relatives = new Map();
     this.test = null;
+  }
+
+  /**
+   * Who won't make it next generation. Classroom survival draws nothing (scope
+   * decision 55), so this is exactly who the next step will take; reading it
+   * changes nothing.
+   * @returns {Set<number>}
+   */
+  dyingNext() {
+    const snapshot = this.state.currentIndividuals.slice().sort((a, b) => a.id - b.id);
+    return new Set(whoDoesNotMakeIt(snapshot, classroomConfig).keys());
   }
 
   /** One of the child's relatives: the rest of a line the child narrowed from, or a baby of one. */
   isRelative(id) { return this.relatives.has(id); }
-  relativeIds() { return [...this.relatives]; }
+  relativeIds() { return [...this.relatives.keys()]; }
+  /** The child's relatives living in this place. */
+  relativesIn(zone) { let n = 0; for (const id of this.relatives.keys()) if (this.zoneOf(id) === zone) n++; return n; }
+  /** The line's animals living in this place. */
+  followedIn(zone) { let n = 0; if (this.follow) for (const id of this.follow.members) if (this.zoneOf(id) === zone) n++; return n; }
 
   /**
    * A fair test inside the family: two groups of twins tracked beside it,
@@ -241,11 +284,23 @@ export class Bridge {
       };
       test = { mine: change(this.test.mine, false), theirs: change(this.test.theirs, false), line: change(this.test.line, true) };
     }
-    // Relatives keep their babies (by mother) and lose their dead, like the line.
-    if (this.relatives.size) {
-      for (const b of births) if (this.relatives.has(b.motherId)) this.relatives.add(b.childId);
-      for (const d of deaths) this.relatives.delete(d.id);
+    // Relatives (scope decision 67): a baby of the line that didn't inherit its variation, marked with the latest
+    // follow, and a baby of a relative, marked like the parent nearest the line. They lose their dead.
+    const f = this.follow;
+    if (!f?.v) {
+      // Decision 66's rule: a relative's baby joins the relatives through its mother.
+      for (const b of births) if (this.relatives.has(b.motherId)) this.relatives.set(b.childId, this.relatives.get(b.motherId));
+    } else {
+      for (const b of births) {
+        const kid = this.byId.get(b.childId);
+        const fromLine = f.members.has(b.parentAId) || f.members.has(b.parentBId);
+        if (fromLine && kid && (this.lineBabies === "all" || carries(kid.bodyGenome, f.v))) continue; // it joins the line (updateGroup)
+        const marks = [this.relatives.get(b.parentAId), this.relatives.get(b.parentBId)].filter((m) => m !== undefined);
+        if (fromLine) marks.push(f.mark);
+        if (marks.length) this.relatives.set(b.childId, Math.max(...marks));
+      }
     }
+    for (const d of deaths) this.relatives.delete(d.id);
     return {
       generation: g,
       births,
@@ -261,9 +316,13 @@ export class Bridge {
     const f = this.follow;
     if (!f) return null;
     const before = f.members.size;
-    // A family or a cohort grows through its mothers: a mother is always a
-    // survivor of this generation, so she is still a member here.
-    const born = births.filter((b) => f.members.has(b.motherId)).map((b) => b.childId);
+    // A family grows through its mothers (a mother is always a survivor of this generation, so she is still a
+    // member here); a line through a parent in it, by a baby that inherited its variation (scope decision 67).
+    const born = births.filter((b) => {
+      if (!f.v) return f.members.has(b.motherId);
+      const kid = this.byId.get(b.childId);
+      return (f.members.has(b.parentAId) || f.members.has(b.parentBId)) && !!kid && (this.lineBabies === "all" || carries(kid.bodyGenome, f.v));
+    }).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
     for (const id of born) f.members.add(id);
     for (const id of gone) f.members.delete(id);

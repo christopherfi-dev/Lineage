@@ -207,3 +207,68 @@ test("a fair test's twins are counted by who made it, and any trait in the famil
   assert.deepEqual(g.options.map((o) => o.right), [false, false, true]);
   assert.equal(explainGuess(g, g.options[2]), "Yes! Ear tip shape doesn't help or hurt anywhere.");
 });
+
+test("decision 67's rules: a follow narrows to the line's carriers, its babies join only if they inherit it, and the fast-forward runs while the count rises", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story, RISE_TO, RISE_MAX, PEAK_MIN } = await import("../src/story.js");
+  const { carries } = await import("../src/variations.js");
+  let follows = 0, rises = 0, backs = 0;
+  for (const seed of [1, 2]) for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(seed), story = new Story(bridge, { rules: "rise" });
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (story.phase !== "ended" && bridge.generation < 40) {
+      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
+      const line = new Set(bridge.followedIds()), v = bridge.follow.v, made = story.choices.length;
+      const ev = bridge.step();
+      if (v) for (const b of ev.births) {
+        const kid = bridge.get(b.childId);
+        if (!kid) continue;
+        const fromLine = line.has(b.parentAId) || line.has(b.parentBId);
+        assert.equal(bridge.isFollowed(b.childId), fromLine && carries(kid.bodyGenome, v), "a baby joins the line only if it inherited the trait");
+      }
+      const what = story.afterGeneration(ev);
+      if (what === "rise-done") {
+        // Every step of the fast-forward rose; it stopped at RISE_TO, when the count stopped rising or fell, or at RISE_MAX.
+        const c = story.lastRise.counts, n = c.length - 1;
+        rises++;
+        for (let k = 1; k < n; k++) assert.ok(c[k] > c[k - 1], JSON.stringify(c));
+        assert.ok(c[n] >= RISE_TO || c[n] <= c[n - 1] || n >= RISE_MAX, JSON.stringify(c));
+      }
+      if (what === "back") {
+        // "They didn't make it. Back to your line.": a line that peaked under PEAK_MIN, not counted as a follow.
+        backs++;
+        assert.ok(story.backFrom.peak < PEAK_MIN);
+        assert.equal(story.choices.length, made - 1);
+        assert.ok(story.tries.includes(story.backFrom));
+        assert.ok(bridge.followedIds().length > 0);
+        assert.equal(story.phase, "watch");
+      }
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        const g = story.glowing.find((x) => story.followable(x));
+        if (!g || story.inDanger || story.quiet < 40) continue;
+        const was = new Set(bridge.followedIds()), zone = story.testZone();
+        story.follow(g, false);
+        follows++;
+        assert.equal(story.phase, "rise");
+        assert.equal(bridge.test, null, "no twins");
+        assert.ok(bridge.isFollowed(g.id));
+        for (const id of bridge.followedIds()) {
+          assert.ok(was.has(id));
+          assert.equal(bridge.zoneOf(id), zone);
+          assert.ok(carries(bridge.animal(id).genome, g.v));
+        }
+      }
+    }
+  }
+  assert.ok(follows > 3 && rises > 3 && backs > 0, `${follows} follows, ${rises} fast-forwards, ${backs} back to the line`);
+});
+
+test("next generation's deaths are known before it runs: Classroom survival draws nothing", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const bridge = Bridge.fromAncestor(3);
+  for (let g = 0; g < 12; g++) {
+    const next = bridge.dyingNext(), ev = bridge.step();
+    assert.deepEqual(new Set(ev.deaths.map((d) => d.id)), next);
+  }
+});

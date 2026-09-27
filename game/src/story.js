@@ -97,6 +97,20 @@ export const nearlyOver = (generation, length) => length - generation < NEARLY_O
 export const PUSH_SECONDS = 120;
 /** A variation too rare to start a fair test is fast-forwarded at most this many generations to see if it is passed on. */
 export const SPREAD_MAX = 10;
+/**
+ * After a follow the world fast-forwards while the followed trait's count in
+ * the line is still rising (scope decision 67): it stops once the count
+ * reaches RISE_TO, as soon as it stops rising or falls, or after RISE_MAX
+ * generations, and the child watches in real time.
+ */
+export const RISE_TO = 20;
+export const RISE_MAX = 15;
+/**
+ * A followed line that peaked under this many and then died out didn't make
+ * it: "Back to your line", and it doesn't count as a follow. One that reached
+ * it and then died out ends the story (scope decision 67).
+ */
+export const PEAK_MIN = 5;
 /** The child's family this small or smaller stops a fast-forward, and keeps any follow from starting (scope decision 44). */
 export const DANGER_SIZE = 5;
 /** A glowing baby is never replaced by a newer one before it has glowed this long (seconds of watching). */
@@ -158,7 +172,7 @@ export class Story {
    */
   constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, minSize = MIN_SIZE, harmfulMin = HARMFUL_MIN_SIZE,
     maxSize = MAX_SIZE, spreadMax = SPREAD_MAX, generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS,
-    onePerVariation = true, twinFit = TWIN_FIT, spreadTo = "max" } = {}) {
+    onePerVariation = true, twinFit = TWIN_FIT, spreadTo = "max", peakMin = PEAK_MIN, lookahead = false, rules = "fair" } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the generation of the world the story ends at, if the family lasts */
@@ -168,13 +182,31 @@ export class Story {
     this.twinFit = twinFit;
     /** "max": a fast-forward stops when a full test (MAX_SIZE) can start; "min": as soon as any test can (minFor) */
     this.spreadTo = spreadTo;
+    /** a followed line that peaked under this and died out goes back to the line before it (PEAK_MIN) */
+    this.peakMin = peakMin;
+    /** the fast-forward also stops before a generation in which any of the line won't make it, so no one dies unseen */
+    this.lookahead = lookahead;
+    /**
+     * "fair": decision 66's follows, a fair test of twins with its 10- and 5-pair gates (what the page shows until
+     * decision 67's screens are built); "rise": decision 67's, no twins and no gate, a fast-forward while the trait's
+     * count in the line rises, and "Back to your line" (measured first; the screens wait on the architect)
+     */
+    this.rules = rules;
     this.maxSize = maxSize;
     this.spreadMax = spreadMax;
     this.generationSeconds = generationSeconds;
     this.glowGenerations = glowGenerations;
     this.onePerVariation = onePerVariation;
-    /** @type {"waiting"|"watch"|"skip"|"spread"|"choice"|"ended"} */
+    /** @type {"waiting"|"watch"|"rise"|"skip"|"spread"|"choice"|"ended"} */
     this.phase = "waiting";
+    /** @type {null|Rise} the fast-forward after a follow, while the followed trait's count in the line rises (scope decision 67) */
+    this.rising = null;
+    /** @type {null|Rise} the latest such fast-forward, once it has stopped */
+    this.lastRise = null;
+    /** @type {Choice[]} follows that didn't make it ("Back to your line"): not counted as follows (scope decision 67) */
+    this.tries = [];
+    /** @type {null|Choice} the follow that just didn't make it, for the page to say so */
+    this.backFrom = null;
     /** @type {null|Offer[]} the backup choice panel's options, while it is open */
     this.options = null;
     /** @type {Choice[]} every follow, in order */
@@ -206,6 +238,8 @@ export class Story {
     this.lineStart = 0;
     /** @type {null|number} how many relatives the child had when the story ended */
     this.relativesAtEnd = null;
+    /** @type {null|number} and how many of them lived in the line's place */
+    this.relativesHereAtEnd = null;
     /** @type {Array<{id:number, genome:ArrayLike<number>, zone:number}>} the family's animals at the start, for the ending */
     this.startAnimals = [];
     /** @type {Array<{id:number, genome:ArrayLike<number>, zone:number}>} the family's animals last alive */
@@ -261,9 +295,9 @@ export class Story {
     this.before = new Map();
   }
 
-  get running() { return this.phase === "watch" || this.phase === "skip" || this.phase === "spread"; }
-  /** The world fast-forwards: after a follow, and while a variation is seen being passed on. */
-  get fast() { return this.phase === "skip" || this.phase === "spread"; }
+  get running() { return this.phase === "watch" || this.phase === "rise" || this.phase === "skip" || this.phase === "spread"; }
+  /** The world fast-forwards: after a follow, while the followed trait's count in the line rises (scope decision 67). */
+  get fast() { return this.phase === "rise" || this.phase === "skip" || this.phase === "spread"; }
   get lasted() { return (this.endGeneration ?? this.bridge.generation) - this.startGeneration; }
   /** "family" until the first follow, then "line": each follow narrows the child's animals to a line (scope decision 66). */
   get noun() { return this.choices.length ? "line" : "family"; }
@@ -293,7 +327,7 @@ export class Story {
     if (this.bridge.zoneOf(x.id) !== this.testZone()) return "away";
     const w = this.went.get(x.v.t);
     if (w && w.dir !== x.v.dir && !w.hurt) return "back";
-    if (this.carriersOf(x.v) >= this.maxSize && !this.canStartFor(x)) return "common";
+    if (this.rules === "fair" && this.carriersOf(x.v) >= this.maxSize && !this.canStartFor(x)) return "common";
     return null;
   }
 
@@ -314,6 +348,8 @@ export class Story {
   get withLine() { return { now: this.bridge.withLineIds().length, then: this.fair ? this.fair.mineThen : 0 }; }
   /** The child's relatives (the rest of each line narrowed from, and their babies), now against at the latest follow. */
   get relatives() { return { now: this.relativesAtEnd ?? this.bridge.relatives.size, then: this.mark?.relatives ?? 0 }; }
+  /** "Your relatives here": the relatives in the line's place, now against at the latest follow (scope decision 67). */
+  get relativesHere() { return { now: this.relativesHereAtEnd ?? this.bridge.relativesIn(this.place), then: this.mark?.relativesHere ?? 0 }; }
   /** The whole family, now against when the story began; once a follow narrowed it, the line, against when it did. */
   get family() { return { now: this.bridge.followedIds().length, then: this.choices.length ? this.lineStart : this.sizeAtStart }; }
 
@@ -338,7 +374,7 @@ export class Story {
   /** Who is alive now, and how big the family is: the "then" of every group's count until the next follow. */
   markNow() {
     this.mark = { generation: this.bridge.generation, living: this.bridge.livingIds(), family: this.bridge.followedIds().length,
-      relatives: this.bridge.relatives.size };
+      relatives: this.bridge.relatives.size, relativesHere: this.bridge.relativesIn(this.place) };
   }
 
   remember() {
@@ -373,7 +409,12 @@ export class Story {
     const seconds = this.fast ? FAST_SECONDS : this.generationSeconds;
     this.idle += seconds;
     if (!this.fast) this.quiet += seconds;
-    if (g.count === 0) return this.end("died", ev.generation);
+    this.backFrom = null;
+    const last = this.choices[this.choices.length - 1];
+    if (last) { last.peak = Math.max(last.peak, g.count); last.counts.push(g.count); }
+    // The line died out (scope decision 67): a follow that peaked under PEAK_MIN didn't make it, and the child goes
+    // back to the line before it; one that reached it ends the story.
+    if (g.count === 0) return this.rules === "rise" && last && last.peak < this.peakMin ? this.backToLine(ev.generation) : this.end("died", ev.generation);
     const mainBefore = this.place;
     this.before = new Map(this.lastAnimals.map((a) => [a.id, a])); // the family a generation ago, for why some died
     this.remember();
@@ -382,6 +423,7 @@ export class Story {
     this.updateChips();
     if (ev.generation >= this.length) return this.end("survived", ev.generation);
     this.updateGlow(ev);
+    if (this.phase === "rise") return this.riseGeneration(g.count);
     if (this.phase === "spread") return this.spreadGeneration();
     if (this.phase === "skip") {
       if (++this.skipped < SKIP_GENERATIONS) return null;
@@ -427,11 +469,24 @@ export class Story {
    * may now be followed, with its reason (scope decision 59).
    */
   checkTest() {
-    const f = this.fair;
-    if (!f || !this.bridge.test) return;
-    const w = this.went.get(f.v.t);
-    if (w && w.dir === f.v.dir && !w.hurt && this.mine.now < this.theirs.now && better(this.mine, this.theirs) < 0) w.hurt = true;
+    if (this.rules === "fair") {
+      const f = this.fair;
+      if (!f || !this.bridge.test) return;
+      const w = this.went.get(f.v.t);
+      if (w && w.dir === f.v.dir && !w.hurt && this.mine.now < this.theirs.now && better(this.mine, this.theirs) < 0) w.hurt = true;
+      return;
+    }
+    // The line clearly dying off after its follow shows that direction hurting (scope decision 67).
+    const c = this.choices[this.choices.length - 1];
+    if (!c) return;
+    const w = this.went.get(c.v.t);
+    if (w && w.dir === c.v.dir && !w.hurt && this.dyingOff(c)) w.hurt = true;
   }
+
+  /** The line clearly smaller than at its peak since the follow: 3 or more fewer, and under 0.7 of it (scope decision 67). */
+  dyingOff(c, now = this.family.now) { return now <= c.peak - 3 && now <= 0.7 * c.peak; }
+  /** The line clearly bigger than when it was followed: 3 or more more, and half as many again. */
+  growing(c, now = this.family.now) { return now - c.sizeAtChoice >= 3 && now >= 1.5 * c.sizeAtChoice; }
 
   /**
    * "Your family so far": a chosen trait has faded when fewer than FADED_BELOW
@@ -685,11 +740,19 @@ export class Story {
    */
   minFor(x) { return variationEffect(x.v.t, x.v.dir, this.testZone()) < 0 ? this.harmfulMin : this.minSize; }
 
-  /** A fair test can start now: enough pairs (minFor), the family's first and then from nearby. */
-  canStartFor(x) { return this.testFor(x).mine.length >= this.minFor(x); }
+  /**
+   * A follow can start now: under decision 67's rules any variation that can be followed, with no gate; under the
+   * fair test's, enough pairs (minFor), strictly inside the line.
+   */
+  canStartFor(x) { return this.rules === "rise" ? this.followable(x) : this.testFor(x).mine.length >= this.minFor(x); }
 
-  /** How big a fair test on this variation would be now: its pairs, at most MAX_SIZE. */
-  sizeFor(x) { return this.testFor(x).mine.length; }
+  /** How big a follow would be now: the line's animals in its place with the variation (decision 67), or the fair test's pairs. */
+  sizeFor(x) { return this.rules === "rise" ? this.carrierIds(x.v).length : this.testFor(x).mine.length; }
+
+  /** The line's animals in its place with the variation. */
+  carrierIds(v) {
+    return this.bridge.followedAnimals().filter((a) => a.zone === this.testZone() && carries(a.genome, v)).map((a) => a.id);
+  }
 
   /** How many of the family's animals in its place have the variation. */
   carriersOf(v) {
@@ -768,36 +831,76 @@ export class Story {
     return out;
   }
 
-  /** The animal a test starts from: this one if it is among the test's animals, else the first of them. */
+  /** The animal a follow starts from: this one if it is among the follow's animals, else the first of them. */
   anchorFor(x) {
-    const t = this.testFor(x);
-    return t.mine.includes(x.id) || !t.mine.length ? x.id : t.mine[0];
+    const ids = this.rules === "rise" ? this.carrierIds(x.v) : this.testFor(x).mine;
+    return ids.includes(x.id) || !ids.length ? x.id : ids[0];
   }
 
   /**
-   * Follow a variation as a fair test inside the family: its animals with the
-   * variation in the family's place against their twins without it; nearby
-   * animals fill in only when the family has too few. The family stays as it
-   * is. Then the world fast-forwards.
-   * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow, a fast-forward that can start, or an offer
+   * Follow a variation (scope decision 67): the line narrows to its animals
+   * with the variation in its place, and from now on a baby joins it when a
+   * parent is in it and it inherited the variation. The rest of the old line
+   * there are relatives. No twins and no gate: the world then fast-forwards
+   * while the variation's count in the line rises (riseGeneration).
+   * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow or an offer
    * @param {boolean} byChance picked at random on the backup panel because time ran out
    */
   follow(x, byChance) {
-    const zone = this.testZone(), test = this.testFor(x), back = this.goesBack(x);
+    if (this.rules === "fair") return this.followFair(x, byChance);
+    const zone = this.testZone(), back = this.goesBack(x);
+    this.closeChoice();
+    const ids = this.carrierIds(x.v), mark = this.choices.length + 1;
+    this.bridge.test = null;
+    this.bridge.narrowTo(ids, zone, x.v, mark);
+    this.lineStart = ids.length;
+    const generation = this.bridge.generation, relativesHere = this.bridge.relativesIn(zone);
+    this.fair = null;
+    this.choices.push({
+      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, byChance, generation, zone, back, anchor: x.id, mark,
+      sizeAtChoice: ids.length, sizeAtEnd: null, relativesAtChoice: relativesHere, relativesAtEnd: null,
+      peak: ids.length, counts: [ids.length], rise: null, result: null,
+    });
+    // The way the line went on this trait; "Your line so far" gets its chip (a way back replaces the old one).
+    this.went.set(x.v.t, { dir: x.v.dir, hurt: false });
+    this.chips = this.chips.filter((c) => c.v.t !== x.v.t);
+    this.chips.push({ v: x.v, faded: null });
+    this.fresh = [];
+    this.glowing = [];
+    this.started = [];
+    this.options = null;
+    this.rising = { v: x.v, zone, id: x.id, generation, counts: [ids.length], outcome: null };
+    this.phase = "rise";
+    // Some of the new line won't make it next generation: no fast-forward at all, the child watches (lookahead).
+    if (this.lookahead && this.someDieNext()) this.stopRise("deaths");
+    this.idle = 0;
+    this.quiet = 0;
+    this.remember();
+    this.formAtPoint = this.lastForm;
+    this.markNow();
+  }
+
+  /**
+   * Decision 66's follow: a fair test inside the line, its animals with the
+   * variation in its place against their twins without it, and the line
+   * narrows to its carriers there, with their babies by mother. Then the world
+   * fast-forwards SKIP_GENERATIONS. The page's follows until decision 67's
+   * screens are built.
+   */
+  followFair(x, byChance) {
+    const zone = this.testZone(), test = this.testFor(x), back = this.goesBack(x), mark = this.choices.length + 1;
     this.closeChoice();
     this.bridge.startTest(test.mine, test.theirs);
-    // The line narrows (scope decision 66): its carriers of the variation in its place, and their babies from now on.
-    this.bridge.narrowTo(test.carrierIds, zone);
+    this.bridge.narrowTo(test.carrierIds, zone, null, mark);
     this.lineStart = test.carrierIds.length;
     const generation = this.bridge.generation;
     this.fair = { v: x.v, zone, anchor: x.id, generation, mineThen: test.mine.length, theirsThen: test.theirs.length,
       fromFamily: test.fromFamily, fromNearby: test.fromNearby };
     this.choices.push({
-      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, byChance, generation, zone, back, anchor: x.id,
+      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, byChance, generation, zone, back, anchor: x.id, mark,
       sizeAtChoice: test.mine.length, sizeAtEnd: null, othersAtChoice: test.theirs.length, othersAtEnd: null,
-      fromFamily: test.fromFamily, fromNearby: test.fromNearby,
+      fromFamily: test.fromFamily, fromNearby: test.fromNearby, peak: test.carrierIds.length, counts: [test.carrierIds.length],
     });
-    // The way the family went on this trait; "Your family so far" gets its chip (a way back replaces the old one).
     this.went.set(x.v.t, { dir: x.v.dir, hurt: false });
     this.chips = this.chips.filter((c) => c.v.t !== x.v.t);
     this.chips.push({ v: x.v, faded: null });
@@ -814,12 +917,88 @@ export class Story {
     this.markNow();
   }
 
-  /** The latest follow's groups are about to be replaced, or the story ends: note their sizes. */
+  /**
+   * One generation of the fast-forward after a follow (scope decision 67): the
+   * followed variation's count in the line. It stops once the count reaches
+   * RISE_TO ("reached"), as soon as it stops rising ("flat") or falls
+   * ("fell"), or after RISE_MAX generations ("cap"); then the child watches.
+   * @param {number} n the line now
+   * @returns {"rising"|"rise-done"}
+   */
+  riseGeneration(n) {
+    const r = this.rising, before = r.counts[r.counts.length - 1];
+    r.counts.push(n);
+    if (n >= RISE_TO) return this.stopRise("reached");
+    if (n < before) return this.stopRise("fell");
+    if (n === before) return this.stopRise("flat");
+    if (r.counts.length - 1 >= RISE_MAX) return this.stopRise("cap");
+    if (this.lookahead && this.someDieNext()) return this.stopRise("deaths");
+    return "rising";
+  }
+
+  /** Some of the line won't make it next generation (bridge.js dyingNext). */
+  someDieNext() {
+    const next = this.bridge.dyingNext();
+    return this.bridge.followedIds().some((id) => next.has(id));
+  }
+
+  /** @returns {"rise-done"} */
+  stopRise(outcome) {
+    const r = this.rising, c = this.choices[this.choices.length - 1];
+    r.outcome = outcome;
+    this.lastRise = r;
+    this.rising = null;
+    if (c) c.rise = { outcome, counts: r.counts.slice(), generations: r.counts.length - 1, until: this.bridge.generation };
+    this.phase = "watch";
+    this.quiet = 0;
+    return "rise-done";
+  }
+
+  /**
+   * The followed line peaked under PEAK_MIN and died out (scope decision 67):
+   * "They didn't make it. Back to your line." The child is back with the line
+   * before that follow, as it is now (the rest of it in its place, and their
+   * babies since), and the follow doesn't count. If none of them is alive
+   * either, the story ends.
+   * @param {number} generation
+   * @returns {"back"|"ended"}
+   */
+  backToLine(generation) {
+    const c = this.choices.pop();
+    c.sizeAtEnd = 0;
+    this.tries.push(c);
+    const prev = this.choices[this.choices.length - 1] ?? null;
+    const members = this.bridge.restore(c.mark, prev ? prev.v : null);
+    if (this.rising) { this.rising.outcome = "gone"; this.lastRise = this.rising; this.rising = null; }
+    if (!members.size) { this.choices.push(c); this.tries.pop(); return this.end("died", generation); }
+    // Undo what the follow changed: the way the line went on the trait, and its chip.
+    this.went.delete(c.v.t);
+    for (const e of this.choices) this.went.set(e.v.t, { dir: e.v.dir, hurt: false });
+    this.chips = [];
+    for (const e of this.choices) { this.chips = this.chips.filter((x) => x.v.t !== e.v.t); this.chips.push({ v: e.v, faded: null }); }
+    this.lineStart = members.size;
+    this.backFrom = c;
+    this.fresh = [];
+    this.glowing = [];
+    this.phase = "watch";
+    this.idle = 0;
+    this.quiet = 0;
+    this.remember();
+    this.markNow();
+    return "back";
+  }
+
+  /** The latest follow is about to be replaced, or the story ends: note its groups' sizes. */
   closeChoice() {
     const last = this.choices[this.choices.length - 1];
     if (last && last.sizeAtEnd === null) {
-      last.sizeAtEnd = this.mine.now;
-      last.othersAtEnd = this.theirs.now;
+      if (this.rules === "fair") {
+        last.sizeAtEnd = this.mine.now;
+        last.othersAtEnd = this.theirs.now;
+      } else {
+        last.sizeAtEnd = this.family.now;
+        last.relativesAtEnd = this.bridge.relativesIn(last.zone);
+      }
     }
   }
 
@@ -829,6 +1008,8 @@ export class Story {
     this.outcome = outcome;
     this.endGeneration = generation;
     this.relativesAtEnd = this.bridge.relatives.size;
+    this.relativesHereAtEnd = this.bridge.relativesIn(this.place);
+    if (this.rising) { this.rising.outcome = "ended"; this.lastRise = this.rising; this.rising = null; }
     this.glowing = [];
     this.started = [];
     this.options = null;
