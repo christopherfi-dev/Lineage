@@ -38,8 +38,11 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `MIN_SIZE` | 10 | a fair test needs at least this many on each side |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
+| `GLOW_GAP_SECONDS` | 4 | new glows start at least this far apart (seconds of watching) |
+| `GLOW_MIN_SECONDS` | 10 | a glow lasts at least this long before a newer one may take its place |
+| `APPEAR_SPAN` | 0.8 | a watched day's babies appear over this much of the day |
 | `SPREAD_MAX` | 10 | generations a variation too rare to start a fair test is fast-forwarded, at most, to see if it spreads |
-| `DANGER_SIZE` | 5 | your group this small or smaller stops a spread's fast-forward, and keeps one from starting |
+| `DANGER_SIZE` | 5 | your group this small or smaller stops a spread's fast-forward, keeps any follow from starting, and holds back the push |
 | `PUSH_SECONDS` | 120 | story time with no follow before the backup choice panel opens |
 | `CHOICE_SECONDS` | 20 | time to choose on that panel before one option is picked at random |
 | `STORY_CHOICES` | 15 | follows in a story, at most |
@@ -53,7 +56,13 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
 2. **Glowing newborns** (scope decision 32). When a baby in your group is born with a new
    variation, it glows: the trait new in it at birth takes it past the group's usual (the
    group's median for that trait, plus or minus 0.12). At most three glow at once, meaningful
-   traits first, then the newest, one per variation; nothing else flashes. The first glow of a
+   traits first, then the newest, one per variation; nothing else flashes. The engine makes a
+   generation's babies at its tick, but on a watched day they appear on the map one by one over
+   the first 80% of the day, and the glows start one at a time as they appear: at least
+   `GLOW_GAP_SECONDS` apart, each lasting at least `GLOW_MIN_SECONDS` (scope decision 50). The
+   log names each baby as it lights up; the line is underlined, and a tap on it (or on the
+   caption beside the baby) flies there and opens its card. An arrow at the screen's edge points
+   to a glowing baby off the screen (scope decision 49). The first glow of a
    story says "Tap a glowing baby to see what's new." Tapping one opens its card with "Follow
    animals with smaller eyes" and "Keep looking" (scope decision 43). "Keep looking" closes the
    card and leaves the glow on, so a child can look at several babies and come back to one; the
@@ -65,9 +74,12 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    it: "Follow 14 animals with smaller eyes". Both grow only by
    babies of their own mothers and shrink by deaths, so their counts compare fairly: "Yours
    (smaller eyes): 20 → 27", "The others here: 20 → 19", in the corner panel. "Nearest" is
-   between the animals' home spots on the map; newborns get theirs from a generator of their
-   own (`src/herd.js`), so a measurement run and the game pick the same animals. After a
-   follow the world fast-forwards 2 generations.
+   between the animals' spots on the map, which come from a generator of their own
+   (`src/herd.js`), so a measurement run and the game pick the same animals; where an animal is
+   shown living is kept apart from its spot. At a follow, the ones already yours light up, then
+   the others with the trait walk in, each twin beside its partner: "3 from your family and 22
+   others with bigger eyes join you." (scope decision 48). Then the world fast-forwards 2
+   generations.
 4. **Will it spread?** (scope decision 42). If either side has fewer than `MIN_SIZE` in that
    habitat, the card says "Follow animals with smaller eyes", without a number. Following it
    fast-forwards the world (2 s a generation, with the Fast-forward badge), and one line in the
@@ -86,9 +98,9 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    - **Danger** (scope decision 44): if the child's group falls to `DANGER_SIZE` or fewer during
      the spread, it stops at once, "Wait! Your group is getting very small." is said (read-aloud
      as usual), the camera goes to the group, and the world goes back to its usual pace. It is
-     not a follow. While the group is that small, a glowing baby whose trait would need a spread
-     has a card that says "Your group needs you. Stay with them?" with only "Keep looking".
-     ("family" instead of "group" before the first follow.)
+     not a follow. While the group is that small, nothing can be followed (scope decision 48):
+     every glowing baby's card says "Your group needs you. Stay with them?" with only "Keep
+     looking" ("family" instead of "group" before the first follow), and the push waits.
 
    **The push** (scope decisions 34 and 42). After `PUSH_SECONDS` with no follow, the world
    pauses and the choice panel offers up to three variations that can start a fair test right
@@ -99,6 +111,10 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    what happened.
 5. **The camera.** Your group may spread across habitats. Every member stands in a soft glow,
    and "Back to my group" ("Back to my family" before the first follow) goes to the group's largest cluster.
+   **Leaves · Ground · Water** fly to a place, and on arrival the log sums it up: "Water's edge:
+   113 animals, growing. Many have webbed feet." (scope decision 53). After a visit, a flight to
+   a baby or a drag, the camera stays where the child put it until "Back to my group"; a follow
+   still takes it to the new group.
 6. **Endings.** The story ends when no living animal fits the group ("Your story lasted N
    generations.") or at generation 76 ("Your group survived 76 generations."). The
    reflection screen shows:
@@ -140,7 +156,9 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    still while anything is being read aloud.
 9. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
    any animal opens its card; the world keeps running behind it. It shows which group the animal
-   is in, its drawing, where it lives ("Lives at the water's edge."), its ten traits in plain
+   is in, its drawing, where it spends its time ("Lives on the open ground, sometimes at the
+   water."), a gentle line when a trait doesn't fit there ("Lots of webbing, but lives far from
+   water.", scope decision 54), its ten traits in plain
    words ("Lots of webbing between the toes", "Long back legs"), and, when it has one, the trait
    that is new in it: "New at birth: a stronger tail, not from its parents." That trait glows on
    the drawing and in the list. "New" is the engine's body-mutation record at birth, when it
@@ -148,15 +166,19 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    empty ground, or Escape. Outside a choice it sits at the side of the map. While the choice
    panel is up it sits in the room above it, wide, so it never covers an option, and the choice
    timer waits for as long as it is open. If the animal passes away while its card is open, the
-   card stays and says so. A ring marks the animal on the map.
+   card stays and says so. A ring marks the animal on the map. For an animal that isn't yours,
+   the card first sums up its group (the others here, or else its family) beside yours, with
+   "Doing better than yours since your last choice." or worse, and up to three differences:
+   "Longer back legs than yours" (scope decision 51).
 10. **The prediction journal** (Step 6, scope decisions 25 and 28–31, `src/journal.js`). After
     the child's 1st, 4th, 7th, 10th and 13th follow, before the fast-forward, one question comes
     up and the world waits: "Will your new group grow or shrink?" or, in turn, "Which will do
     better: yours or the others here?" (scope decision 35). It has three or
     four tappable answers, each with a speaker. They are made from the story's real state
     through the table in `docs/LINEAGE_PREDICTION_QUESTIONS.md`: one reasonable answer from the
-    engine's own trait effects, and common Grade 3 misconceptions ("Grow. They'll grow webbed
-    feet because they need them."). The child has 15 seconds; the countdown waits for read-aloud
+    engine's own trait effects, and common Grade 3 misconceptions ("Grow. They'll grow even
+    bigger eyes because they need them.", always about the trait just chosen, scope decision
+    52). The child has 15 seconds; the countdown waits for read-aloud
     and for an open card. Without an answer the story just goes on: nothing is picked at random.
     The next "Since your last choice…" panel shows the prediction beside what happened, with
     the same count rows and one short line ("You thought it would shrink. It grew."). The ending
@@ -247,20 +269,24 @@ number is as it was.
 
 ## What is real
 
-- Each engine birth adds a baby beside its mother. Each engine death removes an animal. Each
-  body mutation at birth big enough to see (0.12) can make a newborn in your group glow, under
-  the calm rule (story.js); nothing else flashes.
-- Between generations the animals only wander, inside the habitat their inherited time
-  allocation gives them.
+- Each engine birth adds a baby beside its mother (on a watched day, at its moment of the day).
+  Each engine death removes an animal. Each body mutation at birth big enough to see (0.12) can
+  make a newborn in your group glow, under the calm rule (story.js); nothing else flashes.
+- Each animal lives where its inherited time allocation puts it (`homeBand`, scope decision
+  54): well inside one habitat, toward a border when it splits its time, by the waterline when
+  it is nearly always at the water, and the most water-loving wade into the shallows now and
+  then. Between generations the animals only wander, inside the habitat their time allocation
+  gives them. The open ground is painted as grass and earth, with sand only where the water's
+  edge meets the water.
 - Every count on screen and in the log is read from the engine state.
 
 `lineageGame` in the browser console is the live game. Each generation is also logged there.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, naming, generation, variation, follow, spreading, fizzled, danger, blocked, fairtest, grow, shrink, choice, prediction, prediction-result, ending, extinct and card, and each works with `?seed=` (and `?sound=off`) too. The links are on `moments.html`, which the game does not link to.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42 and 44). The moments are arrival, naming, generation, variation, follow, joining, edge-arrow, spreading, fizzled, danger, blocked, fairtest, other-card, grow, shrink, choice, prediction, prediction-result, habitat, ground, ending, extinct and card, and each works with `?seed=` (and `?sound=off`) too. The links are on `moments.html`, which the game does not link to.
 
-`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
+`src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 
 ## Smoke test
 

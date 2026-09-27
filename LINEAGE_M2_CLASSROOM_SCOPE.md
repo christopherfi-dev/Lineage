@@ -308,6 +308,64 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Tense:** the facts are about the real animal, so they stay in the present tense on died-out endings.
    - **For checking:** "Facts for Marc to check" in the reveal doc lists every animal as a child sees it: its reveal line, its "why" lines in both tenses, and its facts.
 
+48. **No jumping ship, and where a new group comes from** (2026-09-27, Marc's first real play; changes decision 44).
+   - **No follow while the group is very small.** While the child's group has DANGER_SIZE (5) or fewer animals, nothing can be followed, whatever the trait. Babies still glow. Every glowing baby's card says "Your group needs you. Stay with them?" ("family" before the first follow), with only "Keep looking". The backup choice panel waits until the group is bigger.
+   - **The new group gathers.** At every follow, the carriers already in the child's group light up first (1.4 s). Then the others with the trait walk in and settle around them, and each twin from the others here settles beside its partner.
+     - One line counts both, from the real numbers: "3 from your family and 22 others with bigger eyes join you."
+     - With none new: "All 12 with bigger eyes are from your family." With none from the child's group: "20 animals with bigger eyes join you."
+     - The usual lines follow. The fast-forward starts one line later (3.8 s), so the gathering can be seen.
+   - **Visual only.** Fair tests measure "nearest" from each animal's spot, which never moves (decision 54), so every fair test is as it was.
+49. **Tappable notifications** (2026-09-27, Marc's first real play).
+   - **A line that names a baby.** A narration line or caption that names a baby ("One of your babies was born with webbed feet.") has a golden underline while the baby is on the map. A tap flies the camera to the baby and opens its card.
+   - **Arrows at the edge.** A glowing baby off the screen gets a small golden arrow at the screen's edge, pointing to it (one per glowing baby, so at most 3). A tap flies the camera there.
+     - The arrows keep off the panels, the buttons and the narration.
+     - They rest while a sheet, the ending or the arrival is up.
+50. **Babies through the day** (2026-09-27, Marc's first real play; changes the calm rule in decisions 32 and 38).
+   - **Births:** the engine still makes each generation's babies at its tick. On a watched day they appear on the map one by one over the first 80% of the day, each at a fixed moment from its id. In a fast-forward they appear at once.
+   - **Glows start one at a time**, as their babies appear:
+     - at least GLOW_GAP_SECONDS (4) apart, meaningful traits first, one per variation;
+     - never more than GLOW_MAX (3) at once;
+     - a glow lasts at least GLOW_MIN_SECONDS (10) of watching before a newer one may take its place, and still ends after GLOW_GENERATIONS (2). A glow starts only if it has 10 s left.
+   - **The log names each baby as it lights up.** The line already on screen stays at least 2.6 s first.
+   *Measured on 270 stories (30 good seeds × 9 founding families), with the simulated child of decision 42 now tapping during the day:*
+   - *glowing babies to pick from while a follow is open: 0.78 on average; 2 or more 22% of the time, 1 or more 47%;*
+   - *seconds between new glows: median 5.5 (quartiles 4–18.5); a glow lasts a median 19 s of watching;*
+   - *a child who only watches: 1.14 on average, 2 or more 34% of the time.*
+   - **Fewer than 2 are usually available.** What-ifs, not changed (for Marc to decide):
+     - *15 s watched generations: 0.90 on average, 2 or more 26%, new glows a median 4.5 s apart;*
+     - *glows lasting 3 generations: 0.89 on average, 2 or more 25%;*
+     - *both together: 1.04 on average, 2 or more 31%;*
+     - *the same variation glowing twice: 0.80.*
+     - *None reaches 2. The limit is how many babies are born with a new variation, not how they are shown.*
+51. **A card for other groups** (2026-09-27, Marc's first real play).
+   - **Its group beside yours.** Tapping an animal that isn't the child's shows, above its own traits, a short summary of its group: the fair test's others ("The others here"), or otherwise its family (its mother line, decision 5).
+     - Both groups' counts, then (at the latest follow, or when the story began) and now, with bars.
+     - One line: "Doing better than yours since your last choice.", "Doing worse …" or "Doing about as well …". A group does better when it grew by a tenth more than the other, comparing now against then.
+   - **"How they're different from yours":** up to three meaningful traits, highlighted, where its group's average differs most from yours (by GAP, 0.12, or more): "Longer back legs than yours", "Less webbing than yours". On the card of one of the others here, the fair test's own trait always comes first. When none differ that much: "Much like yours."
+52. **The prediction's "need" option** (2026-09-27, Marc's first real play; changes the option list in decision 30).
+   - "Need" always names the trait the child just chose, in the direction chosen: "They'll grow even bigger eyes because they need them." ("get" for less of a trait). It is offered in every question.
+   - Before, it named the habitat's most rewarded trait that the group didn't have, which could be unrelated to the follow.
+   - Every other option was already about the follow. The one other change: a neutral trait's grow-or-shrink question no longer offers "Stay the same. Animals don't change.", because "need" now takes the fourth place. `docs/LINEAGE_PREDICTION_QUESTIONS.md` is updated.
+53. **Visiting other places** (2026-09-27, Marc's first real play).
+   - **Three buttons:** Leaves · Ground · Water, at the foot of the map across from "Back to my group", above the narration (one above another on a narrow screen), 48 px tall (44 px on a short screen). They are hidden while a sheet, the ending or the arrival is up.
+   - **A visit:** the camera flies to where most of that place's animals are. On arrival the narration says, for example, "Water's edge: 113 animals, growing. Many have webbed feet." with a speaker, from the engine's counts:
+     - how many live there now, and which way that went since the last generation (growing, shrinking or steady);
+     - the meaningful trait at its high end that the most animals there have: "Most" (more than half), "Many" (a quarter or more), "Some" (a tenth or more); below a tenth, no trait is named.
+   - **Exploring:** after a visit, a flight to a baby, or dragging the map, the camera never pulls back to the child's group on its own. Only "Back to my family" / "Back to my group" does. A follow, which the child chooses, still takes the camera to the new group.
+54. **Honest habitats** (2026-09-27; Marc saw "a group with lots of webbing hanging out on the beach, nowhere near the water").
+   - **The paint:** open ground is grass and earth. The water's edge is a greener waterside meadow with reeds, and sand only in a strip where it meets the water. Same gouache brushwork as design/v2.
+   - **Where each animal lives** follows its inherited habitat use (the engine's time allocation between leaves, ground and water):
+     - all of its time in one habitat: well inside it; on open ground, well away from the water;
+     - time split between two: toward the border between them, the nearer the more even the split (about half and half: at the border);
+     - 90% or more at the water's edge: by the waterline. With 95% or more, now and then it wades into the shallows below its home (20–32 s, every 25–60 s).
+   - **Babies** make their home near their mothers, as near as their own habitat use allows. At a follow, each twin among the others here moves beside its partner, as near as its own habitat use allows.
+   - **Visual only.** Fair tests measure "nearest" from each animal's spot, placed exactly as before. *Checked on 20 good seeds, generations 0 to 76: all 424,023 spots are identical to main's.*
+   - **Cards:**
+     - where the animal spends its time: "Lives at the water's edge." or "Lives on the open ground, sometimes at the water." ("sometimes" from a fifth of its time);
+     - when a meaningful trait at its high end doesn't fit where it lives, one gentle line: "Lots of webbing, but lives far from water." or "Curved claws, but lives on the open ground." A trait doesn't fit where it helps less than a quarter of what it helps in its best habitat, by the engine's own trait effects. On another group's card, the same for the group's average: "…, but they live …".
+   - **No rule, number or fair test changed.**
+   - **Moments** (decision 27): `joining`, `edge-arrow`, `other-card`, `habitat` (the water's edge) and `ground` join the moment shortcuts, with screenshots in `design/after/`.
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.

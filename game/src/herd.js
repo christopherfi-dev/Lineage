@@ -2,16 +2,59 @@
  * The animals on the canvas: exactly one visual animal per living engine
  * individual, keyed by the engine id.
  *
- * What is real (engine): who exists, which habitat each animal uses, every
- * birth and which mother it came from, every death, every mutation at birth,
- * and the body each animal is drawn with.
+ * What is real (engine): who exists, which habitat each animal uses and how it
+ * splits its time between them, every birth and which mother it came from,
+ * every death, every mutation at birth, and the body each animal is drawn with.
  *
  * What is visual only (this file's own seeded generator): where on the map an
  * animal stands and how it wanders between generations.
+ *
+ * Each animal has two places. Its `spot` is where fair tests measure "nearest"
+ * from (cohorts.js): it is placed exactly as it always was, from its own
+ * generator, so no fair test changes. Its `home` is where it is shown living:
+ * a place that follows how it splits its time between the habitats (homeBand),
+ * near its mother when it is a baby; a follow's gather-in can move it, within
+ * that. Wandering keeps near it.
  */
 
 import { TAU, clamp, mulberry, BANDS } from "./world.js";
 import { TRAIT_INDEX } from "./engine.js";
+
+const lerp = (a, b, k) => a + (b - a) * k;
+
+/**
+ * Where on the map an animal lives, from its inherited habitat use (the
+ * engine's time allocation: leaves, ground, water): the stretch of the terrain
+ * field (world.zoneT, which grows from the treetops down to the water) its home
+ * keeps to. All its time in one habitat: well inside it, and on open ground
+ * well away from the water. Time split between two: toward the border between
+ * them, step by step, the nearer the more even the split, so animals that
+ * split their time spread out rather than crowd one line. Most of it at the
+ * water's edge: by the waterline, and the ones with the most water time of
+ * all sometimes wade into the shallows. Always inside the engine's habitat for it.
+ * @param {ArrayLike<number>} a time in [leaves, ground, water], summing to 1
+ * @param {number} zone the engine's habitat for the animal (its largest share)
+ * @returns {{lo:number, hi:number, wader:boolean}}
+ */
+export function homeBand(a, zone) {
+  const [leaves, ground, water] = a, k = (v, from, span) => clamp((v - from) / span, 0, 1);
+  // Its middle and half its width, inside [min, max]: from all its time here (f 0) to half of it elsewhere (f 1).
+  const band = (f, from, to, min, max) => {
+    const c = lerp(from, to, f), half = lerp(0.08, 0.025, f);
+    return { lo: Math.max(min, c - half), hi: Math.min(max, c + half), wader: false };
+  };
+  if (zone === 0) return band(k(ground + water, 0.05, 0.45), 0.2, 0.385, 0.06, 0.41); // down the map, past the tree line
+  if (zone === 1) {
+    if (leaves < 0.05 && water < 0.05) return { lo: 0.48, hi: 0.64, wader: false }; // well away from the water
+    return leaves >= water ? band(k(leaves, 0.05, 0.45), 0.56, 0.445, 0.43, 0.79) : band(k(water, 0.05, 0.45), 0.56, 0.775, 0.43, 0.79);
+  }
+  if (water >= 0.9) return { lo: 1.02, hi: 1.1, wader: water >= WADER }; // by the waterline
+  return band(k(0.9 - water, 0, 0.45), 1.06, 0.835, 0.81, 1.1); // its other time lies up the map, on the ground or in the leaves
+}
+/** Animals with at least this much of their time at the water's edge sometimes wade into the shallows. */
+export const WADER = 0.95;
+/** How far into the water a wader goes (world.zoneT; the waterline is at 1.12). */
+const SHALLOWS = [1.135, 1.17], WADE_MAX = 1.19;
 
 const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
@@ -23,6 +66,10 @@ const BLOOM_MS = 3400;
 
 /** Zoomed out, an animal this small on screen (its body unit, in pixels) skips details too fine to see there. */
 const FINE_PX = 5.5;
+/** A follow's gather-in: the animals already in your group light up this long before the newcomers start walking in. */
+export const JOIN_GLOW_MS = 1400;
+/** How far from the gathering point the newcomers settle, at most (world px), grown a little with their number. */
+const GATHER_RADIUS = 110;
 
 /** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
@@ -65,6 +112,8 @@ export class Herd {
      * a measurement run (fair-test cohorts are the animals nearest a home spot).
      */
     this.placeRnd = mulberry(seed ^ 0x5bd1e995);
+    /** Where animals are shown living (`home`), from a generator of its own, so `spot`s stay as they were. */
+    this.homeRnd = mulberry(seed ^ 0x68e31da4);
     /** Idle motion (tail flicks, looking around) from a generator of its own, so wandering stays as it was. */
     this.moveRnd = mulberry(seed ^ 0x2c1b3c6d);
     this.mr = (a, b) => a + this.moveRnd() * (b - a);
@@ -94,11 +143,12 @@ export class Herd {
     this.zoom = 1;
   }
 
-  make(id, zone, genome, x, y, home, bornAt) {
+  /** @param {{lo:number, hi:number, wader:boolean}} hb where it lives (homeBand) */
+  make(id, zone, genome, x, y, home, bornAt, spot, hb) {
     return {
-      id, zone, band: BANDS[zone], looks: looksFrom(genome),
+      id, zone, band: BANDS[zone], hb, looks: looksFrom(genome),
       x, y, vx: this.rr(-.2, .2), vy: this.rr(-.2, .2),
-      home, inZone: this.world.zoneAt(x, y) === BANDS[zone],
+      home, spot, inZone: this.world.zoneAt(x, y) === BANDS[zone],
       ph: this.rr(0, TAU), face: this.rnd() < .5 ? -1 : 1,
       mode: "walk", modeT: this.rr(600, 4200),
       bornAt, diedAt: null, growMs: GROW_MS / this.pace, fadeMs: FADE_MS,
@@ -106,8 +156,21 @@ export class Herd {
   }
 
   /**
+   * The home nearest (x, y) where an animal of this band lives: straight up or
+   * down the map from it (the field grows downwards), a little inside the band.
+   * @param {{lo:number, hi:number}} hb
+   */
+  homeAt(hb, x, y) {
+    const w = this.world;
+    x = clamp(x, 40, w.W - 40);
+    const top = clamp(w.yAt(x, hb.lo), 30, w.H - 30), bottom = clamp(w.yAt(x, hb.hi), 30, w.H - 30);
+    const inset = Math.min(36, (bottom - top) / 2) * this.homeRnd();
+    return { x, y: y < top ? top + inset : y > bottom ? bottom - inset : y };
+  }
+
+  /**
    * Lay out the generation-0 founders: each founding family is one loose
-   * cluster in its own habitat band.
+   * cluster in its own habitat band, where their habitat use has them live.
    * @param {import("./bridge.js").Bridge} bridge
    * @returns {Map<string, {x:number, y:number}>} each founding family's centre
    */
@@ -123,11 +186,15 @@ export class Herd {
         if (gap > 480) break;
       }
       centers.set(fam.key, best);
-      for (const id of fam.ids) {
+      // The family keeps its shape, moved up or down the map to where its habitat use has it live.
+      const bands = fam.ids.map((id) => homeBand(bridge.get(id).timeAllocation, fam.zone));
+      const dy = this.homeAt(bands[0], best.x, best.y).y - best.y;
+      fam.ids.forEach((id, i) => {
         const ind = bridge.get(id);
         const p = this.world.pointIn(fam.zone, this.rnd, { x: best.x, y: best.y, radius: 170 });
-        this.animals.set(id, this.make(id, fam.zone, ind.bodyGenome, p.x, p.y, { x: p.x, y: p.y }, -1e9));
-      }
+        const home = this.homeAt(bands[i], p.x, p.y + dy);
+        this.animals.set(id, this.make(id, fam.zone, ind.bodyGenome, home.x, home.y, home, -1e9, { x: p.x, y: p.y }, bands[i]));
+      });
     }
     return centers;
   }
@@ -138,13 +205,16 @@ export class Herd {
    * @param {import("./bridge.js").GenerationEvents} ev
    * @param {import("./bridge.js").Bridge} bridge
    * @param {number} now ms clock
+   * @param {(id:number) => number} [appearAt] when each newborn shows on the map (ms clock): through a
+   *   watched day, so babies appear one by one; now by default. The engine made them all now.
    */
-  applyGeneration(ev, bridge, now) {
+  applyGeneration(ev, bridge, now, appearAt = () => now) {
     // Real deaths: the animal leaves the canvas, in the colour it lived in.
     for (const d of ev.deaths) {
       const a = this.animals.get(d.id);
       if (!a) continue;
       this.animals.delete(d.id);
+      if (a.hidden) continue; // never shown: it simply isn't there
       a.diedAt = now;
       a.fadeMs = FADE_MS / this.pace;
       a.wasFollowed = this.followed.has(a.id);
@@ -153,21 +223,82 @@ export class Herd {
       this.fading.push(a);
     }
     // Real births: each newborn appears beside its mother (the first parent in its birth record),
-    // and makes its home near hers.
+    // and makes its home near hers, as near as its own habitat use lets it. Its spot is placed
+    // exactly as before, for the fair tests.
     for (const b of ev.births) {
       const child = bridge.get(b.childId);
       if (!child) continue;
       const zone = bridge.zoneOf(b.childId);
       const mother = this.animals.get(b.parentAId) ?? null;
-      const near = mother ? mother.home : this.world.pointIn(zone, this.placeRnd);
-      const home = this.world.pointIn(zone, this.placeRnd, { x: near.x, y: near.y, radius: 46 });
+      const near = mother ? mother.spot : this.world.pointIn(zone, this.placeRnd);
+      const spot = this.world.pointIn(zone, this.placeRnd, { x: near.x, y: near.y, radius: 46 });
+      const hb = homeBand(child.timeAllocation, zone), by = mother ? mother.home : spot;
+      const home = this.homeAt(hb, by.x + (this.homeRnd() - 0.5) * 70, by.y + (this.homeRnd() - 0.5) * 50);
       const at = mother ?? home;
-      const a = this.make(b.childId, zone, child.bodyGenome, at.x + this.rr(-4, 4), at.y + this.rr(-3, 3), home, now);
+      const a = this.make(b.childId, zone, child.bodyGenome, at.x + this.rr(-4, 4), at.y + this.rr(-3, 3), home, now, spot, hb);
       if (mother) a.face = mother.face;
+      const t = appearAt(b.childId);
+      if (t > now) { a.hidden = true; a.appearAt = t; a.mother = b.parentAId; }
       this.animals.set(b.childId, a);
     }
     // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.
   }
+
+  /** Every baby still waiting to appear shows now (a moment, or the end of a watched day). */
+  showAll(now) {
+    for (const a of this.animals.values()) if (a.hidden) this.reveal(a, now);
+  }
+
+  /** A baby appears beside its mother, where she is now, and grows in. */
+  reveal(a, now) {
+    const m = this.animals.get(a.mother);
+    if (m && !m.hidden) { a.x = m.x + this.rr(-4, 4); a.y = m.y + this.rr(-3, 3); a.face = m.face; }
+    a.hidden = false;
+    a.bornAt = now;
+  }
+
+  /** On the map: alive and shown (a baby waiting to appear is not). */
+  shown(id) { const a = this.animals.get(id); return !!a && !a.hidden; }
+
+  /**
+   * A follow's gather-in (playtest): the animals already in your group light
+   * up, then the newcomers, and their twins beside them, walk in and settle
+   * around them. Visual only: their spots, and so every fair test, stay as they were.
+   * @param {number[]} stay members of your group who were already in it
+   * @param {number[]} come members new to your group
+   * @param {Map<number, number>} twins each member's twin among the others here
+   * @param {{x:number, y:number}} at where they gather
+   */
+  gather(stay, come, twins, at, now) {
+    for (const id of stay) { const a = this.animals.get(id); if (a) { a.joinAt = now; a.comeAt = undefined; } }
+    const r = GATHER_RADIUS + 6 * Math.sqrt(come.length), walk = now + JOIN_GLOW_MS;
+    come.forEach((id, i) => {
+      const a = this.animals.get(id);
+      if (!a) return;
+      a.comeAt = walk; a.joinAt = undefined;
+      // Near ones keep their place; far ones come in to the edge of the gathering.
+      const d = Math.hypot(a.home.x - at.x, a.home.y - at.y);
+      if (d > r) {
+        const k = (r * (0.55 + 0.45 * this.homeRnd())) / d;
+        this.moveHome(a, at.x + (a.home.x - at.x) * k, at.y + (a.home.y - at.y) * k, walk + 90 * i);
+      }
+    });
+    // Each twin among the others here comes to stand beside its partner, so the two groups live side by side.
+    [...stay, ...come].forEach((id, i) => {
+      const a = this.animals.get(id), t = this.animals.get(twins.get(id));
+      if (!a || !t || Math.hypot(t.home.x - a.home.x, t.home.y - a.home.y) <= 40) return;
+      this.moveHome(t, a.home.x + this.rr(-22, 22), a.home.y + this.rr(-14, 14), walk + 90 * i);
+    });
+  }
+
+  /** A new home near (x, y) where this animal can live, and a walk there from `at` (ms clock). */
+  moveHome(a, x, y, at) {
+    a.home = this.settle(a, x, y);
+    a.walkAt = at;
+  }
+
+  /** The nearest home to (x, y) where this animal lives (homeBand). */
+  settle(a, x, y) { return this.homeAt(a.hb, x, y); }
 
   /**
    * The glowing newborn whose ring opened most recently, for its caption; null when none is new.
@@ -186,7 +317,7 @@ export class Herd {
   /** Centre of a set of animals on the map, or null when none are alive. */
   centroidOf(ids) {
     let sx = 0, sy = 0, n = 0;
-    for (const id of ids) { const a = this.animals.get(id); if (a) { sx += a.x; sy += a.y; n++; } }
+    for (const id of ids) { const a = this.animals.get(id); if (a && !a.hidden) { sx += a.x; sy += a.y; n++; } }
     return n ? { x: sx / n, y: sy / n, n } : null;
   }
 
@@ -196,7 +327,7 @@ export class Herd {
    */
   largestCluster(ids, radius = 240) {
     const pts = [];
-    for (const id of ids) { const a = this.animals.get(id); if (a) pts.push(a); }
+    for (const id of ids) { const a = this.animals.get(id); if (a && !a.hidden) pts.push(a); }
     if (!pts.length) return null;
     const r2 = radius * radius, near = (p, q) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r2;
     let peak = pts[0], most = 0;
@@ -218,6 +349,7 @@ export class Herd {
     const k = zoom < 1 ? 1 / zoom : 1 / Math.sqrt(zoom);
     let best = null, bd = 1e9;
     for (const a of this.animals.values()) {
+      if (a.hidden) continue;
       const d = Math.hypot(a.x - wx, (a.y - 11) - wy) - (this.glowing.has(a.id) ? 12 : this.followed.has(a.id) ? 6 : 0) * k;
       if (d < bd) { bd = d; best = a; }
     }
@@ -234,6 +366,7 @@ export class Herd {
       let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c);
     }
     for (const c of this.animals.values()) {
+      if (c.hidden) { if (now >= c.appearAt) this.reveal(c, now); else continue; }
       c.ph += dt * (c.mode === "walk" ? 0.0062 : 0.0021);
       c.modeT -= dt;
       if (c.modeT <= 0) {
@@ -241,21 +374,24 @@ export class Herd {
         c.mode = r < 0.58 ? "walk" : r < 0.85 ? "pause" : "graze";
         c.modeT = c.mode === "walk" ? this.rr(2200, 7000) : this.rr(900, 3200);
       }
-      if (!c.inZone) {
-        // A newborn whose habitat differs from where it was born walks there.
+      const walking = c.walkAt !== undefined && now >= c.walkAt;
+      if (!c.inZone || walking) {
+        // A newborn whose habitat differs from where it was born walks there; a gather-in walks to its new home.
         const dx = c.home.x - c.x, dy = c.home.y - c.y, d = Math.hypot(dx, dy) || 1;
         c.vx += dx / d * 0.12 * s; c.vy += dy / d * 0.12 * s;
-        const sp = Math.hypot(c.vx, c.vy), max = clamp(d / 200, 2.4, 5); // long walks hurry
+        const sp = Math.hypot(c.vx, c.vy), max = clamp(d / 200, walking ? 1.6 : 2.4, 5); // long walks hurry
         if (sp > max) { c.vx = c.vx / sp * max; c.vy = c.vy / sp * max; }
         c.x += c.vx * s; c.y += c.vy * s;
-        if (this.world.zoneAt(c.x, c.y) === c.band || d < 6) c.inZone = true;
+        c.mode = "walk";
+        if (walking ? d < 10 : this.world.zoneAt(c.x, c.y) === c.band || d < 6) { c.inZone = true; c.walkAt = undefined; c.vx *= 0.1; c.vy *= 0.1; }
         if (Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
         continue;
       }
       this.idle(c, dt, now);
-      const drive = c.mode === "walk" ? 1 : 0.12;
-      c.vx += this.rr(-1, 1) * 0.013 * drive * s + (c.home.x - c.x) * 0.000048 * s;
-      c.vy += this.rr(-1, 1) * 0.013 * drive * s + (c.home.y - c.y) * 0.000048 * s;
+      if (c.hb.wader) this.wade(c, now);
+      const drive = c.mode === "walk" ? 1 : 0.12, goal = c.wadeTo ?? c.home, pull = c.wadeTo ? 0.00016 : 0.000048;
+      c.vx += this.rr(-1, 1) * 0.013 * drive * s + (goal.x - c.x) * pull * s;
+      c.vy += this.rr(-1, 1) * 0.013 * drive * s + (goal.y - c.y) * pull * s;
       /* gentle personal space so the group reads as many animals, not one blob */
       const gx = (c.x / cell) | 0, gy = (c.y / cell) | 0;
       for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
@@ -271,12 +407,25 @@ export class Herd {
       c.vx *= 0.995; c.vy *= 0.995;
       const px = c.x, py = c.y;
       c.x += c.vx * s; c.y += c.vy * s;
-      // Each animal stays in the habitat its inherited time allocation gives it.
-      if (this.world.zoneAt(c.x, c.y) !== c.band) { c.x = px; c.y = py; c.vx *= -0.6; c.vy *= -0.6; }
+      // Each animal stays in the habitat its inherited time allocation gives it; a wader may stand in the shallows.
+      const band = this.world.zoneAt(c.x, c.y);
+      if (band !== c.band && !(c.hb.wader && band === "water" && this.world.zoneT(c.x, c.y) < WADE_MAX)) {
+        c.x = px; c.y = py; c.vx *= -0.6; c.vy *= -0.6;
+      } else c.wet = band === "water";
       c.x = clamp(c.x, 20, W - 20); c.y = clamp(c.y, 20, H - 20);
       if (c.mode !== "pause" && Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
+  }
+
+  /** Visual only: now and then a wader walks into the shallows below its home, stays a while, and comes back. */
+  wade(c, now) {
+    if (c.wadeAt === undefined) c.wadeAt = now + this.mr(3000, 30000);
+    if (now < c.wadeAt) return;
+    if (c.wadeTo) { c.wadeTo = null; c.wadeAt = now + this.mr(25000, 60000); return; }
+    const x = clamp(c.home.x + this.mr(-40, 40), 40, this.world.W - 40);
+    c.wadeTo = { x, y: this.world.yAt(x, this.mr(SHALLOWS[0], SHALLOWS[1])) };
+    c.wadeAt = now + this.mr(20000, 32000);
   }
 
   /**
@@ -310,7 +459,7 @@ export class Herd {
     const m = 70, vis = [], L = this.light;
     const worldPass = pass !== "mine", minePass = pass !== "world";
     const inView = (c) => !(c.x < view.x - m || c.x > view.x + view.w + m || c.y < view.y - m || c.y > view.y + view.h + m);
-    for (const c of this.animals.values()) if (inView(c)) vis.push(c);
+    for (const c of this.animals.values()) if (!c.hidden && inView(c)) vis.push(c);
     for (const c of this.fading) if (inView(c)) vis.push(c);
     const marksOf = (c) => (c.diedAt !== null ? c.wasMarked : this.marks.get(c.id)) ?? null;
     const style = (c) => {
@@ -363,6 +512,21 @@ export class Herd {
       }
       drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom);
     }
+    // A follow's gather-in: yours light up first, then the newcomers come in with a softer light.
+    if (minePass) for (const c of vis) {
+      const lit = c.joinAt !== undefined ? now - c.joinAt : c.comeAt !== undefined ? now - c.comeAt : -1;
+      const span = c.joinAt !== undefined ? JOIN_GLOW_MS + 700 : 3200;
+      if (lit < 0 || lit > span || c.diedAt !== null) continue;
+      const k = Math.sin(Math.PI * lit / span), pulse = (Math.sin(now * 0.012) + 1) / 2;
+      const rad = (c.joinAt !== undefined ? 19 + 4 * pulse : 16) * (0.8 + 0.2 * k);
+      x.globalAlpha = (c.joinAt !== undefined ? 0.9 : 0.55) * k;
+      x.lineWidth = 3; x.strokeStyle = "#FFE2A2";
+      x.beginPath(); x.ellipse(c.x, c.y - 11, rad, rad * 0.9, 0, 0, TAU); x.stroke();
+      x.globalAlpha = 0.35 * k;
+      const g = bloomSprite(), R = rad * 1.8;
+      x.drawImage(g, c.x - R, c.y - 11 - R, 2 * R, 2 * R);
+    }
+    x.globalAlpha = 1;
     // The animal whose card is open: a ring that breathes, so you can find it on the map.
     const sel = this.selected !== null ? this.animals.get(this.selected) : null;
     if (minePass && sel && inView(sel)) {
@@ -610,6 +774,14 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
     x.beginPath(); x.arc(headX + hR * 0.36, headY - hR * 0.08, eR * 0.55, 0, TAU); x.fill();
   }
   x.restore();
+
+  /* wading: the shallows cover its feet, with a ring of ripples */
+  if (c.wet) {
+    x.globalAlpha = A(0.72); x.fillStyle = "rgb(150,196,204)";
+    x.beginPath(); x.ellipse(c.x, c.y - u * 0.04, u * 1.18, u * 0.3, 0, 0, TAU); x.fill();
+    x.globalAlpha = A(0.65); x.strokeStyle = "#F4FBFF"; x.lineWidth = 1.2;
+    x.beginPath(); x.ellipse(c.x, c.y, u * (1.3 + 0.08 * Math.sin(now * 0.003 + c.id)), u * 0.36, 0, 0, TAU); x.stroke();
+  }
 
   const midY = c.y + bodyY;
   /* a fading member of your group: a little light rises from it */

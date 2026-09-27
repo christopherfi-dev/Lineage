@@ -36,10 +36,13 @@
     </div>
     <canvas id="card-animal"></canvas>
     <p id="card-where"></p>
+    <!-- A trait that doesn't fit where it lives, said gently (playtest). -->
+    <p id="card-fit" hidden></p>
     <p id="card-new" hidden></p>
-    <div id="card-counts" hidden></div>
     <!-- A glowing newborn: follow its new variation, or keep looking (scope decisions 32, 42 and 43). -->
     <div id="card-follow" hidden></div>
+    <!-- An animal not in your group: its group beside yours, and how it differs from yours (playtest). -->
+    <div id="card-group" hidden></div>
     <div id="card-traits"></div>
   </div>
 
@@ -50,6 +53,16 @@
 
   <!-- Sound on or off (Step 5): remembered on this device. -->
   <button id="mute" type="button" aria-label="Sound off" aria-pressed="false"></button>
+
+  <!-- Visit another place: the camera flies there, and the narration sums it up (playtest). -->
+  <div id="places" role="group" aria-label="Places">
+    <button type="button" data-zone="0">Leaves</button>
+    <button type="button" data-zone="1">Ground</button>
+    <button type="button" data-zone="2">Water</button>
+  </div>
+
+  <!-- A glowing baby off the screen: an arrow at the edge points to it, and a tap flies there (playtest). -->
+  <div id="arrows"></div>
 
   <!-- Zoom the map, for anyone who can't pinch: under the sound button, never over the narration or a panel. -->
   <div id="zoom">

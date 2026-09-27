@@ -25,7 +25,14 @@
  * If the child's own group falls to DANGER_SIZE or fewer during that
  * fast-forward, it stops at once and the world goes back to its usual pace, so
  * the child sees what happens to their group (scope decision 44). A group that
- * small already can't start one.
+ * small can't follow anything at all, and the backup panel waits (the
+ * playtest's "no jumping ship").
+ *
+ * Glowing babies light up one at a time through the watched day: each
+ * generation's babies appear across the day (appearFraction), a new glow
+ * starts at most every GLOW_GAP_SECONDS, and a glow is never replaced before
+ * GLOW_MIN_SECONDS. The calm rule still allows GLOW_MAX at once, and a glow
+ * still ends after GLOW_GENERATIONS.
  *
  * If the child follows nothing for PUSH_SECONDS, a choice panel offers
  * variations that can start a test, as a backup. At most STORY_CHOICES
@@ -58,22 +65,44 @@ export const STORY_GENERATIONS = 76;
 export const PUSH_SECONDS = 120;
 /** A variation too rare to start a fair test is fast-forwarded at most this many generations to see if it spreads. */
 export const SPREAD_MAX = 10;
-/** The child's group this small or smaller stops a spread's fast-forward, and keeps one from starting (scope decision 44). */
+/** The child's group this small or smaller stops a spread's fast-forward, and keeps any follow from starting (scope decision 44). */
 export const DANGER_SIZE = 5;
+/** A glowing baby is never replaced by a newer one before it has glowed this long (seconds of watching). */
+export const GLOW_MIN_SECONDS = 10;
+/** New glows start at least this far apart (seconds of watching), so babies light up one at a time. */
+export const GLOW_GAP_SECONDS = 4;
+/** A watched generation's babies appear over this much of its day; the rest of the day is quiet. */
+export const APPEAR_SPAN = 0.8;
+
+/**
+ * When in its day a baby appears on the map, 0..1 of APPEAR_SPAN: fixed by its
+ * id, so the page, the moments and the measurements agree. Visual only; the
+ * engine made the baby at the generation's tick.
+ */
+export function appearFraction(id) {
+  let h = Math.imul(id ^ 0x5bd1e995, 0x85ebca6b);
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
 
 export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
-   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number, spreadMax?:number}} [opts]
+   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number, spreadMax?:number,
+   *   generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean}} [opts]
    *   where each animal's home spot is (herd.js); the others only for measuring other values of MIN_SIZE,
-   *   MAX_SIZE and SPREAD_MAX
+   *   MAX_SIZE, SPREAD_MAX, GENERATION_SECONDS and GLOW_GENERATIONS
    */
-  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE, spreadMax = SPREAD_MAX } = {}) {
+  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE, spreadMax = SPREAD_MAX,
+    generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS, onePerVariation = true } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     this.minSize = minSize;
     this.maxSize = maxSize;
     this.spreadMax = spreadMax;
+    this.generationSeconds = generationSeconds;
+    this.glowGenerations = glowGenerations;
+    this.onePerVariation = onePerVariation;
     /** @type {"waiting"|"watch"|"skip"|"spread"|"choice"|"ended"} */
     this.phase = "waiting";
     /** @type {null|Offer[]} the backup choice panel's options, while it is open */
@@ -126,6 +155,14 @@ export class Story {
     this.segment = new Map();
     /** @type {null|string} the family's name, picked by the child right after the first tap ("Mossfoot", names.js) */
     this.name = null;
+    /** seconds of watching: glows start and last by this clock, which stands still during fast-forwards and panels */
+    this.watchT = 0;
+    /** when the latest glow started, in watchT */
+    this.lastGlowAt = -Infinity;
+    /** @type {null|{generation:number, living:number[]}} who was alive at the latest follow (or the start), for "since your last choice" */
+    this.mark = null;
+    /** @type {Glow[]} glows started since the page last asked (takeStarted), to name each baby as it lights up */
+    this.started = [];
   }
 
   get running() { return this.phase === "watch" || this.phase === "skip" || this.phase === "spread"; }
@@ -138,7 +175,7 @@ export class Story {
   get canFollow() { return this.choices.length < STORY_CHOICES; }
   /** The child can follow right now: while watching, never during a fast-forward or a panel. */
   get followOpen() { return this.phase === "watch" && this.canFollow; }
-  /** The child's own group is very small: no spread starts or goes on (scope decision 44). */
+  /** The child's own group is very small: no follow starts, no spread goes on, and the backup panel waits (scope decision 44, playtest). */
   get inDanger() { return this.bridge.followedIds().length <= DANGER_SIZE; }
 
   /** Your group's size now against when it last formed. */
@@ -157,8 +194,12 @@ export class Story {
     const world = this.bridge.livingAnimals();
     this.startCensus = census(world);
     this.startWorld = averageOf(world.map((a) => a.genome)).map((a) => a.mean);
+    this.markNow();
     return follow;
   }
+
+  /** Who is alive now: the "then" of every group's count until the next follow. */
+  markNow() { this.mark = { generation: this.bridge.generation, living: this.bridge.livingIds() }; }
 
   remember() {
     this.lastAnimals = this.bridge.followedAnimals();
@@ -174,7 +215,7 @@ export class Story {
   afterGeneration(ev) {
     const g = ev.group;
     if (!g || !this.running) return null;
-    const seconds = this.fast ? FAST_SECONDS : GENERATION_SECONDS;
+    const seconds = this.fast ? FAST_SECONDS : this.generationSeconds;
     this.idle += seconds;
     if (!this.fast) this.quiet += seconds;
     if (g.count === 0) return this.end("died", ev.generation);
@@ -188,8 +229,8 @@ export class Story {
       this.quiet = 0;
       return "skip-done";
     }
-    // The push: nothing followed for a while, so a choice panel opens as a backup.
-    if (this.canFollow && this.idle >= PUSH_SECONDS) {
+    // The push: nothing followed for a while, so a choice panel opens as a backup (never while the group is very small).
+    if (this.canFollow && this.idle >= PUSH_SECONDS && !this.inDanger) {
       const options = this.pushOptions();
       if (options.length) {
         this.options = options;
@@ -203,27 +244,75 @@ export class Story {
   /**
    * The calm rule: of the newborns in the group with a new variation this
    * generation or the one before, at most GLOW_MAX glow, meaningful traits
-   * first, then the newest, one per variation.
+   * first, then the newest, one per variation. A watched generation's babies
+   * appear across its day (appearFraction), and each can glow once it has
+   * appeared; glows start as the day goes on (advance).
    */
   updateGlow(ev) {
     if (!this.canFollow) { this.fresh = []; this.glowing = []; return; }
+    const watched = this.phase === "watch";
     for (const id of ev.group.born) {
       const v = newbornVariation(this.bridge, id, this.lastForm);
-      if (v) this.fresh.push({ id, v, zone: this.bridge.zoneOf(id), generation: ev.generation });
+      const showAt = this.watchT + (watched ? APPEAR_SPAN * this.generationSeconds * appearFraction(id) : 0);
+      if (v) this.fresh.push({ id, v, zone: this.bridge.zoneOf(id), generation: ev.generation, bornT: this.watchT, showAt, since: null });
     }
     this.refreshGlow(ev.generation);
   }
 
+  /**
+   * The day goes on: `seconds` more of watching. Babies that have appeared can
+   * start to glow, one every GLOW_GAP_SECONDS. Returns the glows that started.
+   * @returns {Glow[]}
+   */
+  advance(seconds) {
+    if (this.phase !== "watch") return [];
+    this.watchT += seconds;
+    return this.startGlows();
+  }
+
+  /** Drop the glows that are over (too old, gone from the group, or tried), then start any that may. */
   refreshGlow(generation = this.bridge.generation) {
-    this.fresh = this.fresh.filter((x) => generation - x.generation < GLOW_GENERATIONS &&
+    this.fresh = this.fresh.filter((x) => generation - x.generation < this.glowGenerations &&
       this.bridge.isFollowed(x.id) && !this.dismissed.has(x.id));
-    const ranked = [...this.fresh].sort((a, b) => Number(a.v.neutral) - Number(b.v.neutral) || b.generation - a.generation || a.id - b.id);
-    const glowing = [];
-    for (const x of ranked) {
-      if (glowing.length === GLOW_MAX) break;
-      if (!glowing.some((y) => sameVariation(y.v, x.v))) glowing.push(x);
+    this.glowing = this.glowing.filter((x) => this.fresh.includes(x));
+    return this.startGlows();
+  }
+
+  /**
+   * Which newborns glow now. A glow younger than GLOW_MIN_SECONDS stays; the
+   * other places go to the best of the babies that have appeared (meaningful
+   * traits first, then the newest), one per variation, at most GLOW_MAX; a
+   * new glow waits until GLOW_GAP_SECONDS after the last one started. Glows
+   * start only while the world is watched.
+   * @returns {Glow[]} the glows that started now
+   */
+  startGlows() {
+    const t = this.watchT, current = this.glowing, started = [];
+    const ready = this.fresh.filter((x) => x.showAt <= t + 1e-9)
+      .sort((a, b) => Number(a.v.neutral) - Number(b.v.neutral) || b.generation - a.generation || b.showAt - a.showAt || a.id - b.id);
+    const next = current.filter((x) => t - x.since < GLOW_MIN_SECONDS);
+    for (const x of ready) {
+      if (next.length >= GLOW_MAX) break;
+      if (next.includes(x) || (this.onePerVariation && next.some((y) => sameVariation(y.v, x.v)))) continue;
+      if (current.includes(x)) { next.push(x); continue; }
+      if (this.phase !== "watch" || t - this.lastGlowAt < GLOW_GAP_SECONDS - 1e-9) continue;
+      // Only a glow with GLOW_MIN_SECONDS left before its generations are up starts at all.
+      if (x.bornT + this.glowGenerations * this.generationSeconds - t < GLOW_MIN_SECONDS) continue;
+      x.since = t;
+      this.lastGlowAt = t;
+      next.push(x);
+      started.push(x);
     }
-    this.glowing = glowing;
+    this.glowing = next;
+    this.started.push(...started);
+    return started;
+  }
+
+  /** The glows started since the last call, oldest first. */
+  takeStarted() {
+    const started = this.started;
+    this.started = [];
+    return started;
   }
 
   /** @returns {null|Glow} */
@@ -339,6 +428,7 @@ export class Story {
     this.sizeAtChoice = mine.length;
     this.fresh = [];
     this.glowing = [];
+    this.started = [];
     this.options = null;
     this.phase = "skip";
     this.skipped = 0;
@@ -347,6 +437,7 @@ export class Story {
     this.segment = new Map(); // the group formed again
     this.remember();
     this.formAtPoint = this.lastForm;
+    this.markNow();
   }
 
   /** The latest follow's groups are about to be replaced, or the story ends: note their sizes. */
@@ -364,6 +455,7 @@ export class Story {
     this.outcome = outcome;
     this.endGeneration = generation;
     this.glowing = [];
+    this.started = [];
     this.options = null;
     if (this.spread) { this.spread.outcome = "ended"; this.lastSpread = this.spread; this.spread = null; }
     this.mainZone = mainZoneOf(this.lastAnimals);
@@ -383,6 +475,8 @@ export class Story {
  * @typedef {Object} Glow a newborn in your group with a new variation
  * @property {number} id @property {import("./cohorts.js").Variation} v
  * @property {number} zone its habitat @property {number} generation when it was born
+ * @property {number} bornT watchT at its birth @property {number} showAt when it appears on the map, in watchT
+ * @property {null|number} since when its glow started, in watchT
  *
  * @typedef {Object} Spread a variation fast-forwarded to see if it spreads (scope decision 42)
  * @property {import("./cohorts.js").Variation} v @property {number} zone the habitat it is counted in
