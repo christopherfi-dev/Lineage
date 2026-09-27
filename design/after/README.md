@@ -1,5 +1,15 @@
 # LINEAGE — the live build, moment by moment (after Step 5)
 
+**The next round (2026-09-27, Parts 1–6, scope decisions 58–63): every picture here is new.** Every moment is shot again at all three sizes (iPad landscape 1180 × 820, portrait 820 × 1180, and a phone held sideways, 844 × 390, at 2×), in the default common-ancestor world, seed 13 (decision 56). A family's fate doesn't depend on what the child follows, and no founding family of seed 13 dies out, so `extinct` and `another-family` are in seed 6, `in-trouble` in seed 72 and `why-drop` in seed 1. Family names are fresh every story, so they differ from picture to picture. The "before" pictures (`design/current/`) are of the old world, so they show the same moment, not the same animals. Made with `game/moments.html`'s links; side by side in `design/compare.html`.
+
+- **Part 2, choosing inside one family:** `follow`, `joining`, `fairtest` (gold rings with the trait, purple without, both in the family), `spreading` and `fizzled` ("passed on"), `away`, `back`, `go-back`, `moving`, `so-far` ("Your family so far"), `another-family`, `in-trouble`; glows are bigger and pulse, with a sparkle above.
+- **Part 3, understanding why:** `reason`, `why`, `why-answer`, `why-drop`, `discovery`; "Helping here / Hurting here" under the generation panel in every moment of a story; the ending's clue is the same trait in two places.
+- **Part 4, connection:** `type-name`, `my-name`, `average` (the living portrait, opened, with the family tree strip); the portrait itself sits under the zoom buttons.
+- **Part 5, the ending:** `ending` (step 1, what happened), `ending-idea`, `ending-check`, `ending-reveal`, `story-card`, `guide` (the Field Guide; the book button is on the map).
+- **Part 6, the look:** the places' names and dashed borders on the map (`map`, and in every view of the map), animals on branches among the leaves (`leaves`), and animals swimming at the water's edge (`habitat`, shot 20 s after arriving, once some have swum out).
+
+*The text below is from the rounds before.*
+
 The same moments as `design/current/` (the before), shot again after Step 5: part one, the beauty pass that brings the game up to `design/v2/`, and part two, family names, sound and animals that move like animals. Same links, same seed (6), same iPad sizes: landscape 1180 × 820 and portrait 820 × 1180, at 2× pixels, saved as JPEG. Since the small-screen round, also a phone held sideways: 844 × 390 at 2× pixels.
 
 **Part two on these pictures:** the family's name is in every line that names the child's animals ("Your Sunpaddle group is bigger than last generation: 31 animals now."), the sound button is in the top-right corner (an open card or the ending covers it), and the animals pause, look around, graze and flick their tails. Sound can't be seen here: its cues and levels are in the pull request.

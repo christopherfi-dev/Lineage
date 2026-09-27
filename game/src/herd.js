@@ -51,10 +51,10 @@ export function homeBand(a, zone) {
   if (water >= 0.9) return { lo: 1.02, hi: 1.1, wader: water >= WADER }; // by the waterline
   return band(k(0.9 - water, 0, 0.45), 1.06, 0.835, 0.81, 1.1); // its other time lies up the map, on the ground or in the leaves
 }
-/** Animals with at least this much of their time at the water's edge sometimes wade into the shallows. */
-export const WADER = 0.95;
-/** How far into the water a wader goes (world.zoneT; the waterline is at 1.12). */
-const SHALLOWS = [1.135, 1.17], WADE_MAX = 1.19;
+/** Animals with at least this much of their time at the water's edge go swimming (scope decision 63). */
+export const WADER = 0.9;
+/** How far into the water a swimmer goes (world.zoneT; the waterline is at 1.12), and from where it is drawn swimming. */
+const SHALLOWS = [1.15, 1.24], WADE_MAX = 1.27, SWIM_T = 1.135;
 
 const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
@@ -423,21 +423,21 @@ export class Herd {
       const band = this.world.zoneAt(c.x, c.y);
       if (band !== c.band && !(c.hb.wader && band === "water" && this.world.zoneT(c.x, c.y) < WADE_MAX)) {
         c.x = px; c.y = py; c.vx *= -0.6; c.vy *= -0.6;
-      } else c.wet = band === "water";
+      } else { c.wet = band === "water"; c.swim = c.wet && this.world.zoneT(c.x, c.y) > SWIM_T; }
       c.x = clamp(c.x, 20, W - 20); c.y = clamp(c.y, 20, H - 20);
       if (c.mode !== "pause" && Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
   }
 
-  /** Visual only: now and then a wader walks into the shallows below its home, stays a while, and comes back. */
+  /** Visual only: a swimmer goes out into the water below its home, swims there a while, and comes back to rest. */
   wade(c, now) {
-    if (c.wadeAt === undefined) c.wadeAt = now + this.mr(3000, 30000);
+    if (c.wadeAt === undefined) c.wadeAt = now + this.mr(1500, 14000);
     if (now < c.wadeAt) return;
-    if (c.wadeTo) { c.wadeTo = null; c.wadeAt = now + this.mr(25000, 60000); return; }
-    const x = clamp(c.home.x + this.mr(-40, 40), 40, this.world.W - 40);
+    if (c.wadeTo) { c.wadeTo = null; c.wadeAt = now + this.mr(10000, 26000); return; }
+    const x = clamp(c.home.x + this.mr(-60, 60), 40, this.world.W - 40);
     c.wadeTo = { x, y: this.world.yAt(x, this.mr(SHALLOWS[0], SHALLOWS[1])) };
-    c.wadeAt = now + this.mr(20000, 32000);
+    c.wadeAt = now + this.mr(22000, 40000);
   }
 
   /**
@@ -638,6 +638,58 @@ function drawMark(x, c, u, midY, now, night, glowAt) {
   x.globalAlpha = 1;
 }
 
+/** The leaves' greens, from the painted canopy. */
+const LEAF_GREENS = ["#3C6130", "#4E7838", "#628F44", "#78A553"];
+/** Its own small, fixed numbers (by id), so a branch and its leaves never flicker. */
+const rand = (id, k) => { const v = Math.sin(id * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+
+/** A branch under a leaves' animal's feet, leaning a little its own way. */
+function branch(x, c, u, A) {
+  const tilt = (rand(c.id, 1) - 0.5) * 0.5, len = u * (2.3 + rand(c.id, 2));
+  x.save();
+  x.translate(c.x, c.y + u * 0.08);
+  x.rotate(tilt);
+  x.globalAlpha = A(0.95);
+  x.strokeStyle = "#5E4428"; x.lineCap = "round";
+  x.lineWidth = u * 0.36;
+  x.beginPath(); x.moveTo(-len, u * 0.1); x.quadraticCurveTo(0, -u * 0.12, len, u * 0.18); x.stroke();
+  x.lineWidth = u * 0.16; // a twig
+  x.beginPath(); x.moveTo(len * 0.55, u * 0.02); x.quadraticCurveTo(len * 0.8, -u * 0.5, len * 1.05, -u * 0.72); x.stroke();
+  x.globalAlpha = A(0.35); x.strokeStyle = "#E8D2A8"; x.lineWidth = u * 0.07;
+  x.beginPath(); x.moveTo(-len * 0.9, -u * 0.02); x.quadraticCurveTo(0, -u * 0.22, len * 0.9, u * 0.05); x.stroke();
+  x.restore();
+}
+
+/** A few leaves in front of a leaves' animal, round its feet and belly, so it sits among them. */
+function leavesInFront(x, c, u, A) {
+  for (let k = 0; k < 5; k++) {
+    const lx = c.x + (rand(c.id, 10 + k) - 0.5) * u * 3.2, ly = c.y - u * (0.1 + rand(c.id, 20 + k) * 0.9);
+    const a = rand(c.id, 30 + k) * TAU, r = u * (0.32 + rand(c.id, 40 + k) * 0.22);
+    x.globalAlpha = A(0.92);
+    x.fillStyle = LEAF_GREENS[k % LEAF_GREENS.length];
+    x.beginPath(); x.ellipse(lx, ly, r, r * 0.5, a, 0, TAU); x.fill();
+    x.globalAlpha = A(0.4); x.strokeStyle = "#2E4A24"; x.lineWidth = u * 0.04;
+    x.beginPath(); x.moveTo(lx - Math.cos(a) * r * 0.8, ly - Math.sin(a) * r * 0.8); x.lineTo(lx + Math.cos(a) * r * 0.8, ly + Math.sin(a) * r * 0.8); x.stroke();
+  }
+}
+
+/** A swimmer: the water at its body, rings round it, and a small V of wake behind it as it moves. */
+function swimming(x, c, u, waterline, dir, now, A) {
+  const wy = c.y + waterline, moving = Math.hypot(c.vx, c.vy) > 0.05;
+  x.globalAlpha = A(0.55); x.fillStyle = "rgb(128,182,194)";
+  x.beginPath(); x.ellipse(c.x, wy + u * 0.08, u * 1.25, u * 0.26, 0, 0, TAU); x.fill();
+  x.globalAlpha = A(0.8); x.strokeStyle = "#F2FAFF"; x.lineWidth = 1.4;
+  x.beginPath(); x.ellipse(c.x, wy + u * 0.05, u * (1.3 + 0.08 * Math.sin(now * 0.004 + c.id)), u * 0.3, 0, 0, TAU); x.stroke();
+  if (moving) {
+    const back = -dir, spread = u * (0.55 + 0.1 * Math.sin(now * 0.006 + c.id));
+    x.globalAlpha = A(0.6); x.lineWidth = 1.6;
+    x.beginPath();
+    x.moveTo(c.x + back * u * 0.9, wy); x.lineTo(c.x + back * u * 2.6, wy - spread);
+    x.moveTo(c.x + back * u * 0.9, wy + u * 0.1); x.lineTo(c.x + back * u * 2.6, wy + spread + u * 0.1);
+    x.stroke();
+  }
+}
+
 /** Mix a #rrggbb colour toward white (k > 0) or black (k < 0). */
 function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16), to = k > 0 ? 255 : 0, a = Math.abs(k);
@@ -682,11 +734,17 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   const nose = hR * (0.72 + g.snout * 0.26);
   const web = gray || !fine ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
+  // Where it lives shows (scope decision 63): the leaves' animals stand on a branch among leaves; the water's swim.
+  const perched = c.band === "canopy" && fine, swim = !!c.swim;
+  const waterline = -(legL + bRY * 0.42);
   /* the shadow leans away from the sun, long when the sun is low */
   const lean = -L.sun * (0.25 + 0.75 * L.low), stretch = 1 + 0.55 * L.low * Math.abs(L.sun);
-  x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
-  x.fillStyle = "#2E2616";
-  x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
+  if (!swim && !perched) {
+    x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
+    x.fillStyle = "#2E2616";
+    x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
+  }
+  if (perched) branch(x, c, u, A);
   /* your animals: a light ring on the ground, the non-colour sign of your family; in a fair test, its side's colour */
   if (mine) {
     x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU);
@@ -699,6 +757,8 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   x.save();
   x.translate(c.x, c.y);
   x.scale(dir, 1);
+  // A swimmer is drawn above the water only: its legs and belly are under it.
+  if (swim) { x.beginPath(); x.rect(-u * 4, -u * 8, u * 8, u * 8 + waterline); x.clip(); }
 
   const body = shade(mine ? "#237089" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
   const dark = mine ? "#0E4051" : other ? shade(color, -0.45) : "#7C7463";
@@ -813,8 +873,11 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   }
   x.restore();
 
+  if (swim) {
+    swimming(x, c, u, waterline, dir, now, A);
+  } else if (perched) leavesInFront(x, c, u, A);
   /* wading: the shallows cover its feet, with a ring of ripples */
-  if (c.wet) {
+  else if (c.wet) {
     x.globalAlpha = A(0.72); x.fillStyle = "rgb(150,196,204)";
     x.beginPath(); x.ellipse(c.x, c.y - u * 0.04, u * 1.18, u * 0.3, 0, 0, TAU); x.fill();
     x.globalAlpha = A(0.65); x.strokeStyle = "#F4FBFF"; x.lineWidth = 1.2;

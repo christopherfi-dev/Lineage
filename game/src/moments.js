@@ -32,7 +32,7 @@ export const MOMENTS = [
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
   "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
-  "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide",
+  "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
 ];
 
 /**
@@ -210,6 +210,10 @@ const MOMENT = {
   habitat: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 2 } },
   /** A visit to the open ground, the same way. */
   ground: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 1 } },
+  /** A visit to the high leaves: its animals on branches among the leaves (scope decision 63). */
+  leaves: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 0 } },
+  /** The whole map, zoomed out: the places' names and the borders between them (scope decision 63). */
+  map: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** The same ending's second step (scope decision 62): "Your idea", the sentence half built. */
@@ -575,7 +579,13 @@ export async function goToMoment(game, moment) {
     const g = glowOf(plan.hit.id);
     if (g) G.followFromMap(g);
     lookAtGroup(G, 0.3);
-  } else if (moment === "habitat" || moment === "ground") {
+  } else if (moment === "map") {
+    // Zoomed right out, a little above the middle (and, held upright, a little left, clear of the panel), so all
+    // three places' names are in view on an iPad.
+    G.exploring = true;
+    G.zoomBase = G.zoomMin(); G.zoomTween = null;
+    lookAt(G, G.world.W * (G.vw > G.vh ? 0.5 : 0.4), G.world.H * 0.42);
+  } else if (moment === "habitat" || moment === "ground" || moment === "leaves") {
     // The child taps a place: the camera flies there and, once it arrives, the narration sums it up.
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
