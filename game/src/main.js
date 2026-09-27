@@ -19,7 +19,9 @@ import { Herd, GROUP_COLORS } from "./herd.js";
 import { paintCreature } from "./creature.js";
 import {
   Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
+  APPEAR_SPAN, appearFraction,
 } from "./story.js";
+import { familySince, better, differences, placeNow, timeSplit, misfit } from "./groups.js";
 import { isGoodSeed, goodSeed } from "./seeds.js";
 import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
@@ -29,6 +31,7 @@ import {
   evidenceLine, countLine, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON, dangerLine, needsYou,
+  joinLine, placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
@@ -38,6 +41,10 @@ import {
 } from "./journal.js";
 
 const LOG_MS = 3800;
+/** A line the log has just shown stays at least this long before a new one takes its place (a generation's, or a baby lighting up). */
+const LOG_MIN_MS = 2600;
+/** Edge arrows are placed again this often (ms). */
+const ARROW_MS = 90;
 /** How long the creature card takes to close (its CSS transition). */
 const CARD_CLOSE_MS = 150;
 /** During a choice, the gap kept between the card and the choice panel. */
@@ -125,7 +132,6 @@ export class Game {
     this.cardEl = $("card");
     this.cardAnimalEl = /** @type {HTMLCanvasElement} */ ($("card-animal"));
     this.cardNewEl = $("card-new");
-    this.cardCountsEl = $("card-counts");
     this.cardTraitsEl = $("card-traits");
     this.choiceEl = $("choice");
     this.choiceCountEl = $("choice-count");
@@ -134,6 +140,7 @@ export class Game {
     this.choiceBarEl = $("choice-bar");
     this.choiceNoteEl = $("choice-note");
     this.cardFollowEl = $("card-follow");
+    this.cardGroupEl = $("card-group");
     this.sinceEl = $("since");
     this.sinceCountEl = $("since-count");
     this.sinceBodyEl = $("since-body");
@@ -179,6 +186,8 @@ export class Game {
     this.cardSwatchEl = Object.assign(doc.createElement("i"), { className: "swatch" });
     $("card-who").prepend(this.cardSwatchEl);
     this.cardWhere = this.speakable($("card-where"));
+    this.cardFitEl = $("card-fit");
+    this.cardFit = this.speakable(this.cardFitEl);
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
     this.namingQuestion = this.speakable($("naming-question"));
@@ -202,6 +211,16 @@ export class Game {
     this.zoomInEl = /** @type {HTMLButtonElement} */ ($("zoom-in"));
     this.zoomOutEl = /** @type {HTMLButtonElement} */ ($("zoom-out"));
     this.compact = globalThis.matchMedia?.(COMPACT) ?? { matches: false };
+    this.placesEl = $("places");
+    this.arrowsEl = $("arrows");
+    /** @type {HTMLButtonElement[]} edge arrows, made as they are needed (at most GLOW_MAX) */
+    this.arrowEls = [];
+    this.arrowT = 0;
+    /** @type {Map<string, number>} a log line that names a baby, and that baby: a tap on the line flies to it */
+    this.logLinks = new Map();
+    /** @type {null|number} the baby the log's line names now */
+    this.logLink = null;
+    this.logShownAt = 0;
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
@@ -248,13 +267,26 @@ export class Game {
     this.bridge = bridge;
     this.herd = new Herd(this.world, 7919);
     this.herd.placeFounders(bridge);
-    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.home ?? null });
+    // Fair tests measure "nearest" between the animals' spots (herd.js), which never move.
+    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null });
     this.clock = 0;
     this.choice = null;
     this.endingAt = null;
     this.home = null;
     this.homeT = 0;
     this.fastShown = null;
+    /** the child is looking around on their own: the camera stays until "Back to my group" (playtest) */
+    this.exploring = false;
+    /** @type {null|number} the place the camera is flying to: its summary is said on arrival */
+    this.visiting = null;
+    /** @type {Array<{id:number, at:number}>} this watched day's babies still to appear, and when (story.watchT) */
+    this.appearing = [];
+    /** @type {Array<null|number>} how many lived in each place a generation ago, for "growing" or "shrinking" */
+    this.zonesBefore = [null, null, null];
+    this.glowKey = "";
+    this.logLinks.clear();
+    /** @type {null|{stay:number[], come:number[], noun:string, at:{x:number,y:number}, twins:Map<number,number>}} a follow's gather-in, shown as the fast-forward begins */
+    this.joining = null;
     this.closeCard(true);
     this.choiceEl.classList.remove("open");
     this.choiceEl.hidden = true;
@@ -274,7 +306,7 @@ export class Game {
     /** the spread's line is on screen, so each generation only changes its counter */
     this.spreadShown = false;
     this.toldGlow = false;
-    /** @type {Set<number>} generations whose glowing newborns the log named: only those get a caption on the map */
+    /** @type {Set<number>} glowing babies the log named: only those get a caption on the map */
     this.namedBirths = new Set();
     this.endingEl.hidden = true;
     this.mood = this.moodTarget = 0;
@@ -291,10 +323,18 @@ export class Game {
 
   /* ================= engine generations ================= */
   generation(now) {
+    const before = this.bridge.zoneCounts();
     const ev = this.bridge.step();
     if (!ev) return;
-    const s = this.story, fast = s.fast;
-    this.herd.applyGeneration(ev, this.bridge, now);
+    const s = this.story, fast = s.fast, watched = s.phase === "watch";
+    this.zonesBefore = before;
+    // The engine made this generation's babies now. On a watched day they appear on the map one by
+    // one across it (story.js appearFraction), the same times the story lets them glow; otherwise at once.
+    this.revealAll(now);
+    this.herd.applyGeneration(ev, this.bridge, now, watched ? () => Infinity : () => now);
+    if (watched) {
+      this.appearing = ev.births.map((b) => ({ id: b.childId, at: s.watchT + APPEAR_SPAN * s.generationSeconds * appearFraction(b.childId) }));
+    }
     // The mood of the light: a little warmer when your group grows, cooler when it shrinks.
     if (ev.group && !fast) {
       const d = ev.group.count - ev.group.before, k = ev.group.before ? d / ev.group.before : 0;
@@ -312,15 +352,11 @@ export class Game {
     else if (what === "spread-failed") this.spreadFailed();
     else if (what === "spread-danger") this.spreadDanger();
     else if (!fast) {
-      // During a fast-forward, only its end is narrated. The first glow of a story says what it is for.
-      // The log names only the babies that glow this generation (the calm rule), never more.
-      const born = s.glowing.filter((x) => x.generation === ev.generation).map((x) => x.v);
-      const lines = groupLines(ev.group, s.noun, born, s.name);
-      this.namedBirths.add(ev.generation);
-      if (born.length) this.sound.chime();
-      if (s.glowing.length && s.followOpen && !this.toldGlow) { this.toldGlow = true; lines.push(GLOW_HINT); }
-      this.say(lines);
+      // During a fast-forward, only its end is narrated. The babies are named as each one lights up
+      // (glowLines), never more than glow; the line just shown stays a moment first.
+      this.say([...groupLines(ev.group, s.noun, [], s.name), ...this.glowLines()], true);
     }
+    if (s.phase !== "watch") this.revealAll(now); // a panel, a fast-forward or the end: the day's babies show at once
     const g = ev.group, sp = s.spread ?? (what?.startsWith("spread-") ? s.lastSpread : null);
     console.info(
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
@@ -337,8 +373,66 @@ export class Game {
   syncGroups() {
     this.herd.followed = new Set(this.bridge.followedIds());
     this.herd.marks = new Map(this.bridge.otherIds().map((id) => [id, [OTHERS_COLOR]]));
-    this.herd.glowing = new Set(this.story.glowing.map((g) => g.id));
+    this.syncGlow();
     this.homeT = 0; // work the camera target out again on the next frame
+  }
+
+  /** The map's glowing babies are the story's, which start and end through the day. True when they changed. */
+  syncGlow() {
+    const ids = this.story.glowing.map((g) => g.id), key = ids.join(",");
+    if (key === this.glowKey) return false;
+    this.glowKey = key;
+    this.herd.glowing = new Set(ids);
+    return true;
+  }
+
+  /** Every baby of the day still to appear shows now. */
+  revealAll(now) {
+    this.appearing = [];
+    this.herd.showAll(now);
+  }
+
+  /**
+   * The watched day goes on (story.js): its babies appear one by one at their
+   * times, and a glow may start; the log names each baby as it lights up.
+   * @param {number} seconds watched since the last frame
+   */
+  dayGoesOn(seconds, now) {
+    const s = this.story;
+    s.advance(seconds);
+    if (this.appearing.length) {
+      const t = s.watchT + 1e-9;
+      this.appearing = this.appearing.filter((x) => {
+        if (x.at > t) return true;
+        const a = this.herd.animals.get(x.id);
+        if (a?.hidden) this.herd.reveal(a, now);
+        return false;
+      });
+    }
+    const lines = this.glowLines();
+    if (lines.length) this.sayNext(lines);
+    if (this.syncGlow()) this.updateCard(); // a card's follow buttons come and go with the glow
+  }
+
+  /**
+   * The babies that just began to glow, each named in the log as it lights up,
+   * with a chime; a tap on the line flies to the baby. The first glow of a
+   * story says what it is for. Only while the world is watched.
+   */
+  glowLines() {
+    const s = this.story, started = s.takeStarted(), lines = [];
+    if (s.phase !== "watch") return lines;
+    for (const g of started) {
+      if (!s.glowFor(g.id)) continue;
+      const line = bornLine(g.v.group, s.name);
+      this.namedBirths.add(g.id);
+      this.logLinks.set(line, g.id);
+      lines.push(line);
+    }
+    if (!lines.length) return lines;
+    this.sound.chime();
+    if (!this.toldGlow && s.followOpen) { this.toldGlow = true; lines.push(GLOW_HINT); }
+    return lines;
   }
 
   /* ================= the story ================= */
@@ -356,6 +450,7 @@ export class Game {
     // The arrival came close on one family; the story goes on at its own zoom, unless the child chose one.
     if (this.framed) this.zoomTo(this.comfortZoom());
     this.framed = false;
+    this.exploring = false; this.visiting = null; // the child chose this family: the camera goes to it
     this.centerOnGroup();
     this.updateHud();
     this.openNaming();
@@ -540,15 +635,16 @@ export class Game {
   /**
    * The child follows a glowing newborn's variation. When too few have it here
    * to start a fair test right away, the world first fast-forwards to see if it
-   * spreads (scope decision 42), unless the child's group is very small
-   * (scope decision 44). When there is a fair test to look back on,
-   * "Since your last choice" comes before the new one.
+   * spreads (scope decision 42). While the child's group is very small, nothing
+   * can be followed at all (scope decision 44, and the playtest's "no jumping
+   * ship"). When there is a fair test to look back on, "Since your last choice"
+   * comes before the new one.
    * @param {import("./story.js").Glow} x
    */
   followFromMap(x) {
     const s = this.story;
     if (!s.followOpen || this.since || this.journal || this.choice || this.naming) return;
-    if (!s.canStartFor(x) && s.inDanger) return; // the card offers only "Keep looking"
+    if (s.inDanger) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
     else if (s.choices.length) this.openSince(x);
@@ -561,24 +657,44 @@ export class Game {
    * first; then the world fast-forwards.
    */
   doFollow(x, byChance) {
-    this.story.follow(x, byChance);
+    const s = this.story, noun = s.noun, was = new Set(this.bridge.followedIds());
+    this.revealAll(performance.now());
+    s.follow(x, byChance);
+    // Where the new group comes from (playtest): the carriers already yours, and the ones new to it.
+    // Each member's twin among the others here is at the same place in their list (cohorts.js).
+    const mine = this.bridge.followedIds(), theirs = this.bridge.otherIds();
+    const stay = mine.filter((id) => was.has(id)), come = mine.filter((id) => !was.has(id));
+    const at = this.herd.largestCluster(stay) ?? this.herd.largestCluster(mine);
+    this.joining = at && { stay, come, noun, at, twins: new Map(mine.map((id, i) => [id, theirs[i]])) };
     this.setHomeLabel(); // "family" becomes "group" at the first follow
     this.syncGroups();
     this.updateCard();
+    this.exploring = false; // the child chose this group: the camera goes to it
     this.centerOnGroup();
     this.updateHud();
     // After every third follow, one prediction first (Step 6, scope decision 28).
-    const n = this.story.choices.length;
-    if (PREDICT_AFTER.includes(n)) this.openJournal(questionFor(this.story, this.bridge, x, PREDICT_AFTER.indexOf(n)), x);
+    const n = s.choices.length;
+    if (PREDICT_AFTER.includes(n)) this.openJournal(questionFor(s, this.bridge, x, PREDICT_AFTER.indexOf(n)), x);
     else this.fastForward(x);
     this.placeCard(); // an open card goes back to the side, or above the prediction
   }
 
-  /** The new groups are announced, and after a moment to read it the world fast-forwards. */
+  /**
+   * The new group gathers (playtest): the ones already yours light up, then
+   * the others with the trait walk in, with one line that counts both. Then
+   * the new groups are announced, and after a moment to read it the world
+   * fast-forwards.
+   */
   fastForward(x) {
-    const s = this.story;
-    this.preRoll();
-    this.say(chosenLines(x.v.group, s.mine.now, s.theirs.now, s.fair.zone, SKIP_GENERATIONS));
+    const s = this.story, j = this.joining;
+    this.joining = null;
+    const lines = chosenLines(x.v.group, s.mine.now, s.theirs.now, s.fair.zone, SKIP_GENERATIONS);
+    if (j) {
+      this.herd.gather(j.stay, j.come, j.twins, j.at, performance.now());
+      lines.unshift(joinLine(j.stay.length, j.come.length, x.v.group, j.noun));
+    }
+    this.preRoll(j ? 2 : 1);
+    this.say(lines);
   }
 
   /* ================= since your last choice (scope decision 34) ================= */
@@ -665,7 +781,7 @@ export class Game {
     this.logMoods.set(line, "spread");
     this.sound.spreadNote(sp.counts[sp.counts.length - 1]);
     if (!this.spreadShown) { this.spreadShown = true; this.say([line]); return line; }
-    this.log.set(line);
+    this.showLine(line);
     this.moodLog("spread");
     this.logQueue = [];
     this.logTimer = LOG_MS;
@@ -796,8 +912,8 @@ export class Game {
     return el;
   }
 
-  /** A moment to read the log before the fast-forward starts. */
-  preRoll() { this.clock = FAST_SECONDS * 1000 - LOG_MS; }
+  /** A moment to read the log's first `lines` lines before the fast-forward starts. */
+  preRoll(lines = 1) { this.clock = FAST_SECONDS * 1000 - lines * LOG_MS; }
 
   fastForwardDone() {
     const s = this.story;
@@ -976,11 +1092,15 @@ export class Game {
     const fresh = this.card?.id !== id;
     if (fresh) {
       const zone = this.bridge.zoneOf(id), newTrait = this.bridge.newTraitOf(id);
-      this.followKey = "";
+      this.followKey = ""; this.groupKey = "";
       /** @type {CardState} */
       this.card = { id, gone: false, genome: ind.bodyGenome, zone, glow: newTrait ? [newTrait.trait] : [], size: "" };
       this.cardEl.classList.remove("gone");
-      this.cardWhere.set(livesLine(zone));
+      // Where it spends its time, and a trait that doesn't fit there (playtest).
+      this.cardWhere.set(livesLine(timeSplit(ind.timeAllocation, zone)));
+      const m = misfit(ind.bodyGenome, zone);
+      this.cardFitEl.hidden = !m;
+      if (m) this.cardFit.set(misfitLine(m, zone));
       this.cardNewEl.hidden = !newTrait;
       if (newTrait) this.cardNew.set(newAtBirthLine(newTrait.trait, newTrait.up));
       // What the animal has, in plain words (scope decision 22); the trait new at birth glows.
@@ -1037,22 +1157,58 @@ export class Game {
       this.herd.selected = null;
       this.cardWho.set(PASSED_AWAY);
       this.cardSwatchEl.style.setProperty("--mark", PLAIN_COLOR);
-      this.cardCountsEl.hidden = true;
+      this.cardGroupEl.hidden = true;
       this.cardEl.classList.add("gone");
       return;
     }
     const theirs = !mine && this.bridge.isOther(c.id);
     this.cardWho.set(mine ? inYour(s.noun, s.name) : theirs ? OTHERS_HERE : notInYour(s.noun, s.name));
     this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : theirs ? OTHERS_COLOR : PLAIN_COLOR);
-    // One of the others here: how they did since the follow, against yours, as counts with bars.
-    this.cardCountsEl.hidden = !theirs;
-    if (theirs) {
-      const rows = this.fairRows().reverse();
-      const say = speakerButton(this.doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" "));
-      this.cardCountsEl.replaceChildren(...this.countRows(rows), say);
-    }
+    this.renderGroup(c.id, mine, theirs);
     this.renderFollow();
     this.fitLog(); // the card's height may have changed
+  }
+
+  /**
+   * An animal outside your group (playtest): above its traits, its group beside
+   * yours (the others here, or else its family), then and now as counts with
+   * bars, and whether it is doing better or worse than yours since the last
+   * follow; then up to three meaningful traits where it differs most from yours.
+   * @param {number} id @param {boolean} mine in your group @param {boolean} theirs one of the others here
+   */
+  renderGroup(id, mine, theirs) {
+    const s = this.story, doc = this.doc, el = this.cardGroupEl;
+    el.hidden = mine || !s.mark || s.phase === "ended";
+    if (el.hidden) { this.groupKey = ""; return; }
+    let rows, ids;
+    if (theirs) { rows = this.fairRows().reverse(); ids = this.bridge.otherIds(); }
+    else {
+      const f = familySince(this.bridge, s.mark, id);
+      rows = [{ label: ITS_FAMILY, then: f.then, now: f.now, color: PLAIN_COLOR }, { label: yoursLabel(s.name), ...s.mine, color: MINE_COLOR }];
+      ids = f.ids;
+    }
+    const doing = doingLine(better(rows[0], rows[1]), s.choices.length > 0);
+    const group = ids.map((i) => this.bridge.animal(i));
+    const test = theirs && s.fair && !s.fair.v.neutral ? s.fair.v : null; // the others were picked for not having it
+    const diffs = differences(group, this.bridge.followedAnimals(), undefined, test).map((d) => thanYours(d.trait, d.dir));
+    // A trait the group has that doesn't fit where most of it lives.
+    const where = [0, 1, 2].map((z) => group.filter((a) => a.zone === z).length), home = where.indexOf(Math.max(...where));
+    const m = group.length ? misfit(averageOf(group.map((a) => a.genome)).map((a) => a.mean), home) : null;
+    const fit = m ? misfitLine(m, home, true) : null;
+    const key = JSON.stringify([id, rows.map((r) => [r.label, r.then, r.now]), doing, fit, diffs]);
+    if (key === this.groupKey) return;
+    this.groupKey = key;
+    const line = (text, cls) => {
+      const p = Object.assign(doc.createElement("p"), { className: cls });
+      p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: text }), speakerButton(doc, () => text));
+      return p;
+    };
+    const counts = Object.assign(doc.createElement("div"), { className: "group-rows" });
+    counts.append(...this.countRows(rows), speakerButton(doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" ")));
+    const title = Object.assign(doc.createElement("div"), { className: "diff-title", textContent: DIFFERENT_TITLE });
+    title.append(speakerButton(doc, () => `${DIFFERENT_TITLE}: ${(diffs.length ? diffs : [MUCH_LIKE_YOURS]).join(". ")}.`));
+    el.replaceChildren(counts, line(doing, "doing"), ...(fit ? [line(fit, "fit")] : []), title,
+      ...(diffs.length ? diffs.map((d) => line(d, "diff")) : [line(MUCH_LIKE_YOURS, "same")]));
   }
 
   /**
@@ -1061,10 +1217,10 @@ export class Game {
    * have at least MIN_SIZE animals in its habitat, the button says the fair
    * test's real size: "Follow 14 animals with smaller eyes". Otherwise "Follow
    * animals with smaller eyes", and the world first fast-forwards to see if it
-   * spreads. While the child's group is at DANGER_SIZE or fewer, that spread
-   * can't start: the card says "Your group needs you. Stay with them?", with
-   * only "Keep looking" (decision 44). Only while the world is watched and
-   * follows are left.
+   * spreads. While the child's group is at DANGER_SIZE or fewer, no follow can
+   * start at all: the card says "Your group needs you. Stay with them?", with
+   * only "Keep looking" (decision 44 and the playtest). Only while the world is
+   * watched and follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -1073,7 +1229,7 @@ export class Game {
     this.cardFollowEl.hidden = !open;
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
-    const now = s.canStartFor(g), stay = !now && s.inDanger;
+    const stay = s.inDanger, now = !stay && s.canStartFor(g);
     const text = stay ? needsYou(s.noun, s.name) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
     const key = `${g.id}:${text}`;
     if (key === this.followKey) return;
@@ -1168,13 +1324,41 @@ export class Game {
     void this.logEl.offsetWidth;
     c.add("tick");
   }
-  /** Replace whatever is queued: the log only ever speaks about now. */
-  say(lines) { this.logQueue = lines.slice(); this.logTimer = 0; }
+  /**
+   * Replace whatever is queued: the log only ever speaks about now. With `wait`,
+   * the line on screen stays LOG_MIN_MS after it came, so a baby lighting up
+   * never cuts a line short before it can be read.
+   */
+  say(lines, wait = false) {
+    this.logQueue = lines.slice();
+    this.logTimer = wait ? Math.max(0, LOG_MIN_MS - (performance.now() - this.logShownAt)) : 0;
+  }
+  /**
+   * After whatever is queued: a baby lighting up never pushes aside a line not
+   * yet read ("Wait!", "It disappeared."). With nothing queued, the lines come
+   * once the line on screen has been up LOG_MIN_MS.
+   */
+  sayNext(lines) {
+    if (!this.logQueue.length) this.logTimer = Math.min(this.logTimer, LOG_MIN_MS - (performance.now() - this.logShownAt));
+    this.logQueue.push(...lines);
+  }
+  /** Show a line now. A line that names a baby can be tapped to fly there (showLink). */
+  showLine(line) {
+    this.log.set(line);
+    this.logShownAt = performance.now();
+    this.logLink = this.logLinks.get(line) ?? null;
+    this.showLink();
+  }
+  /** The line leads to its baby while the baby is on the map. */
+  showLink() {
+    const on = this.logLink !== null && this.herd.shown(this.logLink);
+    if (on !== this.logEl.classList.contains("link")) this.logEl.classList.toggle("link", on);
+  }
   pumpLog(dt) {
     this.logTimer -= dt;
     if (this.logTimer <= 0 && this.logQueue.length) {
       const line = this.logQueue.shift();
-      this.log.set(line);
+      this.showLine(line);
       const mood = this.logMoods.get(line) ?? "";
       this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
       this.logEl.style.animation = mood ? "" : "lgIn .55s ease both";
@@ -1182,6 +1366,124 @@ export class Game {
       this.logCues.get(line)?.();
       this.logTimer = LOG_MS;
     }
+  }
+
+  /* ================= looking around (playtest) ================= */
+  /**
+   * Fly the camera to a baby: from a line or a caption that names it (its card
+   * opens too), or from an arrow at the screen's edge. The child is exploring
+   * now, so the camera stays there until "Back to my group".
+   * @param {number} id @param {boolean} [card] open its card
+   */
+  flyToBaby(id, card = false) {
+    const a = this.herd.animals.get(id);
+    if (!a || a.hidden) return;
+    this.exploring = true; this.visiting = null;
+    this.hideHint();
+    if (card && this.story.phase !== "waiting") this.showCard(id);
+    // The baby lands in the middle of the map an open card leaves free at the side, a little above the middle.
+    const side = !!this.card && !this.cardEl.classList.contains("above"), left = this.cardEl.offsetLeft;
+    this.flyTo(a.x, a.y - 11, side && left > this.vw * 0.35 ? left / 2 / this.vw : 0.5, 0.45);
+  }
+
+  /** The camera flies to a point of the map, `fx` of the way across the screen and `fy` down it. */
+  flyTo(x, y, fx = 0.5, fy = 0.5) {
+    this.camTween = { ...this.camAt(x, y, this.vw * fx, this.vh * fy, this.zoomGoal()), t: 0 };
+  }
+
+  /**
+   * Visit a place: the camera flies to where most of its animals live, and on
+   * arrival the narration sums it up (arrive). The child is exploring now.
+   * @param {number} zone engine zone index
+   */
+  visitPlace(zone) {
+    const ids = [];
+    for (const a of this.herd.animals.values()) if (a.zone === zone && !a.hidden) ids.push(a.id);
+    const p = this.herd.largestCluster(ids, 320) ?? { x: this.world.W / 2, y: this.world.yAt(this.world.W / 2, [0.2, 0.6, 0.96][zone]) };
+    this.exploring = true;
+    this.visiting = zone;
+    this.hideHint();
+    this.flyTo(p.x, p.y, 0.5, 0.45);
+  }
+
+  /** Arrived: "Water's edge: 119 animals, growing. Most have webbed feet." From the engine's counts. */
+  arrive() {
+    const zone = this.visiting;
+    this.visiting = null;
+    const p = placeNow(this.bridge.livingAnimals(), zone, this.zonesBefore[zone]);
+    this.say([placeLine(zone, p.n, p.trend, p.common)]);
+  }
+
+  /**
+   * An arrow at the screen's edge for each glowing baby off the screen,
+   * pointing to it; a tap flies there. The arrows keep off the panels, the
+   * buttons and the narration, and rest while a sheet, the ending or the
+   * arrival is up.
+   */
+  placeArrows() {
+    const s = this.story, v = this.view, z = this.zoom, R = 24, M = 8; // an arrow's radius, and the room kept around things
+    const on = !!v && s.phase === "watch" && !this.arrival && !this.panelUp;
+    const want = [];
+    if (on) for (const g of s.glowing) {
+      const a = this.herd.animals.get(g.id);
+      if (!a || a.hidden) continue;
+      const sx = (a.x - v.x) * z, sy = (a.y - 11 - v.y) * z;
+      if (sx > 6 && sx < this.vw - 6 && sy > 6 && sy < this.vh - this.logRoom * 0.6) continue; // on the screen
+      want.push({ id: g.id, sx, sy });
+    }
+    if (want.length) {
+      // Arrows stand in the room the screen leaves: inside its edges, above the narration, off everything on it.
+      const stage = this.stage.getBoundingClientRect();
+      const blocks = [this.hudEl, this.muteEl, this.zoomEl, this.placesEl, this.card ? this.cardEl : null, this.homeShown ? this.homeEl : null,
+        this.hintGone ? null : this.hintEl, this.bloomEl.hidden ? null : this.bloomEl]
+        .filter(Boolean).map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0)
+        .map((r) => ({ l: r.left - stage.left - M, t: r.top - stage.top - M, r: r.right - stage.left + M, b: r.bottom - stage.top + M }));
+      const box = { l: M + R, t: M + R, r: this.vw - M - R, b: this.vh - this.logRoom - R };
+      const cx = this.vw / 2, cy = (box.t + box.b) / 2, placed = [];
+      for (const w of want) {
+        const dx = w.sx - cx, dy = w.sy - cy;
+        const k = Math.min(dx > 0 ? (box.r - cx) / dx : dx < 0 ? (box.l - cx) / dx : Infinity, dy > 0 ? (box.b - cy) / dy : dy < 0 ? (box.t - cy) / dy : Infinity);
+        const p = { x: cx + dx * k, y: cy + dy * k, a: Math.atan2(dy, dx), id: w.id };
+        // Slide along its edge, off whatever is there and off the arrows already placed.
+        const across = Math.abs(p.x - box.l) < 1 || Math.abs(p.x - box.r) < 1; // on a side: slides up or down
+        for (let pass = 0; pass < 4; pass++) {
+          const hit = [...blocks, ...placed.map((q) => ({ l: q.x - R - M, t: q.y - R - M, r: q.x + R + M, b: q.y + R + M }))]
+            .find((b) => p.x + R > b.l && p.x - R < b.r && p.y + R > b.t && p.y - R < b.b);
+          if (!hit) break;
+          if (across) {
+            const up = hit.t - R, down = hit.b + R;
+            p.y = (Math.abs(up - p.y) <= Math.abs(down - p.y) && up >= box.t) || down > box.b ? up : down;
+          } else {
+            const left = hit.l - R, right = hit.r + R;
+            p.x = (Math.abs(left - p.x) <= Math.abs(right - p.x) && left >= box.l) || right > box.r ? left : right;
+          }
+          p.x = clamp(p.x, box.l, box.r); p.y = clamp(p.y, box.t, box.b);
+        }
+        placed.push(p);
+      }
+      placed.forEach((p, i) => {
+        const el = this.arrowEl(i);
+        el.target = p.id;
+        el.hidden = false;
+        el.style.transform = `translate(${(p.x - R).toFixed(1)}px, ${(p.y - R).toFixed(1)}px)`;
+        el.firstElementChild.style.transform = `rotate(${p.a.toFixed(3)}rad)`;
+      });
+    }
+    for (let i = want.length; i < this.arrowEls.length; i++) this.arrowEls[i].hidden = true;
+  }
+
+  /** The i-th edge arrow, made the first time it is needed. */
+  arrowEl(i) {
+    if (!this.arrowEls[i]) {
+      const b = /** @type {HTMLButtonElement & {target:null|number}} */ (Object.assign(this.doc.createElement("button"),
+        { type: "button", className: "arrow", hidden: true, target: null }));
+      b.setAttribute("aria-label", "Go to a glowing baby");
+      b.append(this.doc.createElement("i"));
+      b.addEventListener("click", () => { if (b.target !== null) this.flyToBaby(b.target); });
+      this.arrowsEl.append(b);
+      this.arrowEls[i] = b;
+    }
+    return this.arrowEls[i];
   }
 
   /* ================= canvas & camera ================= */
@@ -1254,6 +1556,7 @@ export class Game {
    * across habitats. `high` of the screen above the middle, to clear a panel.
    */
   centerOnGroup(high = 0) {
+    if (this.exploring) return; // the child is looking around: only "Back to my group" goes back (playtest)
     const p = this.herd.largestCluster(this.herd.followed); if (!p) return;
     this.camTween = { x: p.x - this.vw / 2, y: p.y - this.vh / 2 + high * this.vh / this.zoomGoal(), t: 0 };
   }
@@ -1324,13 +1627,19 @@ export class Game {
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
     if (s.running && !this.journal && !this.since && !this.naming) { // a panel on screen holds the world
-      const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000;
-      this.clock += Math.min(250, raw);
+      const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000, step = Math.min(250, raw);
+      this.clock += step;
+      if (s.phase === "watch" && this.clock >= 0) this.dayGoesOn(step / 1000, now); // (a moment being reached holds the clock below 0)
       if (this.clock >= genMs) {
         this.clock = Math.min(this.clock - genMs, genMs - 1);
         if (!this.bridge.extinct) this.generation(now);
       }
       if (s.running) this.barEl.style.width = `${(100 * Math.max(0, this.clock) / genMs).toFixed(1)}%`;
+    }
+    // Out of a watched day (a fast-forward, a panel, the end), its babies are all shown and no glow is named.
+    if (s.phase !== "watch") {
+      if (this.appearing.length) this.revealAll(now);
+      if (s.started.length) s.takeStarted();
     }
     // A fast-forward shows: the badge is up and the animals hurry.
     const fastNow = s.fast && this.clock >= 0 && !this.journal;
@@ -1373,9 +1682,12 @@ export class Game {
       if (tw.t >= 1) { this.cam.x = tw.x; this.cam.y = tw.y; this.camTween = null; }
       this.clampCam();
     }
+    if (this.visiting !== null && !this.camTween) this.arrive();
     this.zoom = this.zoomBase * this.zoomK;
     this.showZoomButtons();
     this.render(now);
+    // Arrows to glowing babies off the screen, and whether the log's line leads to a baby, now and then.
+    if ((this.arrowT -= dt) <= 0) { this.arrowT = ARROW_MS; this.placeArrows(); this.showLink(); }
   }
 
   /** + and − can't go past the ends, and they rest while a panel is up (the panel is what matters then). */
@@ -1481,10 +1793,11 @@ export class Game {
    * A short caption beside the first of your newborns blooming now: its new
    * trait, in the log's own words ("thicker fur"), with a speaker. Only for
    * newborns the log has named, so the map never says more than the log does
-   * (nothing about babies born during a fast-forward).
+   * (nothing about babies born during a fast-forward). A tap on it opens the
+   * baby's card (playtest).
    */
   placeBloom(now, view) {
-    const named = (id) => this.namedBirths.has(this.story.glowFor(id)?.generation ?? -1);
+    const named = (id) => this.namedBirths.has(id);
     const b = !this.choice && !this.journal && !this.since && !this.naming && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
     if (!b) {
       if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
@@ -1515,12 +1828,12 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #ending, #bloom, #log.link")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
         this.dragging = true; this.pinched = false; this.moved = 0; this.startT = performance.now();
-        this.camTween = null; this.zoomTween = null;
+        this.camTween = null; this.zoomTween = null; this.visiting = null;
       } else if (this.ptrs.size === 2) this.startPinch();
     });
     s.addEventListener("pointermove", (e) => {
@@ -1533,7 +1846,7 @@ export class Game {
         this.moved += Math.hypot(dx, dy);
         this.cam.x -= dx / this.zoom; this.cam.y -= dy / this.zoom;
         this.clampCam();
-        if (this.moved > 26) this.hideHint();
+        if (this.moved > 26) { this.hideHint(); this.exploring = true; } // looking around: the camera stays where it is put
       }
     });
     // One finger lifted from a pinch: the other pans on (or the two still down pinch on). A pinch never ends in a tap.
@@ -1569,8 +1882,22 @@ export class Game {
       e.preventDefault();
       this.setHud(!this.hudEl.classList.contains("open"));
     });
-    // "Back to my group": the camera goes to the group, at the story's zoom.
-    this.homeEl.addEventListener("click", () => { this.zoomTo(this.comfortZoom()); this.centerOnGroup(); this.hideHint(); });
+    // "Back to my group": the camera goes to the group, at the story's zoom, and stays with it again.
+    this.homeEl.addEventListener("click", () => {
+      this.exploring = false; this.visiting = null;
+      this.zoomTo(this.comfortZoom()); this.centerOnGroup(); this.hideHint();
+    });
+    // A line or a caption that names a baby, and an arrow to a glowing baby off the screen, fly there (playtest).
+    this.logEl.addEventListener("click", (e) => {
+      if (/** @type {HTMLElement} */ (e.target).closest("button") || this.logLink === null) return;
+      this.flyToBaby(this.logLink, true);
+    });
+    this.bloomEl.addEventListener("click", (e) => {
+      if (/** @type {HTMLElement} */ (e.target).closest("button") || this.bloomId === null || this.bloomId === undefined) return;
+      this.flyToBaby(this.bloomId, true);
+    });
+    // Visit another place: the camera flies there, and the narration sums it up on arrival.
+    for (const b of this.placesEl.querySelectorAll("button")) b.addEventListener("click", () => this.visitPlace(Number(b.dataset.zone)));
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });

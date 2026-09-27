@@ -4,6 +4,8 @@ Purpose: after some follows, the child predicts what will happen next. The game 
 
 Principle: nothing is ever called wrong, and there are no scores or points. Each question has one reasonable answer and two or three common Grade 3 misconceptions. The result only says what the child thought and what happened. After two of the misconceptions, one short line says why. Everything happens inside the game. There are no network calls, and no student data leaves the device (scope decision 25).
 
+*Updated 2026-09-27 after Marc's first real play: the "need" option now always names the trait the child just chose ("They'll grow even bigger eyes because they need them."), so no option names a trait unrelated to the follow. It is offered in every question.*
+
 *Updated 2026-09-26 for family names (Step 5, `docs/LINEAGE_FAMILY_NAMES.md`): once the family has a name, the lines below name it. "Yours" reads "Your Mossfoot animals" (in the answers, the rows and the results), "yours" reads "your Mossfoot animals", and "your new group" reads "your new Mossfoot group". The lines below are shown without a name.*
 
 *Updated 2026-09-24 for active choosing (scope decisions 32–35). A choice is now a follow, which starts a fair test: your group and "the others here", the same number of animals from the same habitat (10 to 20; scope decision 36). The question types changed to match.*
@@ -61,29 +63,38 @@ The reasonable answer for each type:
 
 | Kind | Option | Offered | The idea behind it |
 |---|---|---|---|
-| need | "Grow. They'll grow webbed feet because they need them." | grow or shrink, when it fits (below) | Animals grow what they need. |
-| need | "Yours. They'll grow webbed feet because they need them." | the fair test, when it fits | The same idea. |
+| need | "Grow. They'll grow even bigger eyes because they need them." | grow or shrink, always | Animals grow what they need. |
+| need | "Yours. They'll grow even bigger eyes because they need them." | the fair test, always | The same idea. |
 | chose | "Grow, because I picked them." | grow or shrink, always | My choice changes the animals. |
 | chose | "Yours, because I picked them." | the fair test, always | The same idea. |
 | matters | "Grow. A lighter coat will help them." | grow or shrink, neutral trait | Every difference helps or hurts. |
 | matters | "Yours. A darker coat will help them." | the fair test, neutral trait | The same idea. |
-| same | "Stay the same. Animals don't change." | grow or shrink, if there are fewer than 4 options | Groups and bodies stay fixed. |
-| luck | "About the same. It's all luck." | the fair test, meaningful trait, if there are fewer than 4 options | Survival is only luck. |
+| same | "Stay the same. Animals don't change." | grow or shrink, meaningful trait (the fourth option) | Groups and bodies stay fixed. |
+| luck | "About the same. It's all luck." | the fair test, meaningful trait (the fourth option) | Survival is only luck. |
 
 Options are listed in this order, and the screen shuffles them:
 - the reasonable answer;
 - "matters" (neutral traits only);
 - "chose";
-- "need", if it fits;
+- "need";
 - "same" or "luck", if there are still fewer than 4.
 
-**When "need" fits.** The fair test's habitat must clearly reward a trait: a net effect of 0.8 or more. The option names the most rewarded trait that your group doesn't already have (its average is not in the top third). If the group already has all of them, "need" is not offered.
+**What "need" names.** Always the trait the child just chose, in the direction they chose it: "They'll grow even bigger eyes because they need them." For less of a trait it says "get": "They'll get even less webbing because they need it." Every question therefore has four options, and every option is about the follow.
 
-| Habitat | Traits "need" can name, most rewarded first |
+| The child chose | "Need" says |
 |---|---|
-| High leaves | curved claws, long back legs |
-| Open ground | long back legs, big eyes, thick fur |
-| Water's edge | webbed feet, a sleek body, a strong tail |
+| more webbing / less webbing | grow even more webbing / get even less webbing |
+| more curved claws / straighter claws | grow even more curved claws / get even straighter claws |
+| thicker fur / thinner fur | grow even thicker fur / get even thinner fur |
+| longer back legs / shorter back legs | grow even longer back legs / get even shorter back legs |
+| a stronger tail / a weaker tail | grow even stronger tails / get even weaker tails |
+| bigger eyes / smaller eyes | grow even bigger eyes / get even smaller eyes |
+| a sleeker body / a chunkier body | grow even sleeker bodies / get even chunkier bodies |
+| a lighter coat / a darker coat | grow even lighter coats / get even darker coats |
+| pointier ear tips / rounder ear tips | grow even pointier ear tips / get even rounder ear tips |
+| a brighter tail tip / a plainer tail tip | grow even brighter tail tips / get even plainer tail tips |
+
+*Before 2026-09-27 the option named the trait the habitat rewarded most that the group didn't already have (a net effect of 0.8 or more), which could be a trait the child hadn't chosen. It was offered only when such a trait existed, and "same" took its place otherwise. Now that "need" is always offered, a neutral trait's grow-or-shrink question no longer offers "same" (its four are the reasonable answer, "matters", "chose" and "need"); every other option is as it was.*
 
 ## What the child sees afterwards
 

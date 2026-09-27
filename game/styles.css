@@ -82,6 +82,41 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #home .ring { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 2px solid #14657F; border-radius: 50%; }
 #home .ring i { width: 6px; height: 6px; border-radius: 50%; background: #14657F; }
 
+/* Visit another place (playtest): three paper buttons at the foot of the map, across from "Back to my group", clear of the narration. */
+#places {
+  position: absolute; z-index: 24; left: calc(18px + env(safe-area-inset-left)); bottom: calc(112px + env(safe-area-inset-bottom));
+  display: flex; gap: 8px; transition: opacity .4s ease;
+}
+#places button {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 18px 10px 14px; border: 0; border-radius: 999px; cursor: pointer;
+  background-color: #F7F0DF; color: #3E4436; font-family: Karla, system-ui, sans-serif; font-size: 16px; font-weight: 700; letter-spacing: .2px;
+  box-shadow: 0 4px 18px rgba(60, 44, 20, .2), inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+#places button::before { content: ""; flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .7); }
+#places button[data-zone="0"]::before { background: #4F7A45; }
+#places button[data-zone="1"]::before { background: #A8864F; }
+#places button[data-zone="2"]::before { background: #4F93AE; }
+#places button:active { transform: scale(.96); }
+#stage.arriving #places { visibility: hidden; }
+#stage.panel-up #places { opacity: 0; pointer-events: none; }
+
+/* A glowing baby off the screen (playtest): a small golden arrow at the edge points to it; a tap flies there. */
+#arrows .arrow {
+  position: absolute; left: 0; top: 0; z-index: 23; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 40% 36%, #FFF6DC, #FFE2A2 58%, #EFBE62);
+  box-shadow: 0 0 0 2.5px rgba(255, 250, 236, .9), 0 4px 16px rgba(90, 60, 20, .3), 0 0 22px rgba(255, 206, 110, .7);
+  transition: transform .09s linear; animation: arrowGlow 1.6s ease-in-out infinite alternate;
+}
+#arrows .arrow[hidden] { display: none; }
+/* A chevron drawn pointing right, turned toward the baby (main.js). */
+#arrows .arrow i { position: absolute; inset: 0; display: block; }
+#arrows .arrow i::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -9px;
+  border: solid #6B4A0E; border-width: 3.5px 3.5px 0 0; border-radius: 2px; transform: rotate(45deg);
+}
+@keyframes arrowGlow { from { box-shadow: 0 0 0 2.5px rgba(255, 250, 236, .9), 0 4px 16px rgba(90, 60, 20, .3), 0 0 12px rgba(255, 206, 110, .45); } to { box-shadow: 0 0 0 2.5px rgba(255, 250, 236, .9), 0 4px 16px rgba(90, 60, 20, .3), 0 0 26px rgba(255, 206, 110, .9); } }
+#stage.arriving #arrows, #stage.panel-up #arrows { display: none; }
+
 /* ---- The narration: one calm line at the foot of the screen, warmer or cooler with the mood. ---- */
 #logbar {
   position: absolute; left: 0; right: 0; bottom: 0; isolation: isolate;
@@ -100,6 +135,18 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   font-family: Petrona, Georgia, serif; font-weight: 500; font-size: 27px; line-height: 1.25; letter-spacing: .1px;
   color: #FBF5E6; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); text-wrap: pretty;
 }
+/* A line that names a baby (playtest): a golden underline, and a tap flies to the baby. */
+#log.link .text {
+  position: relative; pointer-events: auto; cursor: pointer;
+  text-decoration: underline; text-decoration-color: rgba(255, 214, 138, .8); text-decoration-thickness: 2px; text-underline-offset: 6px;
+}
+/* The line and the caption beside a baby are tapped too: an invisible hit area at least 48 px tall, behind their speakers. */
+#log.link .text::after, #bloom::after {
+  content: ""; position: absolute; z-index: -1; left: -6px; right: -6px; top: 50%;
+  height: 100%; min-height: 48px; transform: translateY(-50%);
+}
+#bloom { cursor: pointer; }
+#bloom::after { left: 0; right: 0; }
 
 /* ---- The generation panel: the number, and the day it is in. ---- */
 #hud {
@@ -176,14 +223,32 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   box-shadow: 0 0 0 2px rgba(232, 184, 92, .55), 0 0 18px rgba(255, 206, 110, .35);
   font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.28;
 }
-#card-new[hidden], #card-counts[hidden] { display: none; }
-#card-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 15px; font-weight: 600; color: #585A4A; }
+#card-new[hidden], #card-fit[hidden] { display: none; }
+/* A trait that doesn't fit where it lives: a gentle aside, not a warning. */
+#card-fit, #card-group .fit { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; font-style: italic; line-height: 1.25; color: #6B4A0E; }
 /* What the animal has, in plain words, two to a row. */
 #card-traits { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; margin-top: 10px; padding-top: 6px; border-top: 1px solid #E3D6B8; }
 #card-traits .row { display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 2px 0 2px 10px; border-bottom: 1px dashed #E6DAC0; }
 #card-traits .v { flex: 1; font-family: Petrona, Georgia, serif; font-size: 16px; line-height: 1.18; }
 #card-traits .row.new { border-radius: 12px; border-bottom-color: transparent; background: linear-gradient(90deg, #FFE7B2, #FFF4DA 80%); box-shadow: 0 0 0 1.5px rgba(232, 184, 92, .6), 0 0 14px rgba(255, 206, 110, .4); }
 #card.gone #card-animal, #card.gone #card-traits, #card.gone #card-new { opacity: .55; filter: grayscale(.5); animation: none; }
+/* Another group (playtest): its count beside yours, how it is doing, and how it differs from yours, highlighted. */
+#card-group { margin-top: 10px; padding: 8px 10px 10px 14px; border-radius: 18px; background: #EFE5CE; }
+#card-group[hidden] { display: none; }
+#card-group .group-rows { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px; font-size: 15px; font-weight: 600; color: #585A4A; }
+#card-group .doing, #card-group .diff, #card-group .same {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 4px 0 0;
+  font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.25; color: #2A2B22;
+}
+#card-group .diff-title {
+  display: flex; align-items: center; gap: 2px; margin-top: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #6E6750;
+}
+#card-group .diff {
+  min-height: 44px; padding: 2px 6px 2px 12px; border-radius: 12px;
+  background: linear-gradient(90deg, #FFE7B2, #FFF4DA 80%); box-shadow: 0 0 0 1.5px rgba(232, 184, 92, .6);
+}
+#card-group .same { font-style: italic; color: #585A4A; }
 /* While the choice panel is up, the card sits in the room above it, wide (scope decision 23). */
 #card.above {
   left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 860px; margin-left: auto;
@@ -192,7 +257,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #card.above:not([hidden]) { display: grid; grid-template-columns: minmax(200px, 36%) 1fr; column-gap: 16px; align-content: start; }
 #card.above .head { grid-column: 1 / -1; }
 #card.above #card-animal { grid-column: 1; grid-row: 2 / span 4; align-self: start; height: min(200px, calc(var(--room) - 76px)); }
-#card.above #card-where, #card.above #card-new, #card.above #card-counts, #card.above #card-traits { grid-column: 2; }
+#card.above #card-where, #card.above #card-fit, #card.above #card-new, #card.above #card-group, #card.above #card-traits { grid-column: 2; }
 #card.above #card-where { margin-top: 8px; }
 #card.above #card-traits { grid-template-columns: 1fr 1fr 1fr; }
 #card.above #card-traits .v { font-size: 15px; }
@@ -614,8 +679,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   }
   #log { font-size: clamp(15px, 4.4vh, 22px); line-height: 1.2; }
   #home { bottom: calc(20vh + 8px + env(safe-area-inset-bottom)); min-height: 44px; padding: 8px 18px 8px 12px; font-size: 15px; }
+  #places { bottom: calc(20vh + 8px + env(safe-area-inset-bottom)); gap: 6px; }
+  #places button { min-height: 44px; padding: 8px 14px 8px 12px; font-size: 15px; }
   #bloom { font-size: 15.5px; padding: 3px 2px 3px 12px; } /* the newborn's caption, smaller beside the animals */
 }
+/* A narrow screen: the place buttons stand one above another, beside "Back to my group". */
+@media (max-width: 599px) { #places { flex-direction: column; align-items: flex-start; } }
 /* A narrow screen held upright: the narration a little smaller, so a long line takes three lines at most. */
 @media (max-width: 599px) and (min-height: 600px) {
   #logbar { padding: 60px calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left)); }

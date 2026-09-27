@@ -12,6 +12,8 @@ Screenshots of the game as it is now, for Step 4 (look design). Each moment open
 
 The moments deep in a story take a few seconds to reach. A small "getting there" label shows while they do.
 
+*Since the playtest fixes (2026-09-27, scope decision 50), glowing babies light up during the watched day. The search and the replay therefore pass each day in half-second steps, and the child acts at the same second of the same day. Some moments now come from a different point in the story than in the pictures below. Five moments were added, with pictures in `design/after/` only: `joining`, `edge-arrow`, `other-card`, `habitat` and `ground`.*
+
 ## Every screen uses these
 
 - **`game/src/world.js`:** the painted terrain, with its three habitat bands (high leaves, open ground, water's edge).

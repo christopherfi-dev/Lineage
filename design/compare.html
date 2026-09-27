@@ -44,7 +44,7 @@
 <body>
 <main>
   <h1>LINEAGE before and after</h1>
-  <p>Each moment of the live game on seed 6: before Step 5 (<code>design/current/</code>) and after both of its parts (<code>design/after/</code>): the look, then family names, sound and animals that move like animals, then small screens and touch (the + and − buttons, a closer arrival). <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after it. Tap a picture to see it full size.</p>
+  <p>Each moment of the live game on seed 6: before Step 5 (<code>design/current/</code>) and after (<code>design/after/</code>): the look, then family names, sound and animals that move like animals, then small screens and touch (the + and − buttons, a closer arrival), then the fixes from Marc's first real play (open ground painted as grass and earth with sand only at the water, animals living where their habitat use puts them, the Leaves · Ground · Water buttons, babies that appear through the day). <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after it. Tap a picture to see it full size.</p>
   <div class="switch" role="group" aria-label="Screen">
     <button type="button" data-o="landscape" aria-pressed="true">Landscape</button>
     <button type="button" data-o="portrait" aria-pressed="false">Portrait</button>
@@ -54,7 +54,7 @@
   <footer>Shot with headless Chromium at iPad size (1180 × 820 and 820 × 1180) and on a phone held sideways (844 × 390), at 2× pixels. How each moment is reached: <code>design/current/README.md</code>. Links to open each moment in the game: <a href="../game/moments.html">moments</a>.</footer>
 </main>
 <script>
-  // [file, title, note]; a moment with no "before" picture was added with the look.
+  // [file, title, note, before, new with]: a moment with no "before" picture was added with the look, or with the playtest fixes.
   const MOMENTS = [
     ["arrival", "Arrival", "After the morning mist has lifted."],
     ["arrival-mist", "Arrival, in the mist", "New with the look: the camera drifts down into the leaves.", false],
@@ -63,16 +63,21 @@
     ["generation-dawn", "The next generation, at dawn", "New with the look: a generation is one day.", false],
     ["variation", "A variation", "A newborn glowing, with its caption."],
     ["follow", "Following a trait", "A glowing newborn's card."],
+    ["joining", "Joining", "New with the playtest fixes: yours light up, then the others with the trait walk in.", false, "the playtest fixes"],
+    ["edge-arrow", "An arrow to a baby", "New with the playtest fixes: a glowing baby off the screen, and arrows at the edge.", false, "the playtest fixes"],
     ["spreading", "Will it spread?", "The fast-forward counter."],
     ["fizzled", "It disappeared", "The rare trait is gone."],
     ["danger", "Wait!", "The fast-forward stops: the family is very small."],
     ["blocked", "Stay with them?", "A very small family: only “Keep looking”."],
     ["fairtest", "A fair test", "Yours and the others here, on the map and in the corner."],
+    ["other-card", "Another group's card", "New with the playtest fixes: its group beside yours, and how it differs.", false, "the playtest fixes"],
     ["grow", "Growing", "The group clearly bigger."],
     ["shrink", "Shrinking", "The family clearly smaller."],
     ["choice", "The backup choice", "Nothing followed for a while."],
     ["prediction", "A prediction", "The journal's question."],
     ["prediction-result", "A prediction's result", "Since your last choice."],
+    ["habitat", "Visiting the water", "New with the playtest fixes: the water's edge, with sand only where it meets the water.", false, "the playtest fixes"],
+    ["ground", "Visiting the ground", "New with the playtest fixes: open ground as grass and earth.", false, "the playtest fixes"],
     ["ending", "The ending", "A group that survived, with its reveal."],
     ["extinct", "Died out", "The fair test first, then the reveal."],
     ["card", "A creature card", "An animal with a new trait."],
@@ -89,15 +94,15 @@
     document.body.classList.toggle("portrait", o === "portrait");
     document.body.classList.toggle("phone", o === "phone");
     for (const b of document.querySelectorAll(".switch button")) b.setAttribute("aria-pressed", String(b.dataset.o === o));
-    list.replaceChildren(...MOMENTS.flatMap(([file, title, note, before = true]) => {
+    list.replaceChildren(...MOMENTS.flatMap(([file, title, note, before = true, newWith = "the look"]) => {
       const h = document.createElement("h2");
       h.append(title, Object.assign(document.createElement("small"), { textContent: note }));
       const pair = Object.assign(document.createElement("div"), { className: "pair" });
       const name = `${file}-${o}.jpg`;
-      // On the phone, "before" is the game just before the small-screen round, which has every moment.
-      if (o === "phone") pair.append(picture("phone-before", name, "Before"));
-      else if (before) pair.append(picture("current", name, "Before"));
-      else pair.append(Object.assign(document.createElement("div"), { className: "none", textContent: "No picture before: new with the look" }));
+      // On the phone, "before" is the game just before the small-screen round, which has every moment of the look.
+      const none = () => Object.assign(document.createElement("div"), { className: "none", textContent: `No picture before: new with ${newWith}` });
+      if (o === "phone") pair.append(newWith === "the look" ? picture("phone-before", name, "Before") : none());
+      else pair.append(before ? picture("current", name, "Before") : none());
       pair.append(picture("after", name, "After"));
       return [h, pair];
     }));

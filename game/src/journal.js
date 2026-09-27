@@ -9,7 +9,7 @@
  */
 
 import { TRAITS, EFFECT, UPKEEP, currentModelConfig } from "./engine.js";
-import { TRAIT_WORDS, hasWords, isNeutral, levelOf } from "./variations.js";
+import { TRAIT_WORDS, isNeutral } from "./variations.js";
 import { ZONE_AT, OTHERS_HERE, your, yoursLabel, yoursWith } from "./narration.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
@@ -24,9 +24,6 @@ export const JOURNAL_SECONDS = 15;
  * fair test's groups start in one habitat.
  */
 const CYCLE = ["mine", "fair"];
-
-/** "Need" only fits a trait the habitat clearly rewards: at least this much, per unit of the trait. */
-const NEED_MIN = 0.8;
 
 const { zoneWeights, zoneScarcity } = currentModelConfig;
 
@@ -43,8 +40,23 @@ export function netEffect(t, zone) {
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Variation words that take a plural verb: "more curved claws help". */
 const PLURAL = new Set(["curved_claws", "long_hindlimbs", "large_eyes", "ear_tip_shape"]);
-/** "Webbed feet", "curved claws"…: the high-end words that are plural ("because they need them"). */
-const PLURAL_HAS = new Set(["toe_webbing", "curved_claws", "long_hindlimbs", "large_eyes"]);
+/**
+ * The "need" misconception about the trait the child just chose: [less, more] than now.
+ * All are plural ("because they need them") except webbing and fur ("it").
+ */
+const NEED_WORDS = {
+  toe_webbing: ["even less webbing", "even more webbing"],
+  curved_claws: ["even straighter claws", "even more curved claws"],
+  dense_fur: ["even thinner fur", "even thicker fur"],
+  long_hindlimbs: ["even shorter back legs", "even longer back legs"],
+  strong_tail: ["even weaker tails", "even stronger tails"],
+  large_eyes: ["even smaller eyes", "even bigger eyes"],
+  streamlined_body: ["even chunkier bodies", "even sleeker bodies"],
+  coat_shade: ["even darker coats", "even lighter coats"],
+  ear_tip_shape: ["even rounder ear tips", "even pointier ear tips"],
+  tail_tip_marking: ["even plainer tail tips", "even brighter tail tips"],
+};
+const NEED_IT = new Set(["toe_webbing", "dense_fur"]);
 
 /** After an answer, while it stays on screen. */
 export const JOURNAL_NOTE = "Let's see what happens after the fast-forward.";
@@ -60,30 +72,19 @@ export const CHOSE_LINE = "Your choice doesn't change the animals. It picks who 
 
 const helpLine = (words, trait, zone) => `Grow. ${cap(words)} ${PLURAL.has(trait) ? "help" : "helps"} ${ZONE_AT[zone]}.`;
 const hurtLine = (words, trait, zone) => `Shrink. ${cap(words)} ${PLURAL.has(trait) ? "don't" : "doesn't"} help ${ZONE_AT[zone]}.`;
-const needGrow = (trait) => `Grow. They'll grow ${hasWords(trait, 2)} because they need ${PLURAL_HAS.has(trait) ? "them" : "it"}.`;
-
 /**
- * The trait "need" would be about: the one the habitat rewards most that these
- * animals don't already have. Null when there is none, so "need" doesn't fit.
+ * The "need" misconception, always about the trait the child just chose:
+ * "They'll grow even bigger eyes because they need them." ("get" for less of a trait).
  */
-function needTrait(zone, animals) {
-  if (!animals.length) return null;
-  const ranked = TRAITS.map((trait, t) => ({ trait, t, net: netEffect(t, zone) }))
-    .filter((x) => !isNeutral(x.t) && x.net >= NEED_MIN).sort((a, b) => b.net - a.net);
-  for (const x of ranked) {
-    const mean = animals.reduce((sum, a) => sum + a.genome[x.t], 0) / animals.length;
-    if (levelOf(mean) < 2) return x.trait;
-  }
-  return null;
-}
+export const needLine = (trait, dir) =>
+  `They'll ${dir > 0 ? "grow" : "get"} ${NEED_WORDS[trait][dir > 0 ? 1 : 0]} because they need ${NEED_IT.has(trait) ? "it" : "them"}.`;
 
 /**
  * Grow-or-shrink options for a group with a variation, in a habitat: the
- * reasonable answer first, then up to three misconceptions.
+ * reasonable answer first, then three misconceptions, all about that variation.
  * @param {string} trait @param {number} dir @param {number} zone the group's main habitat
- * @param {Array<{genome:ArrayLike<number>}>} animals its members
  */
-function growOptions(trait, dir, zone, animals) {
+function growOptions(trait, dir, zone) {
   const t = TRAITS.indexOf(trait), words = TRAIT_WORDS[trait][dir > 0 ? 1 : 0];
   const options = [];
   if (isNeutral(t)) {
@@ -94,8 +95,7 @@ function growOptions(trait, dir, zone, animals) {
     options.push({ text: helps ? helpLine(words, trait, zone) : hurtLine(words, trait, zone), outcome: helps ? "grow" : "shrink", reasonable: true });
   }
   options.push({ text: "Grow, because I picked them.", outcome: "grow", tag: "chose" });
-  const need = needTrait(zone, animals);
-  if (need) options.push({ text: needGrow(need), outcome: "grow", tag: "need", need });
+  options.push({ text: `Grow. ${needLine(trait, dir)}`, outcome: "grow", tag: "need" });
   if (options.length < 4) options.push({ text: "Stay the same. Animals don't change.", outcome: "same", tag: "same" });
   return options;
 }
@@ -107,10 +107,9 @@ function growOptions(trait, dir, zone, animals) {
  * better, yours or the others here, with the reasonable answer first.
  * @param {import("./cohorts.js").Variation} v the variation followed
  * @param {number} zone the habitat of the test
- * @param {Array<{genome:ArrayLike<number>}>} animals your group
  * @param {null|string} [name] the family's name: "Yours" becomes "Your Mossfoot animals"
  */
-function fairOptions(v, zone, animals, name = null) {
+function fairOptions(v, zone, name = null) {
   const words = v.group, options = [], yours = yoursLabel(name);
   if (v.neutral) {
     options.push({ text: `About the same. ${cap(words)} won't matter.`, outcome: "same", reasonable: true });
@@ -122,8 +121,7 @@ function fairOptions(v, zone, animals, name = null) {
       { text: `The others. ${cap(words)} ${PLURAL.has(v.trait) ? "don't" : "doesn't"} help ${ZONE_AT[zone]}.`, outcome: "theirs", reasonable: true });
   }
   options.push({ text: `${yours}, because I picked them.`, outcome: "mine", tag: "chose" });
-  const need = needTrait(zone, animals);
-  if (need) options.push({ text: `${yours}. They'll grow ${hasWords(need, 2)} because they need ${PLURAL_HAS.has(need) ? "them" : "it"}.`, outcome: "mine", tag: "need", need });
+  options.push({ text: `${yours}. ${needLine(v.trait, v.dir)}`, outcome: "mine", tag: "need" });
   if (options.length < 4 && !v.neutral) options.push({ text: "About the same. It's all luck.", outcome: "same", tag: "luck" });
   return options;
 }
@@ -137,7 +135,7 @@ function fairOptions(v, zone, animals, name = null) {
  * @returns {Question}
  */
 export function questionFor(story, bridge, chosen, slot) {
-  const v = chosen.v, zone = story.fair.zone, group = bridge.followedAnimals();
+  const v = chosen.v, zone = story.fair.zone;
   const fits = { mine: true, fair: bridge.otherIds().length > 0 };
   const start = CYCLE[slot % CYCLE.length];
   const type = [start, ...CYCLE.filter((x) => x !== start)].find((x) => fits[x]);
@@ -145,13 +143,13 @@ export function questionFor(story, bridge, chosen, slot) {
   if (type === "mine") {
     return {
       type, text: `Will your new ${name ? `${name} ` : ""}group grow or shrink?`,
-      options: growOptions(v.trait, v.dir, zone, group),
+      options: growOptions(v.trait, v.dir, zone),
       subject: { v, then: story.mine.then },
     };
   }
   return {
     type, text: `Which will do better: ${name ? your("animals", name) : "yours"} or the others here?`,
-    options: fairOptions(v, zone, group, name),
+    options: fairOptions(v, zone, name),
     subject: { v, mine: story.mine.then, theirs: story.theirs.then },
   };
 }

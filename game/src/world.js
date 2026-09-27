@@ -22,6 +22,8 @@ export function mulberry(s) {
 
 /** Engine zone index (canopy, forest_floor, shoreline) -> painted band. */
 export const BANDS = ["canopy", "floor", "shore"];
+/** Where the sand starts, just above the water, as a value of the terrain field (the waterline is at 1.12). */
+export const SAND = 0.975;
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -59,6 +61,14 @@ export class World {
       + 0.030 * Math.sin(x / 150 + y / 190);
   }
   zoneAt(x, y) { const t = this.zoneT(x, y); return t < 0.42 ? "canopy" : t < 0.80 ? "floor" : t < 1.12 ? "shore" : "water"; }
+  /** Where down the map, at this x, the field reaches t (zoneT always grows downwards), inside the world. */
+  yAt(x, t) {
+    let lo = 0, hi = this.H;
+    if (this.zoneT(x, lo) >= t) return lo;
+    if (this.zoneT(x, hi) <= t) return hi;
+    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (this.zoneT(x, m) < t) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
   /* direction along a zone boundary (used for beach & water banding) */
   isoAngle(x, y) {
     const W = this.W, H = this.H;
@@ -98,16 +108,22 @@ export class World {
     }
   }
 
+  /*
+   * The colours down the field (playtest): the leaves; open ground as grass and
+   * earth; a greener waterside meadow; and sand only where the water's edge
+   * meets the water, so no one far from the water seems to live on a beach.
+   */
   RAMP() {
     return [
       [-0.25, [38, 70, 48]], [0.10, [47, 84, 52]], [0.26, [60, 99, 57]],
-      [0.38, [82, 116, 62]], [0.46, [122, 127, 72]], [0.54, [152, 131, 79]],
-      [0.66, [169, 145, 92]], [0.78, [186, 161, 108]], [0.86, [205, 183, 133]],
-      [0.94, [228, 212, 174]], [1.02, [240, 228, 197]], [1.078, [226, 211, 178]],
-      [1.126, [196, 188, 162]], [1.16, [145, 193, 199]], [1.30, [96, 158, 180]],
-      [1.72, [62, 116, 148]],
+      [0.38, [82, 116, 62]], [0.46, [104, 122, 63]], [0.54, [120, 130, 69]],
+      [0.64, [132, 132, 75]], [0.74, [126, 132, 74]], [0.84, [108, 134, 78]],
+      [0.93, [128, 144, 90]], [0.99, [194, 183, 140]], [1.04, [230, 216, 180]],
+      [1.085, [224, 208, 172]], [1.126, [196, 188, 162]], [1.16, [145, 193, 199]],
+      [1.30, [96, 158, 180]], [1.72, [62, 116, 148]],
     ];
   }
+
   ramp(t) {
     const S = this._ramp || (this._ramp = this.RAMP());
     if (t <= S[0][0]) return S[0][1];
@@ -174,7 +190,7 @@ export class World {
       const t = this.zoneT(x, y);
       const c = this.ramp(t);
       const a = this.strokeAngle(x, y, t);
-      const beach = t > 0.82;
+      const beach = t > SAND;
       const len = beach ? rr(46, 190) : rr(16, 64);
       const lwd = beach ? rr(2.2, 8) : rr(3, 13);
       const dl = rr(-28, 30);
@@ -268,19 +284,28 @@ export class World {
     /* broad tonal patches so the ground is never one flat colour */
     for (let i = 0; i < 1100; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.40 || t > 0.94) continue;
+      if (t < 0.40 || t > 0.97) continue;
       const c = this.ramp(t);
       g.globalAlpha = rr(.06, .20);
       g.fillStyle = this.rgba(c, rr(-44, 30), 1);
       this.organic(g, x, y, rr(40, 160), rr(28, 105), rr(0, 3), .3, 10); g.fill();
     }
-    g.globalAlpha = 1;
-    /* grass and moss, thicker up near the trees */
-    for (let i = 0; i < 3200; i++) {
+    /* bare earth between the grass on the open ground: soft brown patches, a few worn darker */
+    for (let i = 0; i < 520; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.40 || t > 0.88) continue;
-      if (this._r() > clamp((0.92 - t) / 0.36, 0.06, 1)) continue;
-      const green = [[74, 104, 56], [92, 122, 64], [112, 140, 76], [136, 158, 92]][this.ri(0, 3)];
+      if (t < 0.46 || t > 0.79) continue;
+      g.globalAlpha = rr(.10, .26);
+      g.fillStyle = this.rgba([148, 116, 78], rr(-24, 16), 1);
+      this.organic(g, x, y, rr(22, 92), rr(12, 48), rr(0, 3), .34, 10); g.fill();
+    }
+    g.globalAlpha = 1;
+    /* grass and moss: thicker up near the trees, and lush in the waterside meadow, thinning out onto the sand */
+    for (let i = 0; i < 4200; i++) {
+      const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
+      if (t < 0.40 || t > SAND + 0.01) continue;
+      const shore = t > 0.80;
+      if (this._r() > (shore ? clamp((SAND + 0.02 - t) / 0.12, 0.1, 0.9) : clamp((0.92 - t) / 0.36, 0.45, 1))) continue;
+      const green = (shore ? [[70, 112, 60], [86, 128, 66], [104, 144, 76], [124, 158, 88]] : [[96, 118, 58], [112, 132, 64], [130, 146, 74], [150, 156, 84]])[this.ri(0, 3)];
       g.strokeStyle = this.rgba(green, rr(-12, 12), rr(.35, .78));
       g.lineWidth = rr(1.5, 3);
       const n = this.ri(3, 6), s2 = rr(8, 24);
@@ -291,12 +316,12 @@ export class World {
         g.stroke();
       }
     }
-    /* leaf litter */
+    /* leaf litter, fallen near the trees */
     const LEAF = [[150, 104, 52], [170, 128, 64], [132, 92, 46], [188, 152, 82], [118, 116, 58]];
-    for (let i = 0; i < 11000; i++) {
+    for (let i = 0; i < 8000; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.36 || t > 0.92) continue;
-      if (this._r() > clamp((0.96 - t) / 0.42, 0.08, 1)) continue;
+      if (t < 0.36 || t > 0.68) continue;
+      if (this._r() > clamp((0.72 - t) / 0.30, 0.06, 1)) continue;
       g.fillStyle = this.rgba(LEAF[this.ri(0, 4)], rr(-22, 26), rr(.24, .62));
       const a = rr(0, TAU), l = rr(6, 15);
       g.save(); g.translate(x, y); g.rotate(a);
@@ -310,7 +335,7 @@ export class World {
     /* stones */
     for (let i = 0; i < 300; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.44 || t > 0.94) continue;
+      if (t < 0.44 || t > 0.80) continue;
       const r = rr(3, 9), a = rr(0, TAU), v = rr(-16, 16);
       g.globalAlpha = .2; g.fillStyle = "rgb(74,64,48)";
       g.beginPath(); g.ellipse(x + r * 0.35, y + r * 0.42, r, r * 0.74, a, 0, TAU); g.fill();
@@ -324,7 +349,7 @@ export class World {
     /* fallen logs, mostly near the forest */
     for (let i = 0; i < 90; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.42 || t > 0.86) continue;
+      if (t < 0.42 || t > 0.78) continue;
       if (this._r() > clamp((0.86 - t) / 0.30, 0.04, 1)) continue;
       const a = rr(0, TAU), l = rr(60, 160), w = rr(7, 12), v = rr(-14, 14);
       g.save(); g.translate(x, y); g.rotate(a);
@@ -352,10 +377,30 @@ export class World {
   paintShore(g) {
     const rr = this.rr, W = this.W, H = this.H;
     g.lineCap = "round";
-    /* raked tide lines running parallel to the water */
+    /* reeds and rushes in the waterside meadow, just above the sand */
+    const REED = [[74, 104, 60], [90, 120, 66], [108, 132, 72]];
+    for (let i = 0; i < 900; i++) {
+      const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
+      if (t < 0.86 || t > SAND + 0.02) continue;
+      if (this._r() > clamp((t - 0.84) / 0.1, 0.2, 1)) continue;
+      const n = this.ri(4, 8), h = rr(14, 34), col = REED[this.ri(0, 2)];
+      for (let k = 0; k < n; k++) {
+        const bx = x + (k - n / 2) * rr(1.6, 3), bend = rr(-6, 6), hh = h * rr(0.6, 1.1);
+        g.strokeStyle = this.rgba(col, rr(-14, 14), rr(.45, .8));
+        g.lineWidth = rr(1.2, 2.4);
+        g.beginPath(); g.moveTo(bx, y);
+        g.quadraticCurveTo(bx + bend * 0.3, y - hh * 0.55, bx + bend, y - hh);
+        g.stroke();
+        if (k === 1 && this._r() < 0.35) {
+          g.fillStyle = this.rgba([122, 88, 56], rr(-12, 12), .8);
+          g.beginPath(); g.ellipse(bx + bend * 0.92, y - hh * 0.88, 1.8, 5, bend * 0.03, 0, TAU); g.fill();
+        }
+      }
+    }
+    /* raked tide lines running parallel to the water, on the sand */
     for (let i = 0; i < 5200; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.80 || t > 1.17) continue;
+      if (t < SAND || t > 1.17) continue;
       const c = this.ramp(t);
       const a = this.isoAngle(x, y), l = rr(80, 340);
       g.strokeStyle = this.rgba(c, rr(-20, 24), rr(.04, .14));
@@ -389,7 +434,7 @@ export class World {
     /* shells and pebbles, gathered along the tide line */
     for (let i = 0; i < 3000; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.90 || t > 1.13) continue;
+      if (t < SAND + 0.01 || t > 1.13) continue;
       if (this._r() > 1 - Math.abs(t - 1.10) / 0.23) continue;
       const r = rr(1.8, 7), a = rr(0, TAU), c = this.ramp(t);
       g.globalAlpha = .2; g.fillStyle = "rgb(118,108,86)";
@@ -404,7 +449,7 @@ export class World {
     /* driftwood along the strand line */
     for (let i = 0; i < 70; i++) {
       const x = rr(0, W), y = rr(0, H), t = this.zoneT(x, y);
-      if (t < 0.98 || t > 1.12) continue;
+      if (t < 1.0 || t > 1.12) continue;
       const a = this.isoAngle(x, y) + rr(-0.8, 0.8), l = rr(40, 130), w = rr(4, 9), v = rr(-12, 12);
       g.save(); g.translate(x, y); g.rotate(a);
       g.globalAlpha = .18; g.fillStyle = "rgb(90,80,62)";

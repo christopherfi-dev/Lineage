@@ -114,8 +114,72 @@ export const SPREAD_SHORT = "It didn't spread far enough.";
 export const SPREAD_COMMON = "Most here have it. Too few others for a fair test.";
 /** The child's group fell to DANGER_SIZE or fewer during a spread: back to the usual pace (scope decision 44). */
 export const dangerLine = (noun, name = null) => `Wait! ${capital(your(noun, name))} is getting very small.`;
-/** On a glowing baby's card, instead of a spread, while the child's group is that small. */
+/** On every glowing baby's card while the child's group is that small: no follow starts (playtest, "no jumping ship"). */
 export const needsYou = (noun, name = null) => `${capital(your(noun, name))} needs you. Stay with them?`;
+
+/** A variation's words, short enough for one line: "more webbing between the toes" becomes "more webbing", "a stronger tail" "stronger tails". */
+const PLURALS = { "tail tip": "tail tips", tail: "tails", body: "bodies", coat: "coats" };
+const shortGroup = (group) => group.replace(" between the toes", "")
+  .replace(/^a (\w+) (tail tip|tail|body|coat)$/, (_, adj, noun) => `${adj} ${PLURALS[noun]}`);
+
+/**
+ * At a follow, where the new group comes from (playtest): "3 from your family
+ * and 17 others with bigger eyes join you." Real counts: the members already in
+ * the child's group, and the ones new to it.
+ * @param {number} stay @param {number} come @param {string} group the variation's words
+ * @param {"family"|"group"} noun
+ */
+export function joinLine(stay, come, group, noun) {
+  const words = shortGroup(group);
+  if (!come) return `All ${stay} with ${words} are from your ${noun}.`;
+  if (!stay) return `${come} animals with ${words} join you.`;
+  return `${stay} from your ${noun} and ${come} others with ${words} join you.`;
+}
+
+/* ================= visiting other places (playtest) ================= */
+
+/** The three places the camera can visit, on their buttons, in engine zone order. */
+export const PLACE_BUTTONS = ["Leaves", "Ground", "Water"];
+/** Each place's name at the start of its summary. */
+const PLACE_NAMES = ["High leaves", "Open ground", "Water's edge"];
+const TREND = { up: "growing", down: "shrinking", same: "steady" };
+
+/**
+ * On arriving at a place: "Water's edge: 119 animals, growing. Most have webbed feet."
+ * "Most" is more than half of the animals there, "Many" a quarter or more, "Some" a tenth or more.
+ * @param {number} zone @param {number} n animals there now @param {"up"|"down"|"same"} trend since last generation
+ * @param {null|{trait:string, share:number}} common the meaningful trait at its high end that the most there have
+ */
+export function placeLine(zone, n, trend, common) {
+  const head = `${PLACE_NAMES[zone]}: ${plural(n, "animal", "animals")}, ${TREND[trend]}.`;
+  if (!common || common.share < 0.1) return head;
+  return `${head} ${common.share > 0.5 ? "Most" : common.share >= 0.25 ? "Many" : "Some"} have ${hasWords(common.trait, 2)}.`;
+}
+
+/* ================= another group's card (playtest) ================= */
+
+/** The row label for an animal's own family, on its card. */
+export const ITS_FAMILY = "Its family";
+/** How that group is doing against yours since the last follow (or since the story began). */
+export function doingLine(better, sinceFollow) {
+  const since = sinceFollow ? "since your last choice" : "since you started";
+  return better > 0 ? `Doing better than yours ${since}.` : better < 0 ? `Doing worse than yours ${since}.` : `Doing about as well as yours ${since}.`;
+}
+/** Heading over the traits where that group differs most from yours. */
+export const DIFFERENT_TITLE = "How they're different from yours";
+/** When no meaningful trait differs by much. */
+export const MUCH_LIKE_YOURS = "Much like yours.";
+/** [less, more] than the child's group, for each meaningful trait: "Longer back legs than yours". */
+const THAN_YOURS = {
+  toe_webbing: ["Less webbing than yours", "More webbing than yours"],
+  curved_claws: ["Straighter claws than yours", "More curved claws than yours"],
+  dense_fur: ["Thinner fur than yours", "Thicker fur than yours"],
+  long_hindlimbs: ["Shorter back legs than yours", "Longer back legs than yours"],
+  strong_tail: ["Weaker tails than yours", "Stronger tails than yours"],
+  large_eyes: ["Smaller eyes than yours", "Bigger eyes than yours"],
+  streamlined_body: ["Chunkier bodies than yours", "Sleeker bodies than yours"],
+};
+export const thanYours = (trait, dir) => THAN_YOURS[trait][dir > 0 ? 1 : 0];
 
 /*
  * Growth is never a percentage (scope decision 12): a child sees counts,
@@ -206,8 +270,29 @@ export const inYour = (noun, name = null) => `In ${your(noun, name)}`;
 export const notInYour = (noun, name = null) => `Not in ${your(noun, name)}`;
 export const PASSED_AWAY = "This one has passed away.";
 
-/** "Lives at the water's edge." */
-export const livesLine = (zone) => `Lives ${ZONE_AT[zone]}.`;
+/** Where else an animal spends some of its time. */
+const SOMETIMES_AT = ["in the leaves", "on the ground", "at the water"];
+/**
+ * Where an animal spends its time (playtest): "Lives at the water's edge.",
+ * "Lives on the open ground, sometimes at the water."
+ * @param {{zone:number, sometimes:null|number}} split groups.js timeSplit
+ */
+export const livesLine = ({ zone, sometimes }) => `Lives ${ZONE_AT[zone]}${sometimes === null ? "" : `, sometimes ${SOMETIMES_AT[sometimes]}`}.`;
+
+/** A trait at its high end, as the start of a sentence. */
+const MISFIT = {
+  toe_webbing: "Lots of webbing", curved_claws: "Curved claws", dense_fur: "Thick fur", long_hindlimbs: "Long back legs",
+  strong_tail: "A strong tail", large_eyes: "Big eyes", streamlined_body: "A sleek body",
+};
+/**
+ * A trait that doesn't fit where the animal lives (playtest), gently: "Lots of
+ * webbing, but lives far from water.", "Curved claws, but lives on the open
+ * ground." A trait that helps most at the water is "far from water" anywhere else.
+ * @param {{trait:string, best:number}} m groups.js misfit @param {number} zone where it lives
+ * @param {boolean} [group] about a group: "…, but they live …"
+ */
+export const misfitLine = (m, zone, group = false) =>
+  `${MISFIT[m.trait]}, but ${group ? "they live" : "lives"} ${m.best === 2 ? "far from water" : ZONE_AT[zone]}.`;
 
 /**
  * The trait that is new in this animal: a mutation at birth, which way it went.
