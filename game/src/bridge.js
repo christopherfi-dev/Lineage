@@ -1,11 +1,12 @@
 /**
  * The bridge: real biology in, game events out.
  *
- * Biology only ever moves through the engine's own advanceGeneration(). The
- * game never touches simRng, never edits an individual, and never decides who
- * is born or dies. After each generation commits, this module reads the
- * engine's records (birth records, death events, mating events, body-mutation
- * events) and hands them to the canvas as plain events.
+ * Biology only ever moves through the engine's own generation step, in its
+ * Classroom mode (scope decision 55). The game never touches simRng, never
+ * edits an individual, and never decides who is born or dies. After each
+ * generation commits, this module reads the engine's records (birth records,
+ * death events, mating events, body-mutation events) and hands them to the
+ * canvas as plain events.
  *
  * "Your group" starts as a family, a mother line (families.js). After a
  * follow it is a cohort: the fair test's animals with the chosen variation, and a
@@ -16,16 +17,15 @@
  */
 
 import {
-  createInitialState,
-  advanceGeneration,
+  advanceClassroomGeneration,
+  createAncestorWorld,
+  createWebbedDemoWorld,
+  classroomConfig,
   isExtinct,
-  currentModelConfig,
   TRAITS,
   currentZoneBinIndex,
   zoneBinCounts,
   assertFixtureConsistency,
-  hydrateDefiningFixtureV1,
-  applyWebbingOverride,
 } from "./engine.js";
 import { Families } from "./families.js";
 import { APART } from "./variations.js";
@@ -51,21 +51,19 @@ export class Bridge {
   }
 
   /**
-   * The defining-experiment world: M1's fixture with its webbing override, so
-   * the same webbed feet start in a canopy group and in a shoreline group.
-   * Each of those two groups is a founding family.
+   * The teacher demo (?demo=webbed): M1's defining fixture with its webbing
+   * override, so the same webbed feet start in a canopy group and in a
+   * shoreline group. Each of those two groups is a founding family.
    */
   static fromFixture(envelope, seed) {
     assertFixtureConsistency(envelope);
-    const state = hydrateDefiningFixtureV1(envelope, seed, currentModelConfig);
-    applyWebbingOverride(state, envelope.canopyFocalIds, envelope.highWebbing);
-    applyWebbingOverride(state, envelope.shorelineFocalIds, envelope.highWebbing);
+    const state = createWebbedDemoWorld(envelope, seed, classroomConfig);
     return new Bridge(state, [envelope.canopyFocalIds, envelope.shorelineFocalIds]);
   }
 
-  /** The engine's random starting world. */
-  static fromRandom(seed) {
-    return new Bridge(createInitialState(seed, currentModelConfig));
+  /** The common-ancestor world: every founder on the open ground with one body; the leaves and the water start empty. */
+  static fromAncestor(seed) {
+    return new Bridge(createAncestorWorld(seed, classroomConfig));
   }
 
   index() {
@@ -145,7 +143,7 @@ export class Bridge {
    */
   step() {
     if (isExtinct(this.state)) return null;
-    advanceGeneration(this.state, currentModelConfig);
+    advanceClassroomGeneration(this.state, classroomConfig);
     this.index();
 
     const result = this.state.lastGenerationResult;

@@ -1,0 +1,9 @@
+{
+  "name": "lineage-classroom",
+  "private": true,
+  "type": "module",
+  "description": "LINEAGE Classroom mode: M1's biology with ranked survival, beside the frozen M1 engine.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

@@ -8,6 +8,7 @@ and watch whether an inherited variation helps or hurts them where they already 
 | Folder | What it is | Edit? |
 |---|---|---|
 | `lineage-m1/` | Frozen biological engine (Rev8.1). Runs in the browser as ES modules. | Never edit `src/core`, `src/observer`, `src/config`. |
+| `lineage-classroom/` | The engine's Classroom mode (scope decision 55): M1's biology with ranked survival, beside M1 and built from its parts. The game runs it. | Only as the scope doc decides. `npm test` in the folder. |
 | `game/` | The playable game. Built step by step per the scope doc. | Yes — this is where the work happens. |
 | `design/` | Visual/interaction authority: Claude Design mockup, prototype, feedback doc, reference screenshots. | Reference only. |
 | `docs/` | Product vision (Project Handoff, North Star) and the M1 technical contract. | Reference only. |
