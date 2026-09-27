@@ -787,7 +787,7 @@ export class Story {
     this.closeChoice();
     this.bridge.startTest(test.mine, test.theirs);
     // The line narrows (scope decision 66): its carriers of the variation in its place, and their babies from now on.
-    this.bridge.narrowTo(test.carrierIds);
+    this.bridge.narrowTo(test.carrierIds, zone);
     this.lineStart = test.carrierIds.length;
     const generation = this.bridge.generation;
     this.fair = { v: x.v, zone, anchor: x.id, generation, mineThen: test.mine.length, theirsThen: test.theirs.length,

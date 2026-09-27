@@ -14,6 +14,11 @@ What differs from M1:
   animals live there than it has room for, the ones least suited to it don't make it. Between
   equals, the older one makes room, then the one that spends less of its time there, then the
   one born later.
+- **Inheritance** (`src/classroom.js`, scope decision 67). A baby gets each body trait whole from
+  one parent or the other, a coin flip per trait, never the average, so a new trait isn't halved
+  away before it can be passed on; then M1's usual chance of a new variation. It is M1's own
+  `createChild`, handed both parents carrying the picked traits, with no drift. Time is inherited
+  as in M1. `inheritance: "average"` in the config gives M1's rule, for comparison.
 - **Fitness in a place** (`src/config.js`, `PLACE_EFFECTS`): each trait helps (+1), hurts (−1)
   or doesn't matter (0) there, in the direction of M1's own net effect. The table is in the scope
   doc, decision 55.

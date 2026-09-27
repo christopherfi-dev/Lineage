@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-test("a follow narrows the line to its carriers in its place, and the rest of the line become relatives", async () => {
+test("a follow narrows the line to its carriers in its place, and the rest of the line there become relatives", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story } = await import("../src/story.js");
   const { effectIn } = await import("../src/why.js");
@@ -24,8 +24,9 @@ test("a follow narrows the line to its carriers in its place, and the rest of th
       assert.equal(bridge.zoneOf(id), zone);
       assert.ok(carries(bridge.animal(id).genome, g.v));
     }
-    // The rest of the old line are relatives, beside the relatives from before; the twins without are among them.
-    for (const id of was) assert.equal(bridge.isRelative(id), !bridge.isFollowed(id));
+    // The rest of the old line in its place are relatives, beside the relatives from before; the twins without are
+    // among them. The old line's animals in other places are no one's now (scope decision 67).
+    for (const id of was) assert.equal(bridge.isRelative(id), !bridge.isFollowed(id) && bridge.zoneOf(id) === zone);
     for (const id of relatives) assert.ok(bridge.isRelative(id));
     for (const id of mine) assert.ok(bridge.isFollowed(id));
     for (const id of theirs) assert.ok(bridge.isRelative(id));
@@ -127,9 +128,10 @@ test("a story is 50 generations, or the teacher's ?length= up to 76; with fewer 
   assert.equal(nearlyOver(29, 76), false);
   assert.equal(nearlyOver(52, 76), true);
   // A line that lasts ends its story at the story's length; a line that dies out ends it then (scope decision 66).
+  // Seed 13's lines all die out now; seed 1's first one lasts (scope decision 67).
   let lasted = 0;
-  for (const length of [30, 50]) for (const f of [0, 1, 2]) {
-    const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { length });
+  for (const seed of [13, 1]) for (const length of [30, 50]) for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(seed), story = new Story(bridge, { length });
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
       if (story.phase === "choice") { story.follow(story.options[0], false); continue; }

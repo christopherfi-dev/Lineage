@@ -81,8 +81,8 @@ const GATHER_RADIUS = 110;
 
 /** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
-/** Your relatives' quiet colour (scope decision 66): a muted blue-grey, beside your line's deep teal. */
-export const KIN_COLOR = "#7E97A0";
+/** Your relatives' quiet colour (scope decisions 66 and 67): a soft clay, so blue is your line's alone and grey everyone else's. */
+export const KIN_COLOR = "#B3876F";
 
 
 /**
@@ -707,7 +707,7 @@ function shade(hex, k) {
  * World-scale creature, ported from the mockup's drawCreature. Styles: "mine" —
  * your group, larger, sharper, lit by the sun with a warm rim and a light ring on
  * the ground; "other" — a group you did not choose, in its colour; "kin" — your
- * relatives (scope decision 66), full size in a quiet blue-grey; "gray" —
+ * relatives (scope decisions 66 and 67), full size in a quiet clay; "gray" —
  * everyone else while you follow a group, smaller and faded; "plain" — everyone
  * while you have no group. One animal drawn large is creature.js.
  * @param {CanvasRenderingContext2D} x

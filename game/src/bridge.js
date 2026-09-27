@@ -49,7 +49,7 @@ export class Bridge {
     );
     /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, then line (scope decision 66) */
     this.follow = null;
-    /** @type {Set<number>} the child's relatives: the rest of each line the child narrowed from, and their babies */
+    /** @type {Set<number>} the child's relatives: the rest of each line the child narrowed from, in its place, and their babies */
     this.relatives = new Set();
     /**
      * @type {null|{mine:Set<number>, theirs:Set<number>, line:Set<number>}} the latest fair test: its twins with the
@@ -117,13 +117,15 @@ export class Bridge {
   /**
    * A follow narrows the child's line (scope decision 66): these animals, and
    * every baby born to them from now on (a baby joins through its line parent,
-   * the each-parent rule), are the line. The rest of the old line become
-   * relatives, who keep their own babies.
+   * the each-parent rule), are the line. The rest of the old line in the same
+   * place become relatives, who keep their own babies; the old line's animals
+   * in other places are no one's now (scope decision 67).
    * @param {number[]} ids the carriers followed, in the line's place
+   * @param {number} zone the line's place
    */
-  narrowTo(ids) {
+  narrowTo(ids, zone) {
     const keep = new Set(ids);
-    for (const id of this.follow.members) if (!keep.has(id)) this.relatives.add(id);
+    for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.add(id);
     for (const id of keep) this.relatives.delete(id);
     this.follow = { roots: [...keep], members: keep };
     return this.follow;

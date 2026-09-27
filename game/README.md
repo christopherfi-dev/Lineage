@@ -59,7 +59,7 @@ A story takes a median 7 minutes, with a median of 1 follow, measured with a sim
 
 **Following a line** (scope decision 66). The first tap follows a family. Each follow narrows it
 to a line: the line's animals with the chosen trait in its place, and their babies from then on.
-The rest become "your relatives": drawn full size in a quiet blue-grey (`KIN_COLOR`), still
+The rest in its place become "your relatives": drawn full size in a soft clay (`KIN_COLOR`), still
 tappable ("One of your relatives"), and counted beside the line in the generation panel and at
 the ending. Only the line's babies glow, every fair test is strictly inside the line (no animals
 from nearby fill in), the traits add up ("Your Mossfoot line so far"), and the line dying out
