@@ -24,7 +24,8 @@ A line always talks about the trait's far end ("webbed feet", "long legs"). The 
 
 ## Where the game uses the lines
 
-- **A glowing baby's card** (scope decision 58): a trait that doesn't matter where the family lives can't be followed. The card gives its "~" line ("Webbed feet don't matter much on open ground."), or for a neutral trait "Pointier ear tips don't help or hurt. Nothing to test here."
+- **A glowing baby's card** (scope decision 65, Round 3): any trait can be followed, with no hint whether it matters there; the card never gives a line before the child has tested the trait. (Before Round 3 a "~" or neutral trait couldn't be followed, and its card gave its line.)
+- **"About the same."** A fair test on a "~" or neutral trait whose sides' animals that made it are within 2 ends in "About the same." and a "Why?" guess: for a "~", the trait's three place lines; for a neutral trait, "Ear tip shape helps them on the open ground.", "Ear tip shape hurts them on the open ground." and its line from the table, "Ear tip shape doesn't help or hurt anywhere."
 - **Every change of the family's size** (the narration): what helps and what hurts the family in its place. The family "has" a trait when its animals there average at least halfway to the far end (`HAS_AT`, 0.5).
   - Growing: its biggest helper's line, then "But …" its biggest hurter's: "Webbed feet push through water." "But long legs drag in the water."
   - Shrinking, most of it crowded out: the helper's line, then "But …" the hurter's. With no hurter, the trait that most set the family's animals that died apart from the survivors where they lived (by 0.1 or more of its average): "Long back legs help them run fast." "Others here have longer back legs." (or, for a trait that hurts, "The ones that died had longer back legs."). Often no one trait did: the ones that died were a little less suited in many small ways.

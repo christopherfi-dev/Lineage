@@ -83,12 +83,12 @@ export function chosenLines(group, fromFamily, fromNearby, others, zone, skip, n
 }
 
 /**
- * After a fast-forward: both sides of the fair test, and what most of the
- * family has now that it didn't before.
+ * After a fast-forward: both sides of the fair test, who made it (scope
+ * decision 65), and what most of the family has now that it didn't before.
  * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
  */
 export function skipDoneLines(skip, n, others, group, changed, name = null) {
-  const lines = [`${skip} generations later: ${n} with ${shortGroup(group)}, ${others} without.`];
+  const lines = [`${skip} generations later: ${n} with ${shortGroup(group)} made it, and ${others} without.`];
   if (changed.length) lines.push(`Most of ${your("family", name)} has ${hasWords(changed[0].trait, changed[0].level)}.`);
   return lines;
 }
@@ -261,8 +261,8 @@ export const thanYours = (trait, dir) => THAN_YOURS[trait][dir > 0 ? 1 : 0];
  * "Yours: 20 → 31", beside two small bars for then and now.
  */
 
-/** "Yours: 20 → 31" */
-export const countLine = (label, { then, now }) => `${label}: ${then} → ${now}`;
+/** "Yours: 20 → 31", or for a fair test's twins, who made it (scope decision 65): "Your 12 with pointier ear tips: 10 made it" */
+export const countLine = (label, { then, now, madeIt = false }) => (madeIt ? `${label}: ${now} made it` : `${label}: ${then} → ${now}`);
 
 export const YOURS = "Yours";
 /** "Yours", or once the family has a name, "Your Mossfoot animals". */
@@ -270,6 +270,11 @@ export const yoursLabel = (name = null) => (name ? capital(your("animals", name)
 /** The fair test's two sides, both in the family's place (scope decision 59): "With bigger eyes: 14 → 16", "Without: 14 → 12". */
 export const withLabel = (group) => `With ${shortGroup(group)}`;
 export const WITHOUT = "Without";
+/** Its twins, counted by who made it (scope decision 65): "Your 12 with pointier ear tips" and "The 12 without". */
+export const twinsLabel = (n, group) => `Your ${n} with ${shortGroup(group)}`;
+export const othersLabel = (n) => `The ${n} without`;
+/** A fair test on a trait that doesn't matter there, when both sides' animals that made it are within 2 (scope decision 65). */
+export const ABOUT_SAME = "About the same.";
 /** A card for an animal from nearby that fills in a fair test. */
 export const NEARBY_IN_TEST = "From nearby, in your fair test";
 /** The ending's last fair test: "On the open ground:" */

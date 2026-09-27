@@ -7,7 +7,8 @@
  */
 
 import { TRAITS, NEUTRAL_TRAIT_INDICES, MEANINGFUL_TRAIT_INDICES, PLACE_EFFECTS } from "./engine.js";
-import { TRAIT_WORDS, hasWords } from "./variations.js";
+import { hasWords } from "./variations.js";
+import { ZONE_AT } from "./narration.js";
 
 /** Each meaningful trait's reason in each place [high leaves, open ground, water's edge]. */
 export const WHY = {
@@ -26,6 +27,8 @@ export const NEUTRAL_WHY = {
   ear_tip_shape: "Ear tip shape doesn't help or hurt anywhere.",
   tail_tip_marking: "The mark on the tail tip doesn't help or hurt anywhere.",
 };
+/** What each neutral trait is called in its line: "Coat colour". */
+export const NEUTRAL_NOUN = { coat_shade: "Coat colour", ear_tip_shape: "Ear tip shape", tail_tip_marking: "The mark on the tail tip" };
 
 /** What a trait does in a place: 1 helps (✓), -1 hurts (✗), 0 doesn't matter (~, or a neutral trait). */
 export const effectIn = (t, zone) => PLACE_EFFECTS[t][zone];
@@ -49,22 +52,6 @@ export function whyLine(t, zone) {
   return WHY[trait] ? WHY[trait][zone] : NEUTRAL_WHY[trait];
 }
 
-/** Words that take a singular verb: "a darker coat doesn't". */
-const singular = (words) => /^a /.test(words);
-const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/**
- * On a glowing baby's card, when its new variation can't be followed here
- * (scope decision 58): a neutral trait, "Pointier ear tips don't help or hurt.
- * Nothing to test here."; a "~" there, the table's line, "Webbed feet don't
- * matter much on open ground."
- * @param {{t:number, group:string, neutral:boolean}} v the variation
- * @param {number} zone where the test would be
- */
-export function nothingToTest(v, zone) {
-  if (v.neutral) return `${capital(v.group)} ${singular(v.group) ? "doesn't" : "don't"} help or hurt. Nothing to test here.`;
-  return WHY[TRAITS[v.t]][zone];
-}
 
 
 /** A group has a trait (its far end) when its average is at least this: halfway there. */
@@ -137,6 +124,17 @@ export const but = (line) => `But ${line.charAt(0).toLowerCase()}${line.slice(1)
  * @returns {Guess}
  */
 export function guessFor(text, t, zone, extra = null) {
+  const trait = TRAITS[t];
+  if (NEUTRAL_WHY[trait]) {
+    // A neutral trait has one line in the table (scope decision 65): the three answers are "helps here", "hurts
+    // here" and the table's "doesn't help or hurt anywhere".
+    const noun = NEUTRAL_NOUN[trait];
+    return {
+      text, t, zone, extra, neutral: true,
+      options: [`${noun} helps them ${ZONE_AT[zone]}.`, `${noun} hurts them ${ZONE_AT[zone]}.`, NEUTRAL_WHY[trait]].map((o, i) => ({ text: o, right: i === 2 })),
+      right: NEUTRAL_WHY[trait],
+    };
+  }
   return {
     text, t, zone, extra,
     options: [0, 1, 2].map((z) => ({ text: whyLine(t, z), right: z === zone })),
@@ -146,8 +144,9 @@ export function guessFor(text, t, zone, extra = null) {
 
 /** After a guess: "Yes! Big eyes spot things across open ground." or "Good thinking. But here, …". Before one: "Here's why: …". */
 export function explainGuess(guess, option) {
-  if (!option) return `Here's why: ${guess.right.charAt(0).toLowerCase()}${guess.right.slice(1)}`;
-  return option.right ? `Yes! ${guess.right}` : `Good thinking. But here, ${guess.right.charAt(0).toLowerCase()}${guess.right.slice(1)}`;
+  const lower = `${guess.right.charAt(0).toLowerCase()}${guess.right.slice(1)}`;
+  if (!option) return `Here's why: ${lower}`;
+  return option.right ? `Yes! ${guess.right}` : guess.neutral ? `Good thinking. But ${lower}` : `Good thinking. But here, ${lower}`;
 }
 
 /**

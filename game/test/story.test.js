@@ -1,5 +1,5 @@
 // Part 2's rules (scope decision 59): a follow never moves the family, and its fair test is twins inside the
-// family's place; only a trait that helps or hurts there can be followed; a family with a future can be picked.
+// family's place, counted by who made it (scope decision 65); a family with a future can be picked.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -20,7 +20,6 @@ test("a follow starts a fair test inside the family, in its place, and never mov
       const g = story.glowing.find((x) => story.followable(x) && story.canStartFor(x));
       if (!g || story.inDanger || story.quiet < 40) continue;
       const family = bridge.followedIds().sort(), zone = story.testZone();
-      assert.notEqual(effectIn(g.v.t, zone), 0, "only a trait that helps or hurts there");
       story.follow(g, false);
       checked++;
       assert.deepEqual(bridge.followedIds().sort(), family, "the family stays as it is");
@@ -97,4 +96,45 @@ test("a trait that hurts in the family's place needs 5 pairs to start its fair t
     if (e < 0) { harmful++; assert.equal(min, 5); } else { if (e > 0) helpful++; assert.equal(min, 10); }
   }
   assert.ok(harmful > 0 && helpful > 0);
+});
+
+test("a fair test's twins are counted by who made it, and any trait in the family's place can be followed", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  const { effectIn } = await import("../src/why.js");
+  const { guessFor, explainGuess } = await import("../src/why.js");
+  const bridge = Bridge.fromAncestor(13), story = new Story(bridge);
+  story.begin(bridge.families.founding[1].ids[0]);
+  const kinds = new Set();
+  let tracked = 0;
+  while (story.phase !== "ended" && bridge.generation < 30) {
+    if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
+    const twins = bridge.test ? { mine: new Set(bridge.mineIds()), theirs: new Set(bridge.otherIds()), line: new Set(bridge.withLineIds()) } : null;
+    const ev = bridge.step();
+    if (twins) {
+      // The twins only ever lose their dead; the side with the variation keeps its babies.
+      const dead = new Set(ev.deaths.map((d) => d.id));
+      assert.deepEqual(bridge.mineIds().sort(), [...twins.mine].filter((id) => !dead.has(id)).sort());
+      assert.deepEqual(bridge.otherIds().sort(), [...twins.theirs].filter((id) => !dead.has(id)).sort());
+      const line = new Set(twins.line);
+      for (const b of ev.births) if (twins.line.has(b.motherId)) line.add(b.childId);
+      assert.deepEqual(bridge.withLineIds().sort(), [...line].filter((id) => !dead.has(id)).sort());
+      tracked++;
+    }
+    const what = story.afterGeneration(ev);
+    if (what === "spread-ready") story.follow(story.lastSpread, false);
+    for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      story.advance(0.5);
+      const g = story.glowing.find((x) => story.followable(x) && story.canStartFor(x));
+      if (!g || story.inDanger || story.quiet < 40) continue;
+      kinds.add(g.v.neutral ? "neutral" : effectIn(g.v.t, story.testZone()) === 0 ? "~" : "matters");
+      story.follow(g, false);
+    }
+  }
+  assert.ok(tracked > 0);
+  assert.ok(kinds.has("neutral") || kinds.has("~"), "a trait that doesn't matter there was followed");
+  // A neutral trait's guess: "helps", "hurts" and the table's "doesn't help or hurt anywhere".
+  const g = guessFor("Why are the ones with pointier ear tips doing about the same?", 8, 1);
+  assert.deepEqual(g.options.map((o) => o.right), [false, false, true]);
+  assert.equal(explainGuess(g, g.options[2]), "Yes! Ear tip shape doesn't help or hurt anywhere.");
 });

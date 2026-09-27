@@ -872,7 +872,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #guide-grid .entry.helps .mark { background: #DCEFE2; color: #2F7A4B; }
 #guide-grid .entry.hurts .mark { background: #F6E0D6; color: #B0502C; }
 #guide-grid .entry.little .mark { background: #ECE6D6; color: #7D745C; }
+/* A neutral trait's one entry, for every place (scope decision 65). */
+#guide-grid .entry.wide { grid-column: span 3; }
 #guide-grid .entry .text { flex: 1; }
 #guide-grid .entry.unknown { background: #F1EBDD; box-shadow: none; color: #A69D86; font-style: italic; }
 #guide-grid .entry.unknown .mark { background: #E6DECB; color: #A69D86; }
-@media (max-width: 700px) { #guide-grid { grid-template-columns: 1fr; } #guide-grid .place { display: none; } #guide-grid .trait { padding-top: 12px; } }
+@media (max-width: 700px) { #guide-grid { grid-template-columns: 1fr; } #guide-grid .place { display: none; } #guide-grid .trait { padding-top: 12px; } #guide-grid .entry.wide { grid-column: auto; } }

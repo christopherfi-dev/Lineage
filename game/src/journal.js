@@ -10,7 +10,7 @@
 
 import { TRAITS, PLACE_EFFECTS } from "./engine.js";
 import { TRAIT_WORDS, isNeutral } from "./variations.js";
-import { ZONE_AT, WITHOUT, shortGroup, withLabel } from "./narration.js";
+import { ZONE_AT, shortGroup, withLabel, twinsLabel, othersLabel } from "./narration.js";
 import { whyLine } from "./why.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
@@ -177,24 +177,25 @@ const HAPPENED_FAIR = { mine: "The ones with it did better.", theirs: "The ones 
  * @returns {Result}
  */
 export function resultOf(p, story) {
-  const q = p.question, a = p.answer, lines = [];
-  const mine = story.mine.now, reasonable = q.options.find((o) => o.reasonable);
+  const q = p.question, a = p.answer, lines = [], reasonable = q.options.find((o) => o.reasonable);
   let rows, came;
   if (q.type === "mine") {
-    const actual = went(q.subject.then, mine);
+    // Grow or shrink: the side with the variation with its babies since (scope decision 65).
+    const mine = story.withLine.now, actual = went(q.subject.then, mine);
     rows = [{ label: withLabel(q.subject.v.group), then: q.subject.then, now: mine, mine: true }];
     lines.push(a.outcome === "nomatter" ?
       `You thought ${a.words} wouldn't matter. It didn't.` :
       `You thought it ${THOUGHT[a.outcome]}. It ${HAPPENED[actual]}.`);
     came = reasonable.outcome === "nomatter" || reasonable.outcome === actual;
   } else {
-    const theirs = story.theirs.now;
-    const actual = mine > theirs ? "mine" : theirs > mine ? "theirs" : "same";
+    // Which did better: the fair test's twins, who made it, at its result (scope decision 65), or now if it had none yet.
+    const r = story.choices[story.choices.length - 1]?.result, mine = r ? r.mine : story.mine.now, theirs = r ? r.theirs : story.theirs.now;
+    const actual = r?.same ? "same" : mine > theirs ? "mine" : theirs > mine ? "theirs" : "same";
     rows = [
-      { label: withLabel(q.subject.v.group), then: q.subject.mine, now: mine, mine: true },
-      { label: WITHOUT, then: q.subject.theirs, now: theirs, mine: false },
+      { label: twinsLabel(q.subject.mine, q.subject.v.group), then: q.subject.mine, now: mine, mine: true, madeIt: true },
+      { label: othersLabel(q.subject.theirs), then: q.subject.theirs, now: theirs, mine: false, madeIt: true },
     ];
-    lines.push(THOUGHT_FAIR[a.outcome], mine + theirs === 0 ? "Both died out." : HAPPENED_FAIR[actual]);
+    lines.push(THOUGHT_FAIR[a.outcome], mine + theirs === 0 ? "None of them made it." : HAPPENED_FAIR[actual]);
     came = reasonable.outcome === actual;
   }
   if (a.tag === "need") lines.push(NEED_LINE);

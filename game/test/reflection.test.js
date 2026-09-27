@@ -1,5 +1,5 @@
 // Part 5's reflection (scope decision 62): the idea checked against the table and what the family had, the
-// Field Guide's 21 discoveries, and storage that only ever stays on this device.
+// Field Guide's 24 discoveries, and storage that only ever stays on this device.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -20,12 +20,14 @@ test("Check my idea: yes for the table's reason where the family lived; otherwis
 
 test("the Field Guide has each meaningful trait in each place, with the table's mark", async () => {
   const { FIELD_GUIDE, discoveryLine, discoveredLine, discover, discoveries, keepInJournal, journalEntries } = await import("../src/reflection.js");
-  assert.equal(FIELD_GUIDE.length, 21);
-  assert.deepEqual(["✓", "✗", "~"].map((m) => FIELD_GUIDE.filter((e) => e.mark === m).length), [8, 8, 5]);
+  assert.equal(FIELD_GUIDE.length, 24);
+  assert.deepEqual(["✓", "✗", "~"].map((m) => FIELD_GUIDE.filter((e) => e.mark === m).length), [8, 8, 8]);
+  assert.equal(FIELD_GUIDE.filter((e) => e.neutral).length, 3, "each neutral trait once, for every place");
   const web = FIELD_GUIDE.find((e) => e.key === "toe_webbing:2");
   assert.equal(discoveryLine(web), "You discovered: webbed feet help at the water's edge.");
   assert.equal(discoveryLine(FIELD_GUIDE.find((e) => e.key === "dense_fur:0")), "You discovered: thick fur doesn't matter much in the high leaves.");
-  assert.equal(discoveredLine(9), "You've discovered 9 of 21.");
+  assert.equal(discoveredLine(9), "You've discovered 9 of 24.");
+  assert.equal(discoveryLine(FIELD_GUIDE.find((e) => e.key === "coat_shade")), "You discovered: coat colour doesn't help or hurt anywhere.");
   // Without storage (as here), a discovery lasts the page's life, is said once, and nothing breaks.
   assert.equal(discover(web), true);
   assert.equal(discover(web), false);

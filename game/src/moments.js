@@ -30,7 +30,7 @@ import { truthOf } from "./reflection.js";
 export const MOMENTS = [
   "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
-  "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
+  "same", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
   "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
   "nearly-over",
@@ -190,8 +190,14 @@ const MOMENT = {
       return g ? { id: g.id, size: s.family.now } : null;
     },
   },
-  /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
-  fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 10 && s.theirs.now >= 10 },
+  /** Both groups of a fair test at its result, the end of the fast-forward: who made it, clearly more with the variation. */
+  fairtest: {
+    families: FROM_OTHERS,
+    policies: ["active", "passive"],
+    // At its result, the end of the fast-forward: who made it clearly differs (scope decision 65).
+    at: (s, ev, b, what) => (what === null || what === "skip-done") && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 2 &&
+      s.mine.then >= 10 && s.mine.now >= 5 && s.mine.now - s.theirs.now >= 3,
+  },
   /** An animal of another family in your family's place, three generations or more after a follow: its card sums up its family beside yours (playtest). */
   "other-card": {
     families: FROM_OTHERS,
@@ -244,18 +250,10 @@ const MOMENT = {
    */
   extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
   /**
-   * A glowing baby whose new trait doesn't help or hurt where the test would be (scope decision 58): its card
-   * explains, "Pointier ear tips don't help or hurt. Nothing to test here.", with only "Keep looking".
+   * A fair test on a trait that doesn't matter in its place (a "~" or a neutral trait), followed like any other: who
+   * made it came out "About the same.", and the world waits for a guess why (scope decision 65).
    */
-  "no-test": {
-    families: FROM_OTHERS,
-    policies: ["passive", "active"],
-    at: (s, ev, b, what) => {
-      if (what !== "day" || !s.followOpen || s.inDanger) return null;
-      const g = s.glowing.find((x) => !s.followable(x) && x.since === s.watchT);
-      return g ? { id: g.id } : null;
-    },
-  },
+  same: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.same && { text: s.lastGuess.text } },
   /**
    * A glowing baby living away from the family's place (scope decision 59): its card says so, "This baby lives in
    * the high leaves, away from your family.", with only "Keep looking".
@@ -310,9 +308,9 @@ const MOMENT = {
     relaxed: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8) return null; const r = s.changeReasons(ev); return r.length >= 1 && s.reasons.helping.length + s.reasons.hurting.length > 0 && { lines: r }; },
   },
   /** A fair test's result, and the world waits for a guess (scope decision 60): "Why are the ones with bigger eyes doing better?" */
-  why: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  why: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && !s.lastGuess.same && { text: s.lastGuess.text } },
   /** The same, after the child's guess: why, from the table. */
-  "why-answer": { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  "why-answer": { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && !s.lastGuess.same && { text: s.lastGuess.text } },
   /**
    * A sudden drop of the family, mostly crowded out, that one trait explains: "Why is your family shrinking?" Most
    * sudden drops have no such trait, so the moments page opens this one in seed 1 (its first family, generation 3).
@@ -546,7 +544,7 @@ export async function goToMoment(game, moment) {
   if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
   // A guess the last generation asked belongs to its own moments; the others show what they are about.
-  if (G.guess && !moment.startsWith("why")) G.closeGuess();
+  if (G.guess && !moment.startsWith("why") && moment !== "same") G.closeGuess();
   if (moment === "generation") {
     G.clock = genMs - 3000; // the next generation passes three seconds from now, at the night's end
     lookAtGroup(G);
@@ -645,7 +643,7 @@ export async function goToMoment(game, moment) {
   } else if (moment === "average") {
     lookAtGroup(G);
     G.openAverage();
-  } else if (moment === "why" || moment === "why-answer" || moment === "why-drop") {
+  } else if (moment === "why" || moment === "why-answer" || moment === "why-drop" || moment === "same") {
     lookAtGroup(G, 0.3);
     if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);
   } else if (moment === "another-family" || moment === "in-trouble") {
@@ -661,7 +659,7 @@ export async function goToMoment(game, moment) {
       if (a) { lookAt(G, a.x, a.y); G.tapFamily(a); plan.hit = { id: a.id }; }
       else plan.hit = { none: "every family has a future" };
     }
-  } else if (moment === "card" || moment === "blocked" || moment === "no-test" || moment === "away" || moment === "back" || moment === "go-back") {
+  } else if (moment === "card" || moment === "blocked" || moment === "away" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);

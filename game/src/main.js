@@ -28,7 +28,7 @@ import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, SINCE_TITLE, withLabel, WITHOUT, NEARBY_IN_TEST, fairHeading,
+  evidenceLine, countLine, SINCE_TITLE, twinsLabel, othersLabel, ABOUT_SAME, NEARBY_IN_TEST, fairHeading,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
   passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
@@ -37,7 +37,7 @@ import {
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
-import { nothingToTest, explainGuess, variationEffect } from "./why.js";
+import { explainGuess, variationEffect } from "./why.js";
 import {
   IDEA_TRAITS, IDEA_OR, IDEA_DONE, CHECK_TITLE, REVEAL_TITLE, HAPPENED_TITLE, IDEA_TITLE, MY_IDEA, ideaSentence, cleanIdea, truthOf, checkIdea,
   FIELD_GUIDE, FIELD_GUIDE_TITLE, NOT_YET, discoveryLine, discoveredLine, guideEntry, discoveries, discover, keepInJournal,
@@ -484,6 +484,11 @@ export class Game {
     // See, guess, explain: at a fair test's result or a sudden drop, the world waits for a guess (scope decision 60).
     if (s.phase === "watch" && !this.since && !this.journal && !this.naming && !this.guess) {
       const q = s.guessNow(ev);
+      // A trait that doesn't matter there: "About the same." right after the result, then the guess (scope decision 65).
+      if (q?.same) {
+        const i = this.logQueue.findIndex((line) => line.includes(" generations later: "));
+        if (i >= 0) this.logQueue.splice(i + 1, 0, ABOUT_SAME); else this.sayFirst([ABOUT_SAME]);
+      }
       if (q) this.openGuess(q);
     }
     if (s.phase !== "watch") this.revealAll(now); // a panel, a fast-forward or the end: the day's babies show at once
@@ -1337,13 +1342,13 @@ export class Game {
       this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
     } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
     // The last fair test: the family's animals with the variation beside those without (scope decisions 33 and 59),
-    // when its result was clear (story.js), or else at the end.
+    // who made it (scope decision 65), when its result was clear (story.js), or else at the end.
     const last = s.choices[s.choices.length - 1];
     this.endingFairEl.hidden = !last;
     if (last) {
       const r = last.result, rows = [
-        { label: withLabel(last.group), then: last.sizeAtChoice, now: r ? r.mine : last.sizeAtEnd, color: WITH_COLOR },
-        { label: WITHOUT, then: last.othersAtChoice, now: r ? r.theirs : last.othersAtEnd, color: WITHOUT_COLOR },
+        { label: twinsLabel(last.sizeAtChoice, last.group), then: last.sizeAtChoice, now: r ? r.mine : last.sizeAtEnd, color: WITH_COLOR, madeIt: true },
+        { label: othersLabel(last.othersAtChoice), then: last.othersAtChoice, now: r ? r.theirs : last.othersAtEnd, color: WITHOUT_COLOR, madeIt: true },
       ];
       const head = r ? fairLater(last.zone, r.after) : fairHeading(last.zone);
       const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: head });
@@ -1546,10 +1551,11 @@ export class Game {
     this.guideTitle.set(FIELD_GUIDE_TITLE);
     this.guideCount.set(discoveredLine(n));
     const cells = [doc.createElement("span"), ...["High leaves", "Open ground", "Water's edge"].map((t) => Object.assign(doc.createElement("span"), { className: "place", textContent: t }))];
-    for (const x of IDEA_TRAITS.slice(0, 7)) {
+    // Each meaningful trait in each place, then each neutral trait once, across the three places (scope decision 65).
+    for (const x of IDEA_TRAITS) {
       cells.push(Object.assign(doc.createElement("span"), { className: "trait", textContent: x.words.charAt(0).toUpperCase() + x.words.slice(1) }));
       for (const e of FIELD_GUIDE.filter((y) => y.t === x.t)) {
-        const known = found.has(e.key), el = Object.assign(doc.createElement("div"), { className: `entry ${known ? { "✓": "helps", "✗": "hurts", "~": "little" }[e.mark] : "unknown"}` });
+        const known = found.has(e.key), el = Object.assign(doc.createElement("div"), { className: `entry ${known ? { "✓": "helps", "✗": "hurts", "~": "little" }[e.mark] : "unknown"}${e.neutral ? " wide" : ""}` });
         el.append(Object.assign(doc.createElement("span"), { className: "mark", textContent: known ? e.mark : "?" }),
           Object.assign(doc.createElement("span"), { className: "text", textContent: known ? e.line : NOT_YET }));
         if (known) el.append(speakerButton(doc, () => e.line));
@@ -1854,12 +1860,11 @@ export class Game {
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
     const why = s.inDanger ? "danger" : s.whyNot(g), went = s.went.get(g.v.t);
+    // Any trait can be followed, with no hint whether it matters here (scope decision 65).
     const note = why === "danger" ? needsYou(s.noun, s.name) : why === "away" ? awayLine(this.bridge.zoneOf(g.id), s.name) :
       why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) : why === "common" ? PASSED_COMMON :
-      why ? nothingToTest(g.v, s.testZone()) : s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
+      s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
     const text = why ? null : s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : PASS_ON_BUTTON;
-    // A card that says a trait doesn't matter much here is a Field Guide discovery (scope decision 62).
-    if (why === "little") this.discovered(guideEntry(g.v.t, s.testZone()));
     const key = `${g.id}:${note}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
@@ -1899,13 +1904,16 @@ export class Game {
   }
 
   /* ================= counts, never percentages ================= */
-  /** The fair test since the last follow, in the family (scope decision 59): "With smaller eyes: 14 → 17", "Without: 14 → 12". */
+  /**
+   * The fair test since the last follow, in the family (scope decision 59), by who made it (scope decision 65):
+   * "Your 12 with smaller eyes: 10 made it", "The 12 without: 7 made it".
+   */
   fairRows() {
     const s = this.story;
     if (!s.fair) return [];
     return [
-      { label: withLabel(s.fair.v.group), ...s.mine, color: WITH_COLOR },
-      { label: WITHOUT, ...s.theirs, color: WITHOUT_COLOR },
+      { label: twinsLabel(s.mine.then, s.fair.v.group), ...s.mine, color: WITH_COLOR, madeIt: true },
+      { label: othersLabel(s.theirs.then), ...s.theirs, color: WITHOUT_COLOR, madeIt: true },
     ];
   }
 
@@ -1969,6 +1977,11 @@ export class Game {
   sayNext(lines) {
     if (!this.logQueue.length) this.logTimer = Math.min(this.logTimer, LOG_MIN_MS - (performance.now() - this.logShownAt));
     this.logQueue.push(...lines);
+  }
+  /** Say these lines right after the one on screen, before anything else queued. */
+  sayFirst(lines) {
+    if (!this.logQueue.length) this.logTimer = Math.min(this.logTimer, LOG_MIN_MS - (performance.now() - this.logShownAt));
+    this.logQueue.unshift(...lines);
   }
   /** Show a line now. A line that names a baby can be tapped to fly there (showLink). */
   showLine(line) {

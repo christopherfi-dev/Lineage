@@ -59,7 +59,7 @@ The reasonable answer for each type, with the reason for the fair test's place:
 - **The fair test.** "With them" (or "With it") if the variation's direction helps there, "Without them" if not.
   - "With it. A sleek body slides through water."
   - "Without it. Webbing makes it hard to grip branches."
-- *No longer asked, since only a trait that helps or hurts there can be followed: a neutral trait or a "~" there ("A lighter coat won't matter. Other traits will decide." and "About the same. A darker coat won't matter.").*
+- *Asked again since Round 3 (scope decision 65), when a neutral trait or a "~" there is followed: "A lighter coat won't matter. Other traits will decide." and "About the same. A darker coat won't matter." (Between decisions 58 and 65 such a trait couldn't be followed.) "Which will do better?" is judged by who made it, at the fair test's result.*
 
 ## The misconceptions
 

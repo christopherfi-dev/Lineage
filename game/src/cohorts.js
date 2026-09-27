@@ -100,11 +100,11 @@ const hashed = (id) => {
  * @param {number} o.anchor the animal the test starts from (the tapped newborn)
  * @param {Variation[]} [o.chosen] the family's earlier chosen variations: nearby animals sharing them fill in first
  * @param {(id:number)=>null|{x:number,y:number}} [o.homeOf] where each animal's spot is (herd.js)
- * @param {number} [o.min] @param {number} [o.max]
+ * @param {number} [o.min] @param {number} [o.max] @param {number} [o.fit] how close twins' fitness must be (TWIN_FIT)
  * @returns {{mine:number[], theirs:number[], fromFamily:number, fromNearby:number, carriers:number}} twins at the same
  *   index; how many of yours are the family's and how many came from nearby; the family's carriers in the place
  */
-export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], homeOf = () => null, min = MIN_SIZE, max = MAX_SIZE }) {
+export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], homeOf = () => null, min = MIN_SIZE, max = MAX_SIZE, fit: twinFit = TWIN_FIT }) {
   const here = [];
   for (const ind of bridge.living) {
     if (bridge.zoneOf(ind.id) !== zone) continue;
@@ -128,7 +128,7 @@ export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], h
       for (const o of pool) {
         if (o.age !== c.age) continue;
         const df = Math.abs(fit.get(o.id) - fit.get(c.id));
-        if (df > TWIN_FIT) continue;
+        if (df > twinFit) continue;
         const d = df + 0.5 * Math.abs(o.time - c.time);
         if (d < bd || (d === bd && hashed(o.id) < hashed(best.id))) { bd = d; best = o; }
       }

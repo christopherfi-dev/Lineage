@@ -17,11 +17,13 @@
  *
  * Between follows the child is active: a newborn in the family with a new
  * variation glows (a few at a time, the ones that can be followed first), and
- * tapping it offers to follow that variation. Only a trait that helps or hurts
- * in the family's place can be followed (scope decision 58), and never the
- * way back from a direction the family already took, unless a fair test
- * clearly showed that direction hurting. A neutral trait, a "~" there or a way
- * back still glows; its card explains instead.
+ * tapping it offers to follow that variation. Any trait in the family's place
+ * can be followed, a neutral trait or a "~" there too, with no hint that it
+ * doesn't matter (scope decision 65: see what happens, guess why, then the
+ * explanation); never the way back from a direction the family already took,
+ * unless a fair test clearly showed that direction hurting. A way back still
+ * glows; its card explains instead. A fair test is counted by who made it:
+ * its twins still alive.
  *
  * A variation too rare to start a test is fast-forwarded to see if it is
  * passed on (scope decision 42): once a full test can start, it does; after
@@ -54,7 +56,7 @@ import { shortGroup, your } from "./narration.js";
 import { revealFor } from "./reveal.js";
 import { better } from "./groups.js";
 import {
-  GLOW_GENERATIONS, GLOW_MAX, HARMFUL_MIN_SIZE, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS,
+  GLOW_GENERATIONS, GLOW_MAX, HARMFUL_MIN_SIZE, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS, TWIN_FIT,
   familyVariations, formFamilyTest, newbornVariation, placeOf, sameVariation,
 } from "./cohorts.js";
 
@@ -124,6 +126,12 @@ export const DROP_SHARE = 0.25;
 export const GUESS_GAP = 4;
 /** A fair test's result is asked about from the end of its fast-forward until this many generations after the follow. */
 export const RESULT_BY = 5;
+/**
+ * A fair test on a trait that doesn't matter in its place (a "~" or a neutral
+ * trait) came out "About the same." when the two sides' animals that made it
+ * are within this many (scope decision 65).
+ */
+export const SAME_WITHIN = 2;
 
 /**
  * When in its day a baby appears on the map, 0..1 of APPEAR_SPAN: fixed by its
@@ -140,20 +148,22 @@ export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
    * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, length?:number, minSize?:number, harmfulMin?:number,
-   *   maxSize?:number, spreadMax?:number, generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean}} [opts]
+   *   maxSize?:number, spreadMax?:number, generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean,
+   *   twinFit?:number}} [opts]
    *   where each animal's home spot is (herd.js); the generation the story ends at (storyLength); the others only
-   *   for measuring other values of MIN_SIZE, HARMFUL_MIN_SIZE, MAX_SIZE, SPREAD_MAX, GENERATION_SECONDS and
-   *   GLOW_GENERATIONS
+   *   for measuring other values of MIN_SIZE, HARMFUL_MIN_SIZE, MAX_SIZE, SPREAD_MAX, GENERATION_SECONDS,
+   *   GLOW_GENERATIONS and TWIN_FIT
    */
   constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, minSize = MIN_SIZE, harmfulMin = HARMFUL_MIN_SIZE,
     maxSize = MAX_SIZE, spreadMax = SPREAD_MAX, generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS,
-    onePerVariation = true } = {}) {
+    onePerVariation = true, twinFit = TWIN_FIT } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the generation of the world the story ends at, if the family lasts */
     this.length = length;
     this.minSize = minSize;
     this.harmfulMin = harmfulMin;
+    this.twinFit = twinFit;
     this.maxSize = maxSize;
     this.spreadMax = spreadMax;
     this.generationSeconds = generationSeconds;
@@ -262,25 +272,24 @@ export class Story {
   /**
    * Why a glowing baby's variation can't be followed, or null when it can:
    * "away", the baby lives away from the family's place, where the test would
-   * be (scope decision 59); "neutral" or "little" (a "~" there, scope decision
-   * 58); or "back", the way back from a direction the family already took
-   * (scope decision 59), unless a fair test clearly showed that direction
-   * hurting; or "common": MAX_SIZE or more of the family there have it already,
-   * yet too few without it are twins for a fair test, so no fast-forward could help.
+   * be (scope decision 59); "back", the way back from a direction the family
+   * already took (scope decision 59), unless a fair test clearly showed that
+   * direction hurting; or "common": MAX_SIZE or more of the family there have
+   * it already, yet too few without it are twins for a fair test, so no
+   * fast-forward could help. A neutral trait and a "~" there can be followed
+   * like any other (scope decision 65).
    * @param {{id:number, v:import("./cohorts.js").Variation}} x
-   * @returns {null|"away"|"neutral"|"little"|"back"|"common"}
+   * @returns {null|"away"|"back"|"common"}
    */
   whyNot(x) {
     if (this.bridge.zoneOf(x.id) !== this.testZone()) return "away";
-    if (x.v.neutral) return "neutral";
-    if (!matters(x.v.t, this.testZone())) return "little";
     const w = this.went.get(x.v.t);
     if (w && w.dir !== x.v.dir && !w.hurt) return "back";
     if (this.carriersOf(x.v) >= this.maxSize && !this.canStartFor(x)) return "common";
     return null;
   }
 
-  /** Only a trait that helps or hurts in the family's place, and never the way back without a reason, can be followed. */
+  /** Any trait in the family's place, but never the way back without a reason, can be followed (scope decision 65). */
   followable(x) { return this.whyNot(x) === null; }
 
   /** A way back the family may take, because a fair test clearly showed the way it went hurting ("Go back?"). */
@@ -289,10 +298,12 @@ export class Story {
     return !!w && w.dir !== x.v.dir && w.hurt;
   }
 
-  /** The fair test's group with the variation, now against when it formed. */
+  /** The fair test's twins with the variation: how many made it (still alive), against how many it began with. */
   get mine() { return { now: this.bridge.mineIds().length, then: this.fair ? this.fair.mineThen : 0 }; }
   /** Their twins without it, the same way. */
   get theirs() { return { now: this.bridge.otherIds().length, then: this.fair ? this.fair.theirsThen : 0 }; }
+  /** The side with the variation with its babies since (for the "grow or shrink" prediction), against how many it began with. */
+  get withLine() { return { now: this.bridge.withLineIds().length, then: this.fair ? this.fair.mineThen : 0 }; }
   /** The whole family, now against when the story began. */
   get family() { return { now: this.bridge.followedIds().length, then: this.sizeAtStart }; }
 
@@ -553,17 +564,21 @@ export class Story {
     if (f && !f.asked) {
       const since = ev.generation - f.generation;
       if (since >= 2) {
-        const b = better(this.mine, this.theirs), expected = variationEffect(f.v.t, f.v.dir, f.zone);
-        if (b !== 0 || since >= RESULT_BY) {
+        const expected = variationEffect(f.v.t, f.v.dir, f.zone);
+        // Who made it (scope decision 65). A trait that doesn't matter there: "About the same." when within SAME_WITHIN.
+        const same = expected === 0 && Math.abs(this.mine.now - this.theirs.now) <= SAME_WITHIN;
+        const b = expected === 0 ? (same ? 0 : Math.sign(this.mine.now - this.theirs.now)) : better(this.mine, this.theirs);
+        if (b !== 0 || same || since >= RESULT_BY) {
           f.asked = true;
           // Its result, for the ending (scope decision 62): both sides when it was clear, or when it had to be.
           const c = this.choices[this.choices.length - 1];
-          if (c) c.result = { mine: this.mine.now, theirs: this.theirs.now, after: since };
+          if (c) c.result = { mine: this.mine.now, theirs: this.theirs.now, after: since, same };
         }
-        if (b !== 0 && b === expected) {
+        if (same || (b !== 0 && b === expected)) {
           this.guessedAt = ev.generation;
+          const doing = same ? "about the same" : b > 0 ? "better" : "worse";
           // A fair test that showed what the table says is a Field Guide discovery (scope decision 62).
-          return { ...guessFor(`Why are the ones with ${shortGroup(f.v.group)} doing ${b > 0 ? "better" : "worse"}?`, f.v.t, f.zone), discovery: { t: f.v.t, zone: f.zone } };
+          return { ...guessFor(`Why are the ones with ${shortGroup(f.v.group)} doing ${doing}?`, f.v.t, f.zone), same, discovery: { t: f.v.t, zone: f.zone } };
         }
       }
     }
@@ -623,7 +638,7 @@ export class Story {
     if (!this.tests.has(key)) {
       this.tests.set(key, formFamilyTest(this.bridge, x.v, {
         zone: this.testZone(), family: this.bridge.follow?.members ?? new Set(), anchor: x.id,
-        chosen: this.choices.map((c) => c.v), homeOf: this.homeOf, min: this.minSize, max: this.maxSize,
+        chosen: this.choices.map((c) => c.v), homeOf: this.homeOf, min: this.minSize, max: this.maxSize, fit: this.twinFit,
       }));
     }
     return this.tests.get(key);

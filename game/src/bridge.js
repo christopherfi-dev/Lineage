@@ -11,11 +11,13 @@
  * The child follows a family (families.js) for the whole story: a follow
  * never moves it (scope decision 59). A follow starts a fair test inside it:
  * two groups tracked beside the family, the animals with the chosen
- * variation and their twins without it (cohorts.js). The family and both
- * groups grow by babies whose mother is in them and shrink by deaths. A
- * pair's two babies have one mother each: the first joins parent A's family,
- * the second parent B's (scope decision 58). Following is observer state only
- * and cannot change the biology.
+ * variation and their twins without it (cohorts.js). The twins are counted
+ * by who made it: they only ever lose their dead (scope decision 65). The
+ * family, and the side with the variation with its babies (for the
+ * predictions), grow by babies whose mother is in them and shrink by deaths.
+ * A pair's two babies have one mother each: the first joins parent A's
+ * family, the second parent B's (scope decision 58). Following is observer
+ * state only and cannot change the biology.
  */
 
 import {
@@ -46,7 +48,10 @@ export class Bridge {
     );
     /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, for the whole story */
     this.follow = null;
-    /** @type {null|{mine:Set<number>, theirs:Set<number>}} the latest fair test: yours with the variation, and the twins without */
+    /**
+     * @type {null|{mine:Set<number>, theirs:Set<number>, line:Set<number>}} the latest fair test: its twins with the
+     * variation and without it, still alive (who made it), and the side with it with its babies since
+     */
     this.test = null;
     /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
     this.newAtBirth = new Map();
@@ -105,25 +110,28 @@ export class Bridge {
   }
 
   /**
-   * A fair test inside the family: two groups tracked beside it. Both keep
-   * their babies (by mother) and lose their dead, like a family. The family
-   * itself stays as it is.
+   * A fair test inside the family: two groups of twins tracked beside it,
+   * counted by who made it (scope decision 65): they lose their dead and
+   * never gain babies. The side with the variation is also followed with its
+   * babies (by mother), for the predictions. The family itself stays as it is.
    * @param {number[]} mine yours with the variation @param {number[]} theirs their twins without it
    */
   startTest(mine, theirs) {
-    this.test = { mine: new Set(mine), theirs: new Set(theirs) };
+    this.test = { mine: new Set(mine), theirs: new Set(theirs), line: new Set(mine) };
     return this.test;
   }
 
   /** In the child's family. */
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
-  /** In the fair test's group with the variation ("yours with …"). */
+  /** A twin in the fair test's group with the variation ("yours with …"), still alive. */
   isMine(id) { return !!this.test && this.test.mine.has(id); }
   mineIds() { return this.test ? [...this.test.mine] : []; }
-  /** In the fair test's group without it. */
+  /** A twin in the fair test's group without it, still alive. */
   isOther(id) { return !!this.test && this.test.theirs.has(id); }
   otherIds() { return this.test ? [...this.test.theirs] : []; }
+  /** The side with the variation and its babies since the test began. */
+  withLineIds() { return this.test ? [...this.test.line] : []; }
 
   /** The family's living members with their body genomes and habitats. */
   followedAnimals() {
@@ -188,16 +196,17 @@ export class Bridge {
     }
     if (g % 10 === 0) for (const id of this.newAtBirth.keys()) if (!this.byId.has(id)) this.newAtBirth.delete(id);
 
-    // The fair test's two groups change the same way as the family.
+    // The fair test's twins only lose their dead: who made it (scope decision 65). The side with the variation
+    // with its babies changes the same way as the family.
     let test = null;
     if (this.test) {
-      const grow = (set) => {
+      const change = (set, babies) => {
         const before = set.size;
-        for (const b of births) if (set.has(b.motherId)) set.add(b.childId);
+        if (babies) for (const b of births) if (set.has(b.motherId)) set.add(b.childId);
         for (const d of deaths) set.delete(d.id);
         return { count: set.size, before };
       };
-      test = { mine: grow(this.test.mine), theirs: grow(this.test.theirs) };
+      test = { mine: change(this.test.mine, false), theirs: change(this.test.theirs, false), line: change(this.test.line, true) };
     }
     return {
       generation: g,
