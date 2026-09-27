@@ -52,7 +52,7 @@
 import { averageOf, carries, formOf } from "./variations.js";
 import { matters, variationEffect, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
 import { CLUE_FROM, census, evidenceFor, sameTraitClue } from "./evidence.js";
-import { shortGroup, your } from "./narration.js";
+import { babyLabel, shortGroup, your } from "./narration.js";
 import { revealFor } from "./reveal.js";
 import { better } from "./groups.js";
 import {
@@ -103,8 +103,10 @@ export const DANGER_SIZE = 5;
 export const GLOW_MIN_SECONDS = 10;
 /** New glows start at least this far apart (seconds of watching), so babies light up one at a time. */
 export const GLOW_GAP_SECONDS = 4;
-/** The family tree strip shows at most this many of a baby's mother line, the baby included (scope decision 61). */
+/** Before any follow, the family tree strip shows at most this many of the first one's mother line, her included (scope decision 61). */
 export const TREE_DEPTH = 4;
+/** Once the line is followed, at most this many in-between ancestors before each followed baby (scope decision 66). */
+export const TREE_BETWEEN = 2;
 /** A watched generation's babies appear over this much of its day; the rest of the day is quiet. */
 export const APPEAR_SPAN = 0.8;
 /** A chosen trait has faded from the family when fewer of its animals than this still have it ("Your family so far"). */
@@ -156,7 +158,7 @@ export class Story {
    */
   constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, minSize = MIN_SIZE, harmfulMin = HARMFUL_MIN_SIZE,
     maxSize = MAX_SIZE, spreadMax = SPREAD_MAX, generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS,
-    onePerVariation = true, twinFit = TWIN_FIT } = {}) {
+    onePerVariation = true, twinFit = TWIN_FIT, spreadTo = "max" } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the generation of the world the story ends at, if the family lasts */
@@ -164,6 +166,8 @@ export class Story {
     this.minSize = minSize;
     this.harmfulMin = harmfulMin;
     this.twinFit = twinFit;
+    /** "max": a fast-forward stops when a full test (MAX_SIZE) can start; "min": as soon as any test can (minFor) */
+    this.spreadTo = spreadTo;
     this.maxSize = maxSize;
     this.spreadMax = spreadMax;
     this.generationSeconds = generationSeconds;
@@ -198,6 +202,10 @@ export class Story {
     this.endGeneration = null;
     /** @type {null|"died"|"survived"} */
     this.outcome = null;
+    /** how many carriers the latest follow narrowed the line to (scope decision 66) */
+    this.lineStart = 0;
+    /** @type {null|number} how many relatives the child had when the story ended */
+    this.relativesAtEnd = null;
     /** @type {Array<{id:number, genome:ArrayLike<number>, zone:number}>} the family's animals at the start, for the ending */
     this.startAnimals = [];
     /** @type {Array<{id:number, genome:ArrayLike<number>, zone:number}>} the family's animals last alive */
@@ -223,7 +231,7 @@ export class Story {
     this.watchT = 0;
     /** when the latest glow started, in watchT */
     this.lastGlowAt = -Infinity;
-    /** @type {null|{generation:number, living:number[], family:number}} who was alive at the latest follow (or the start), and the family's size then */
+    /** @type {null|{generation:number, living:number[], family:number, relatives:number}} who was alive at the latest follow (or the start), and the line's and the relatives' sizes then */
     this.mark = null;
     /** @type {Glow[]} glows started since the page last asked (takeStarted), to name each baby as it lights up */
     this.started = [];
@@ -257,8 +265,8 @@ export class Story {
   /** The world fast-forwards: after a follow, and while a variation is seen being passed on. */
   get fast() { return this.phase === "skip" || this.phase === "spread"; }
   get lasted() { return (this.endGeneration ?? this.bridge.generation) - this.startGeneration; }
-  /** The child's animals are always a family: a follow never moves it (scope decision 59). */
-  get noun() { return "family"; }
+  /** "family" until the first follow, then "line": each follow narrows the child's animals to a line (scope decision 66). */
+  get noun() { return this.choices.length ? "line" : "family"; }
   /** Follows are left, so newborns can glow and be followed. */
   get canFollow() { return this.choices.length < STORY_CHOICES; }
   /** The child can follow right now: while watching, never during a fast-forward or a panel. */
@@ -304,8 +312,10 @@ export class Story {
   get theirs() { return { now: this.bridge.otherIds().length, then: this.fair ? this.fair.theirsThen : 0 }; }
   /** The side with the variation with its babies since (for the "grow or shrink" prediction), against how many it began with. */
   get withLine() { return { now: this.bridge.withLineIds().length, then: this.fair ? this.fair.mineThen : 0 }; }
-  /** The whole family, now against when the story began. */
-  get family() { return { now: this.bridge.followedIds().length, then: this.sizeAtStart }; }
+  /** The child's relatives (the rest of each line narrowed from, and their babies), now against at the latest follow. */
+  get relatives() { return { now: this.relativesAtEnd ?? this.bridge.relatives.size, then: this.mark?.relatives ?? 0 }; }
+  /** The whole family, now against when the story began; once a follow narrowed it, the line, against when it did. */
+  get family() { return { now: this.bridge.followedIds().length, then: this.choices.length ? this.lineStart : this.sizeAtStart }; }
 
   /** The child taps an animal and follows its family. Time starts now. */
   begin(id) {
@@ -326,7 +336,10 @@ export class Story {
   }
 
   /** Who is alive now, and how big the family is: the "then" of every group's count until the next follow. */
-  markNow() { this.mark = { generation: this.bridge.generation, living: this.bridge.livingIds(), family: this.bridge.followedIds().length }; }
+  markNow() {
+    this.mark = { generation: this.bridge.generation, living: this.bridge.livingIds(), family: this.bridge.followedIds().length,
+      relatives: this.bridge.relatives.size };
+  }
 
   remember() {
     this.lastAnimals = this.bridge.followedAnimals();
@@ -587,7 +600,7 @@ export class Story {
       const hurt = this.reasons.hurting[0], sf = hurt ? null : this.deathShortfall(ev);
       if (hurt || sf) {
         this.guessedAt = ev.generation;
-        return guessFor(`Why is ${your("family", this.name)} shrinking?`, hurt ? hurt.t : sf.t, hurt ? this.place : sf.zone, sf ? sf.who : null);
+        return guessFor(`Why is ${your(this.noun, this.name)} shrinking?`, hurt ? hurt.t : sf.t, hurt ? this.place : sf.zone, sf ? sf.who : null);
       }
     }
     return null;
@@ -597,29 +610,50 @@ export class Story {
   whyHere(v) { return whyLine(v.t, this.testZone()); }
 
   /**
-   * The family tree strip (scope decision 61): the animal the child tapped
-   * first, then the real mother line of the latest followed baby, from
-   * great-grandmother to mother to this baby, drawn from their real bodies.
-   * Followed babies are not each other's mothers, so the line is the baby's
-   * own. It goes back as far as the story knows a mother's body (every family
-   * member since the story began, and anyone alive). Before any follow, the
-   * line is the first one tapped and her own mothers.
-   * @returns {{first:TreeAnimal, line:TreeAnimal[], joined:boolean}} joined: the first one is in the line
+   * The family tree strip. Before any follow (scope decision 61), the animal
+   * the child tapped first and her own mother line. Once the line is followed
+   * (scope decision 66), the chain of followed babies: the first one tapped,
+   * then each followed baby in order, each after its in-between ancestors
+   * (at most TREE_BETWEEN, drawn smaller), all from their real bodies. A step
+   * is "→" when the baby's mother line reaches the one before it, "…" when it
+   * does not within TREE_BETWEEN mothers. A mother's body is known back to
+   * the story's start (every line member since), and for anyone alive.
+   * @returns {{line:boolean, nodes:TreeAnimal[]}} line: the chain of followed babies (after the first follow)
    */
   familyTree() {
-    const last = this.choices[this.choices.length - 1], baby = last ? last.anchor : this.firstId;
     const known = (id) => this.segment.get(id) ?? (this.bridge.get(id) ? this.bridge.animal(id) : null);
-    const line = [];
-    for (let id = baby; typeof id === "number" && line.length < TREE_DEPTH; id = this.bridge.families.mother.get(id)) {
-      const a = known(id);
-      if (!a) break;
-      line.unshift(a);
+    const mother = (id) => this.bridge.families.mother.get(id);
+    const first = known(this.firstId);
+    // Up to `most` of this animal's mothers, the oldest first, and whether the next one up is `stop`.
+    const mothers = (id, most, stop) => {
+      const up = [];
+      let m = mother(id);
+      while (typeof m === "number" && m !== stop && up.length < most) {
+        const a = known(m);
+        if (!a) break;
+        up.unshift(a);
+        m = mother(m);
+      }
+      return { up, reached: m === stop };
+    };
+    const node = (a, kind, label, joined) => ({ id: a.id, genome: a.genome, zone: a.zone, kind, label, joined });
+    if (!this.choices.length) {
+      const { up } = mothers(this.firstId, TREE_DEPTH - 1, null);
+      const labels = ["Great-grandmother", "Grandmother", "Mother"].slice(-up.length || 3);
+      return { line: false, nodes: [...up.map((a, i) => node(a, "between", labels[i], i > 0)), ...(first ? [node(first, "first", "First mother", up.length > 0)] : [])] };
     }
-    const labels = last ? ["This baby", "Mother", "Grandmother", "Great-grandmother"] : ["First mother", "Mother", "Grandmother", "Great-grandmother"];
-    const tree = line.map((a, i) => ({ ...a, label: labels[line.length - 1 - i] }));
-    const joined = tree.some((a) => a.id === this.firstId);
-    for (const a of tree) if (a.id === this.firstId && last) a.label = `${a.label}, first mother`;
-    return { first: { ...(known(this.firstId) ?? tree[0]), label: "First mother" }, line: tree, joined };
+    const nodes = first ? [node(first, "first", "First mother", false)] : [];
+    let before = this.firstId;
+    for (const c of this.choices) {
+      const baby = known(c.anchor);
+      if (!baby) continue;
+      const { up, reached } = mothers(c.anchor, TREE_BETWEEN, before);
+      const labels = ["Great-grandmother", "Grandmother", "Mother"].slice(-up.length || 3);
+      up.forEach((a, i) => nodes.push(node(a, "between", labels[i], i > 0 || reached)));
+      nodes.push(node(baby, "baby", babyLabel(c.v.group), up.length > 0 || reached));
+      before = c.anchor;
+    }
+    return { line: true, nodes };
   }
 
   /** The glows started since the last call, oldest first. */
@@ -636,9 +670,10 @@ export class Story {
   testFor(x) {
     const key = `${x.v.trait}:${x.v.dir}:${x.v.thr}:${x.id}`;
     if (!this.tests.has(key)) {
+      // Strictly inside the line: no animals from nearby fill in (scope decision 66).
       this.tests.set(key, formFamilyTest(this.bridge, x.v, {
         zone: this.testZone(), family: this.bridge.follow?.members ?? new Set(), anchor: x.id,
-        chosen: this.choices.map((c) => c.v), homeOf: this.homeOf, min: this.minSize, max: this.maxSize, fit: this.twinFit,
+        chosen: this.choices.map((c) => c.v), homeOf: this.homeOf, min: this.minSize, max: this.maxSize, fit: this.twinFit, nearby: false,
       }));
     }
     return this.tests.get(key);
@@ -696,7 +731,7 @@ export class Story {
     sp.counts.push(n);
     if (this.inDanger) return this.stopSpread("danger");
     const size = this.sizeFor(sp), generations = sp.counts.length - 1;
-    if (size >= this.maxSize) return this.stopSpread("reached");
+    if (size >= (this.spreadTo === "min" ? this.minFor(sp) : this.maxSize)) return this.stopSpread("reached");
     if (n === 0) return this.stopSpread("gone");
     if (generations >= this.spreadMax) return this.stopSpread(size >= this.minFor(sp) ? "enough" : n >= this.maxSize ? "common" : "short");
     return "spreading";
@@ -751,6 +786,9 @@ export class Story {
     const zone = this.testZone(), test = this.testFor(x), back = this.goesBack(x);
     this.closeChoice();
     this.bridge.startTest(test.mine, test.theirs);
+    // The line narrows (scope decision 66): its carriers of the variation in its place, and their babies from now on.
+    this.bridge.narrowTo(test.carrierIds);
+    this.lineStart = test.carrierIds.length;
     const generation = this.bridge.generation;
     this.fair = { v: x.v, zone, anchor: x.id, generation, mineThen: test.mine.length, theirsThen: test.theirs.length,
       fromFamily: test.fromFamily, fromNearby: test.fromNearby };
@@ -790,6 +828,7 @@ export class Story {
     this.phase = "ended";
     this.outcome = outcome;
     this.endGeneration = generation;
+    this.relativesAtEnd = this.bridge.relatives.size;
     this.glowing = [];
     this.started = [];
     this.options = null;
@@ -854,7 +893,9 @@ export class Story {
  *
  * @typedef {Object} TreeAnimal an animal on the family tree strip
  * @property {number} id @property {ArrayLike<number>} genome its real body @property {number} zone
- * @property {string} label "Great-grandmother", "Mother", "This baby", "First mother"
+ * @property {"first"|"baby"|"between"} kind the first one tapped, a followed baby, or an ancestor in between (drawn smaller)
+ * @property {string} label "First mother", "Sleeker body" (a followed baby: the trait it was followed for), "Mother"
+ * @property {boolean} joined its mother line reaches the animal before it on the strip ("→"), or not ("…")
  *
  * @typedef {Object} Chip a trait on "Your family so far" (scope decision 59)
  * @property {import("./cohorts.js").Variation} v

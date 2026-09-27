@@ -9,6 +9,8 @@
 import { paintCreature } from "./creature.js";
 
 const W = 1200, H = 1500, M = 70;
+/** An in-between ancestor on the strip, against a full tile. */
+const SMALL = 0.6;
 const INK = "#2A2B22", SOFT = "#6E6750", TEAL = "#14657F";
 
 /** Lines of `text` that fit `width` in the canvas's current font. */
@@ -34,7 +36,7 @@ function write(x, text, left, top, width, font, color, lineHeight) {
 /**
  * Draw the card.
  * @param {Document} doc
- * @param {{name:null|string, title:string, tree:{first:any, line:any[], joined:boolean}, chips:Array<{words:string, faded:boolean}>,
+ * @param {{name:null|string, noun?:"family"|"line", title:string, tree:{line:boolean, nodes:import("./story.js").TreeAnimal[]}, chips:Array<{words:string, faded:boolean}>,
  *   reveal:null|string, idea:null|string, died:boolean}} d
  * @returns {Promise<HTMLCanvasElement>}
  */
@@ -53,25 +55,32 @@ export async function storyCard(doc, d) {
 
   let y = M + 10;
   y = write(x, "LINEAGE · A STORY FROM THE SIMULATION", M, y, W - 2 * M, "700 22px Karla, system-ui, sans-serif", "#9A8E70", 30) + 12;
-  y = write(x, d.name ? `The ${d.name} family` : "My family", M, y, W - 2 * M, "600 76px Petrona, Georgia, serif", INK, 84) + 6;
+  y = write(x, d.name ? `The ${d.name} ${d.noun ?? "family"}` : `My ${d.noun ?? "family"}`, M, y, W - 2 * M, "600 76px Petrona, Georgia, serif", INK, 84) + 6;
   y = write(x, d.title, M, y, W - 2 * M, "500 36px Petrona, Georgia, serif", SOFT, 46) + 34;
 
-  // The family tree strip, each animal drawn from its real body.
-  const who = [...(d.tree.joined ? [] : [d.tree.first]), ...d.tree.line];
-  const pw = Math.min(200, (W - 2 * M - (who.length - 1) * 26) / Math.max(1, who.length)), ph = pw * 0.72;
+  // The family tree strip, each animal drawn from its real body; the ancestors in between smaller (scope decision 66).
+  // Too many to fit: only the first one and the followed babies, "…" between them where an ancestor was left out.
+  const gap = 26, room = W - 2 * M, weight = (list) => list.reduce((n, a) => n + (a.kind === "between" ? SMALL : 1), 0);
+  let who = d.tree.nodes;
+  if ((room - (who.length - 1) * gap) / Math.max(1, weight(who)) < 120) {
+    who = who.flatMap((a, i) => (a.kind === "between" ? [] : [{ ...a, joined: a.joined && d.tree.nodes[i - 1]?.kind !== "between" }]));
+  }
+  const pw = Math.min(200, (room - (who.length - 1) * gap) / Math.max(1, weight(who))), ph = pw * 0.72;
+  let px = M;
   who.forEach((a, i) => {
-    const px = M + i * (pw + 26), c = doc.createElement("canvas");
+    const small = a.kind === "between", w = small ? pw * SMALL : pw, h = small ? ph * SMALL : ph, top = y + ph - h, c = doc.createElement("canvas");
+    if (i) { x.fillStyle = "#B7AA8A"; x.font = "600 30px Karla, system-ui, sans-serif"; x.textBaseline = "middle"; x.textAlign = "center"; x.fillText(a.joined ? "→" : "…", px - gap / 2, y + ph / 2); x.textAlign = "left"; }
     paintCreature(c, a.genome, { seed: a.id, habitat: a.zone });
     x.save();
-    x.beginPath(); x.roundRect?.(px, y, pw, ph, 18); if (!x.roundRect) x.rect(px, y, pw, ph); x.clip();
-    x.drawImage(c, px, y, pw, ph);
+    x.beginPath(); x.roundRect?.(px, top, w, h, 18); if (!x.roundRect) x.rect(px, top, w, h); x.clip();
+    x.drawImage(c, px, top, w, h);
     x.restore();
-    x.strokeStyle = i === who.length - 1 ? TEAL : a.label.startsWith("First") ? "#D9892B" : "#E3D6B8"; x.lineWidth = i === who.length - 1 || a.label.startsWith("First") ? 5 : 3;
-    x.beginPath(); x.roundRect?.(px, y, pw, ph, 18); if (!x.roundRect) x.rect(px, y, pw, ph); x.stroke();
+    x.strokeStyle = a.kind === "baby" ? TEAL : a.kind === "first" ? "#D9892B" : "#E3D6B8"; x.lineWidth = small ? 3 : 5;
+    x.beginPath(); x.roundRect?.(px, top, w, h, 18); if (!x.roundRect) x.rect(px, top, w, h); x.stroke();
     x.textAlign = "center";
-    write(x, a.label, px + pw / 2, y + ph + 12, pw + 20, "700 22px Karla, system-ui, sans-serif", SOFT, 26);
+    write(x, a.label, px + w / 2, y + ph + 12, w + 20, small ? "600 18px Karla, system-ui, sans-serif" : "700 22px Karla, system-ui, sans-serif", SOFT, small ? 22 : 26);
     x.textAlign = "left";
-    if (i) { x.fillStyle = "#B7AA8A"; x.font = "600 30px Karla, system-ui, sans-serif"; x.textBaseline = "middle"; x.fillText(!d.tree.joined && i === 1 ? "…" : "→", px - 22, y + ph / 2); }
+    px += w + gap;
   });
   y += ph + 80;
 
@@ -116,14 +125,14 @@ export async function storyCard(doc, d) {
 /**
  * Save or share the card: the iPad's share sheet when it can take a picture
  * (save to Photos, AirDrop to the teacher), else a download. Nothing is uploaded.
- * @param {HTMLCanvasElement} canvas @param {null|string} name
+ * @param {HTMLCanvasElement} canvas @param {null|string} name @param {"family"|"line"} [noun]
  * @returns {Promise<"shared"|"cancelled"|"downloaded">}
  */
-export async function shareCard(canvas, name) {
+export async function shareCard(canvas, name, noun = "family") {
   const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
   const file = new File([blob], `${(name ?? "lineage").toLowerCase()}-story.png`, { type: "image/png" });
   if (globalThis.navigator?.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: name ? `The ${name} family` : "My LINEAGE story" }); return "shared"; } catch (err) {
+    try { await navigator.share({ files: [file], title: name ? `The ${name} ${noun}` : "My LINEAGE story" }); return "shared"; } catch (err) {
       if (err?.name === "AbortError") return "cancelled";
     }
   }

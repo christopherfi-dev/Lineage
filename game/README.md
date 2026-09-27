@@ -39,7 +39,7 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `SKIP_GENERATIONS` | 2 | generations fast-forwarded after each follow |
 | `FAST_SECONDS` | 2 | real seconds per generation in a fast-forward |
 | `MAX_SIZE` | 20 | animals in each group of a fair test, at most |
-| `MIN_SIZE` | 10 | a fair test needs at least this many on each side; nearby animals fill in up to it |
+| `MIN_SIZE` | 10 | a fair test needs at least this many on each side, all from the child's line (scope decision 66) |
 | `HARMFUL_MIN_SIZE` | 5 | a trait that hurts in the family's place may start its fair test with this many (scope decision 64) |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
@@ -55,7 +55,17 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story that lasts takes a median 12½ minutes (19 at `?length=76`), measured with a simulated child.
+A story takes a median 7 minutes, with a median of 1 follow, measured with a simulated child (scope decision 66).
+
+**Following a line** (scope decision 66). The first tap follows a family. Each follow narrows it
+to a line: the line's animals with the chosen trait in its place, and their babies from then on.
+The rest become "your relatives": drawn full size in a quiet blue-grey (`KIN_COLOR`), still
+tappable ("One of your relatives"), and counted beside the line in the generation panel and at
+the ending. Only the line's babies glow, every fair test is strictly inside the line (no animals
+from nearby fill in), the traits add up ("Your Mossfoot line so far"), and the line dying out
+ends the story. "Your line" replaces "your family" from the first follow on, and the tree strip
+becomes "Your line, baby by baby": the first one tapped, then each followed baby, with up to two
+of its mothers drawn smaller (`TREE_BETWEEN`).
 
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3

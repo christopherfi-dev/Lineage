@@ -8,10 +8,11 @@
  * death events, mating events, body-mutation events) and hands them to the
  * canvas as plain events.
  *
- * The child follows a family (families.js) for the whole story: a follow
- * never moves it (scope decision 59). A follow starts a fair test inside it:
- * two groups tracked beside the family, the animals with the chosen
- * variation and their twins without it (cohorts.js). The twins are counted
+ * The child follows a family (families.js), then a line (scope decision 66):
+ * each follow starts a fair test inside the line, the animals with the
+ * chosen variation and their twins without it (cohorts.js), and narrows the
+ * line to its carriers there and their future babies. The rest of the old
+ * line are the child's relatives. The twins are counted
  * by who made it: they only ever lose their dead (scope decision 65). The
  * family, and the side with the variation with its babies (for the
  * predictions), grow by babies whose mother is in them and shrink by deaths.
@@ -46,8 +47,10 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, for the whole story */
+    /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, then line (scope decision 66) */
     this.follow = null;
+    /** @type {Set<number>} the child's relatives: the rest of each line the child narrowed from, and their babies */
+    this.relatives = new Set();
     /**
      * @type {null|{mine:Set<number>, theirs:Set<number>, line:Set<number>}} the latest fair test: its twins with the
      * variation and without it, still alive (who made it), and the side with it with its babies since
@@ -106,8 +109,36 @@ export class Bridge {
     const living = this.livingIds(), members = new Set();
     for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
     this.follow = { roots: [...roots], members };
+    this.relatives = new Set();
+    this.test = null;
     return this.follow;
   }
+
+  /**
+   * A follow narrows the child's line (scope decision 66): these animals, and
+   * every baby born to them from now on (a baby joins through its line parent,
+   * the each-parent rule), are the line. The rest of the old line become
+   * relatives, who keep their own babies.
+   * @param {number[]} ids the carriers followed, in the line's place
+   */
+  narrowTo(ids) {
+    const keep = new Set(ids);
+    for (const id of this.follow.members) if (!keep.has(id)) this.relatives.add(id);
+    for (const id of keep) this.relatives.delete(id);
+    this.follow = { roots: [...keep], members: keep };
+    return this.follow;
+  }
+
+  /** A new story in this world: no line, relatives or fair test until the child taps a family. */
+  unfollow() {
+    this.follow = null;
+    this.relatives = new Set();
+    this.test = null;
+  }
+
+  /** One of the child's relatives: the rest of a line the child narrowed from, or a baby of one. */
+  isRelative(id) { return this.relatives.has(id); }
+  relativeIds() { return [...this.relatives]; }
 
   /**
    * A fair test inside the family: two groups of twins tracked beside it,
@@ -207,6 +238,11 @@ export class Bridge {
         return { count: set.size, before };
       };
       test = { mine: change(this.test.mine, false), theirs: change(this.test.theirs, false), line: change(this.test.line, true) };
+    }
+    // Relatives keep their babies (by mother) and lose their dead, like the line.
+    if (this.relatives.size) {
+      for (const b of births) if (this.relatives.has(b.motherId)) this.relatives.add(b.childId);
+      for (const d of deaths) this.relatives.delete(d.id);
     }
     return {
       generation: g,

@@ -3,41 +3,100 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-test("a follow starts a fair test inside the family, in its place, and never moves the family", async () => {
+test("a follow narrows the line to its carriers in its place, and the rest of the line become relatives", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story } = await import("../src/story.js");
   const { effectIn } = await import("../src/why.js");
-  const bridge = Bridge.fromAncestor(13), story = new Story(bridge);
-  story.begin(bridge.families.founding[1].ids[0]);
-  let checked = 0;
-  while (story.phase !== "ended" && checked < 3) {
-    if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
-    const ev = bridge.step();
-    const what = story.afterGeneration(ev);
-    if (what === "spread-ready") story.follow(story.lastSpread, false);
-    for (let k = 0; k < 40 && story.phase === "watch"; k++) {
-      story.advance(0.5);
-      const g = story.glowing.find((x) => story.followable(x) && story.canStartFor(x));
-      if (!g || story.inDanger || story.quiet < 40) continue;
-      const family = bridge.followedIds().sort(), zone = story.testZone();
-      story.follow(g, false);
-      checked++;
-      assert.deepEqual(bridge.followedIds().sort(), family, "the family stays as it is");
-      const mine = bridge.mineIds(), theirs = bridge.otherIds();
-      assert.equal(mine.length, theirs.length);
-      assert.equal(story.minFor(g), effectIn(g.v.t, zone) * g.v.dir < 0 ? 5 : 10, "a trait that hurts there may start with 5 pairs");
-      assert.ok(mine.length >= story.minFor(g) && mine.length <= 20);
-      mine.forEach((id, i) => {
-        const a = bridge.get(id), b = bridge.get(theirs[i]);
-        assert.equal(bridge.zoneOf(id), zone);
-        assert.equal(bridge.zoneOf(theirs[i]), zone);
-        assert.equal(a.ageGenerations, b.ageGenerations, "twins are the same age");
-      });
-      assert.equal(story.fair.fromFamily + story.fair.fromNearby, mine.length);
-      assert.equal(mine.filter((id) => bridge.isFollowed(id)).length, story.fair.fromFamily);
+  const { carries } = await import("../src/variations.js");
+  let checked = 0, born = 0;
+  // Every follow, from a glowing baby, a fast-forward or the backup panel.
+  const follow = (story, bridge, g) => {
+    assert.ok(bridge.isFollowed(g.id), "only babies in the line are followed");
+    const was = new Set(bridge.followedIds()), relatives = bridge.relativeIds(), zone = story.testZone();
+    story.follow(g, false);
+    checked++;
+    assert.equal(story.noun, "line");
+    // The line is now the followed side: the old line's animals with the variation, in its place.
+    const now = bridge.followedIds(), mine = bridge.mineIds(), theirs = bridge.otherIds();
+    assert.equal(story.family.then, now.length);
+    for (const id of now) {
+      assert.ok(was.has(id));
+      assert.equal(bridge.zoneOf(id), zone);
+      assert.ok(carries(bridge.animal(id).genome, g.v));
+    }
+    // The rest of the old line are relatives, beside the relatives from before; the twins without are among them.
+    for (const id of was) assert.equal(bridge.isRelative(id), !bridge.isFollowed(id));
+    for (const id of relatives) assert.ok(bridge.isRelative(id));
+    for (const id of mine) assert.ok(bridge.isFollowed(id));
+    for (const id of theirs) assert.ok(bridge.isRelative(id));
+    assert.equal(mine.length, theirs.length);
+    assert.equal(story.minFor(g), effectIn(g.v.t, zone) * g.v.dir < 0 ? 5 : 10, "a trait that hurts there may start with 5 pairs");
+    assert.ok(mine.length <= 20);
+    assert.equal(story.fair.fromNearby, 0, "strictly inside the line");
+    mine.forEach((id, i) => {
+      assert.equal(bridge.zoneOf(theirs[i]), zone);
+      assert.equal(bridge.get(id).ageGenerations, bridge.get(theirs[i]).ageGenerations, "twins are the same age");
+    });
+  };
+  for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(13), story = new Story(bridge);
+    story.begin(bridge.families.founding[f].ids[0]);
+    assert.equal(story.noun, "family");
+    while (story.phase !== "ended") {
+      if (story.phase === "choice") { follow(story, bridge, story.options[0]); continue; }
+      const line = new Set(bridge.followedIds()), kin = new Set(bridge.relativeIds());
+      const ev = bridge.step();
+      // A baby joins the line through its mother in the line, and the relatives through its mother among them.
+      for (const b of ev.births) {
+        if (!bridge.get(b.childId)) continue;
+        assert.equal(bridge.isFollowed(b.childId), line.has(b.motherId));
+        assert.equal(bridge.isRelative(b.childId), kin.has(b.motherId));
+        if (kin.has(b.motherId)) born++;
+      }
+      const what = story.afterGeneration(ev);
+      if (what === "spread-ready") follow(story, bridge, story.lastSpread);
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        assert.ok(story.glowing.every((x) => bridge.isFollowed(x.id)), "only babies in the line glow");
+        const g = story.glowing.find((x) => story.followable(x) && story.canStartFor(x));
+        if (g && !story.inDanger && story.quiet >= 40) follow(story, bridge, g);
+      }
     }
   }
-  assert.ok(checked > 0, "a fair test started");
+  assert.ok(checked >= 3, "fair tests started");
+  assert.ok(born > 0, "relatives had babies");
+});
+
+test("the family tree strip is the chain of followed babies, the ancestors in between smaller", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story, TREE_BETWEEN } = await import("../src/story.js");
+  const { babyLabel } = await import("../src/narration.js");
+  const bridge = Bridge.fromAncestor(13), story = new Story(bridge);
+  story.begin(bridge.families.founding[2].ids[0]);
+  // Before any follow: the first one tapped after her own mothers.
+  const before = story.familyTree();
+  assert.equal(before.line, false);
+  assert.equal(before.nodes[before.nodes.length - 1].id, story.firstId);
+  while (story.phase !== "ended" && story.choices.length < 2) {
+    if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
+    story.afterGeneration(bridge.step());
+  }
+  assert.equal(story.choices.length, 2);
+  const tree = story.familyTree();
+  assert.equal(tree.line, true);
+  assert.deepEqual(tree.nodes.filter((a) => a.kind !== "between").map((a) => a.id), [story.firstId, ...story.choices.map((c) => c.anchor)]);
+  assert.deepEqual(tree.nodes.filter((a) => a.kind === "baby").map((a) => a.label), story.choices.map((c) => babyLabel(c.v.group)));
+  // Each followed baby comes after at most TREE_BETWEEN of its own mothers; "→" only where the mother line joins.
+  const mother = (id) => bridge.families.mother.get(id);
+  let run = 0;
+  tree.nodes.forEach((a, i) => {
+    if (a.kind === "between") run++; else run = 0;
+    assert.ok(run <= TREE_BETWEEN);
+    if (i && (a.kind === "baby" || a.kind === "between") && tree.nodes[i - 1].kind === "between") assert.equal(mother(a.id), tree.nodes[i - 1].id);
+    if (i && a.joined && tree.nodes[i - 1].kind !== "between") assert.equal(mother(a.id), tree.nodes[i - 1].id);
+  });
+  assert.equal(babyLabel("more webbing between the toes"), "More webbing");
+  assert.equal(babyLabel("a sleeker body"), "Sleeker body");
 });
 
 test("at generation 0 every founding family has a future, and a tap follows a family of at least 13", async () => {
@@ -67,17 +126,22 @@ test("a story is 50 generations, or the teacher's ?length= up to 76; with fewer 
   assert.equal(nearlyOver(26, 50), true);
   assert.equal(nearlyOver(29, 76), false);
   assert.equal(nearlyOver(52, 76), true);
-  // A family that lasts ends its story at the story's length.
-  for (const length of [30, 50]) {
+  // A line that lasts ends its story at the story's length; a line that dies out ends it then (scope decision 66).
+  let lasted = 0;
+  for (const length of [30, 50]) for (const f of [0, 1, 2]) {
     const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { length });
-    story.begin(bridge.families.founding[1].ids[0]);
+    story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
       if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       story.afterGeneration(bridge.step());
     }
-    assert.equal(story.outcome, "survived");
-    assert.equal(bridge.generation, length);
+    if (story.outcome === "survived") { lasted++; assert.equal(bridge.generation, length); } else {
+      assert.equal(story.outcome, "died");
+      assert.equal(bridge.followedIds().length, 0);
+      assert.ok(bridge.generation <= length && story.endGeneration === bridge.generation);
+    }
   }
+  assert.ok(lasted > 0, "a line lasted the whole story");
 });
 
 test("a trait that hurts in the family's place needs 5 pairs to start its fair test, one that helps 10", async () => {
@@ -125,14 +189,17 @@ test("a fair test's twins are counted by who made it, and any trait in the famil
     if (what === "spread-ready") story.follow(story.lastSpread, false);
     for (let k = 0; k < 40 && story.phase === "watch"; k++) {
       story.advance(0.5);
+      // A glowing baby whose trait doesn't matter there is offered like any other: no note on its card.
+      for (const x of story.glowing) {
+        if (story.followable(x) && !story.whyNot(x) && (x.v.neutral || effectIn(x.v.t, story.testZone()) === 0)) kinds.add(x.v.neutral ? "neutral" : "~");
+      }
       const g = story.glowing.find((x) => story.followable(x) && story.canStartFor(x));
       if (!g || story.inDanger || story.quiet < 40) continue;
-      kinds.add(g.v.neutral ? "neutral" : effectIn(g.v.t, story.testZone()) === 0 ? "~" : "matters");
       story.follow(g, false);
     }
   }
   assert.ok(tracked > 0);
-  assert.ok(kinds.has("neutral") || kinds.has("~"), "a trait that doesn't matter there was followed");
+  assert.ok(kinds.has("neutral") || kinds.has("~"), "a trait that doesn't matter there could be followed");
   // A neutral trait's guess: "helps", "hurts" and the table's "doesn't help or hurt anywhere".
   const g = guessFor("Why are the ones with pointier ear tips doing about the same?", 8, 1);
   assert.deepEqual(g.options.map((o) => o.right), [false, false, true]);

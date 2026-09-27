@@ -81,6 +81,8 @@ const GATHER_RADIUS = 110;
 
 /** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
+/** Your relatives' quiet colour (scope decision 66): a muted blue-grey, beside your line's deep teal. */
+export const KIN_COLOR = "#7E97A0";
 
 
 /**
@@ -131,6 +133,8 @@ export class Herd {
     this.fading = [];
     /** @type {Set<number>} your group */
     this.followed = new Set();
+    /** @type {Set<number>} your relatives: the rest of each line you narrowed from, in a quiet colour (scope decision 66) */
+    this.relatives = new Set();
     /** false while you have no group: everyone is drawn plainly */
     this.following = false;
     /** @type {Map<number, string[]>} members of "the others here", and their colour */
@@ -230,6 +234,7 @@ export class Herd {
       a.diedAt = now;
       a.fadeMs = FADE_MS / this.pace;
       a.wasFollowed = this.followed.has(a.id);
+      a.wasRelative = this.relatives.has(a.id);
       a.wasFollowing = this.following;
       a.wasMarked = this.marks.get(a.id) ?? null;
       this.fading.push(a);
@@ -477,7 +482,8 @@ export class Herd {
     const style = (c) => {
       const following = c.diedAt !== null ? c.wasFollowing : this.following;
       const mine = c.diedAt !== null ? c.wasFollowed : this.followed.has(c.id);
-      return mine ? "mine" : marksOf(c) ? "other" : following ? "gray" : "plain";
+      const kin = c.diedAt !== null ? c.wasRelative : this.relatives.has(c.id);
+      return mine ? "mine" : marksOf(c) ? "other" : kin && following ? "kin" : following ? "gray" : "plain";
     };
     const lifeOf = (c) => {
       if (c.diedAt !== null) return clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
@@ -515,7 +521,7 @@ export class Herd {
       x.globalAlpha = 1;
     }
     // The others here live among your animals (a fair test), so the two are drawn together by depth.
-    const rank = { gray: 0, plain: 1, other: 2, mine: 2 };
+    const rank = { gray: 0, plain: 1, kin: 1, other: 2, mine: 2 };
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
       const st = style(c);
@@ -700,7 +706,8 @@ function shade(hex, k) {
 /**
  * World-scale creature, ported from the mockup's drawCreature. Styles: "mine" —
  * your group, larger, sharper, lit by the sun with a warm rim and a light ring on
- * the ground; "other" — a group you did not choose, in its colour; "gray" —
+ * the ground; "other" — a group you did not choose, in its colour; "kin" — your
+ * relatives (scope decision 66), full size in a quiet blue-grey; "gray" —
  * everyone else while you follow a group, smaller and faded; "plain" — everyone
  * while you have no group. One animal drawn large is creature.js.
  * @param {CanvasRenderingContext2D} x
@@ -715,7 +722,7 @@ function shade(hex, k) {
 function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1, outline = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
-  const other = style === "other" && !!color;
+  const other = style === "other" && !!color, kin = style === "kin";
   const unit = mine ? 11.6 : gray ? 7.4 : 8.4, fine = unit * zoom >= FINE_PX;
   const fade = (gray ? 0.9 : 1) * alpha;
   const A = (a) => a * fade;
@@ -760,11 +767,12 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   // A swimmer is drawn above the water only: its legs and belly are under it.
   if (swim) { x.beginPath(); x.rect(-u * 4, -u * 8, u * 8, u * 8 + waterline); x.clip(); }
 
-  const body = shade(mine ? "#237089" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
-  const dark = mine ? "#0E4051" : other ? shade(color, -0.45) : "#7C7463";
-  const far = mine ? "#15546A" : other ? shade(color, -0.25) : "#807867";
-  const rim = mine ? (L.night > 0.5 ? "#BDE8F2" : "#FFDDA4") : other ? shade(color, 0.5) : "#C4B9A0";
-  const webCol = mine ? "#F2C7B8" : other ? shade(color, 0.65) : "#D9D2BE";
+  const tint = other ? color : kin ? KIN_COLOR : null;
+  const body = shade(mine ? "#237089" : tint ?? "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
+  const dark = mine ? "#0E4051" : tint ? shade(tint, -0.45) : "#7C7463";
+  const far = mine ? "#15546A" : tint ? shade(tint, -0.25) : "#807867";
+  const rim = mine ? (L.night > 0.5 ? "#BDE8F2" : "#FFDDA4") : tint ? shade(tint, 0.5) : "#C4B9A0";
+  const webCol = mine ? "#F2C7B8" : tint ? shade(tint, 0.65) : "#D9D2BE";
 
   const fw = u * (0.15 + 0.14 * g.feet);
   const legW = mine ? u * 0.15 : u * 0.12;
@@ -824,7 +832,7 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
 
   const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
   if (fine && shag > 0.05) {
-    x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
+    x.strokeStyle = mine ? "#2A7C93" : tint ? shade(tint, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
     x.beginPath(); // ten tufts, one stroke
     for (let k = 0; k < 10; k++) {

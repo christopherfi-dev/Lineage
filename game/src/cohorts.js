@@ -101,10 +101,11 @@ const hashed = (id) => {
  * @param {Variation[]} [o.chosen] the family's earlier chosen variations: nearby animals sharing them fill in first
  * @param {(id:number)=>null|{x:number,y:number}} [o.homeOf] where each animal's spot is (herd.js)
  * @param {number} [o.min] @param {number} [o.max] @param {number} [o.fit] how close twins' fitness must be (TWIN_FIT)
- * @returns {{mine:number[], theirs:number[], fromFamily:number, fromNearby:number, carriers:number}} twins at the same
+ * @param {boolean} [o.nearby] whether animals from nearby may fill in (not in a line, scope decision 66)
+ * @returns {{mine:number[], theirs:number[], fromFamily:number, fromNearby:number, carriers:number, carrierIds:number[]}} twins at the same
  *   index; how many of yours are the family's and how many came from nearby; the family's carriers in the place
  */
-export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], homeOf = () => null, min = MIN_SIZE, max = MAX_SIZE, fit: twinFit = TWIN_FIT }) {
+export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], homeOf = () => null, min = MIN_SIZE, max = MAX_SIZE, fit: twinFit = TWIN_FIT, nearby = true }) {
   const here = [];
   for (const ind of bridge.living) {
     if (bridge.zoneOf(ind.id) !== zone) continue;
@@ -141,12 +142,12 @@ export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], h
   const unpaired = pairUp(famCar, famNon, max);
   const fromFamily = mine.length;
   // Too few from the family: nearby animals fill in, up to MIN_SIZE, those sharing the family's earlier choices first.
-  if (mine.length < min) {
+  if (nearby && mine.length < min) {
     const nearCar = likeFamily(here.filter((a) => !a.fam && has(a))), nearNon = likeFamily(here.filter((a) => !a.fam && !has(a)));
     pairUp([...unpaired, ...nearCar], [...famNon, ...nearNon], min);
   }
   const inFamily = mine.filter((id) => family.has(id)).length;
-  return { mine, theirs, fromFamily: inFamily, fromNearby: mine.length - inFamily, carriers: famCar.length, paired: fromFamily };
+  return { mine, theirs, fromFamily: inFamily, fromNearby: mine.length - inFamily, carriers: famCar.length, carrierIds: famCar.map((a) => a.id), paired: fromFamily };
 }
 
 /**

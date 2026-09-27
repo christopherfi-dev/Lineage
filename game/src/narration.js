@@ -78,8 +78,8 @@ const fastForward = (skip) => `Fast-forward: ${skip} generations!`;
  * @param {string} group the variation's words @param {number} fromFamily @param {number} fromNearby
  * @param {number} others the twins without it @param {number} zone @param {number} skip
  */
-export function chosenLines(group, fromFamily, fromNearby, others, zone, skip, name = null) {
-  return [joinLine(fromFamily, fromNearby, group, name), `And ${others} without, ${ZONE_AT[zone]}, for a fair test.`, fastForward(skip)];
+export function chosenLines(group, fromFamily, fromNearby, others, zone, skip, name = null, noun = "family") {
+  return [joinLine(fromFamily, fromNearby, group, name, noun), `And ${others} without, ${ZONE_AT[zone]}, for a fair test.`, fastForward(skip)];
 }
 
 /**
@@ -87,9 +87,9 @@ export function chosenLines(group, fromFamily, fromNearby, others, zone, skip, n
  * decision 65), and what most of the family has now that it didn't before.
  * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
  */
-export function skipDoneLines(skip, n, others, group, changed, name = null) {
+export function skipDoneLines(skip, n, others, group, changed, name = null, noun = "family") {
   const lines = [`${skip} generations later: ${n} with ${shortGroup(group)} made it, and ${others} without.`];
-  if (changed.length) lines.push(`Most of ${your("family", name)} has ${hasWords(changed[0].trait, changed[0].level)}.`);
+  if (changed.length) lines.push(`Most of ${your(noun, name)} has ${hasWords(changed[0].trait, changed[0].level)}.`);
   return lines;
 }
 
@@ -138,8 +138,9 @@ export const passedGoneLine = (reason) => `It wasn't passed on. ${reason}`;
 export const PASSED_SHORT = "Only a few have it so far. Too few to test.";
 /** Many have it, but too few without it are twins for them. */
 export const PASSED_COMMON = "Many have it now. Too few without it to test.";
-/** Most of the family moved to another place meanwhile, where the test would be. */
-export const PASSED_MOVED = "Most of your family moved. Let's keep looking.";
+/** Most of the family (or line, scope decision 66) moved to another place meanwhile, where the test would be. */
+export const passedMoved = (noun = "family") => `Most of your ${noun} moved. Let's keep looking.`;
+export const PASSED_MOVED = passedMoved();
 /** The child's family fell to DANGER_SIZE or fewer during the fast-forward: back to the usual pace (scope decision 44). */
 export const dangerLine = (noun, name = null) => `Wait! ${capital(your(noun, name))} is getting very small.`;
 /** On every glowing baby's card while the child's family is that small: no follow starts (playtest, "no jumping ship"). */
@@ -151,19 +152,19 @@ export const needsYou = (noun, name = null) => `${capital(your(noun, name))} nee
  * animals from nearby filling in, "12 of your family and 2 nearby have bigger eyes."
  * @param {number} fromFamily @param {number} fromNearby @param {string} group the variation's words
  */
-export function joinLine(fromFamily, fromNearby, group, name = null) {
+export function joinLine(fromFamily, fromNearby, group, name = null, noun = "family") {
   const words = shortGroup(group);
-  if (!fromNearby) return `${fromFamily} of ${your("family", name)} have ${words}.`;
+  if (!fromNearby) return `${fromFamily} of ${your(noun, name)} have ${words}.`;
   if (!fromFamily) return `${fromNearby} animals nearby have ${words}.`;
-  return `${fromFamily} of ${your("family", name)} and ${fromNearby} nearby have ${words}.`;
+  return `${fromFamily} of ${your(noun, name)} and ${fromNearby} nearby have ${words}.`;
 }
 
 /* ================= the family's place (scope decision 59) ================= */
 
-/** A glowing baby living away from the family's place: its variation can't be tested there. */
-export const awayLine = (zone, name = null) => `This baby lives ${ZONE_AT[zone]}, away from ${your("family", name)}.`;
+/** A glowing baby living away from the family's (or line's) place: its variation can't be tested there. */
+export const awayLine = (zone, name = null, noun = "family") => `This baby lives ${ZONE_AT[zone]}, away from ${your(noun, name)}.`;
 /** The way back from a direction the family took, with no fair test showing that direction hurting. */
-export const backLine = (chosenGroup, name = null) => `${capital(your("family", name))} already chose ${shortGroup(chosenGroup)}.`;
+export const backLine = (chosenGroup, name = null, noun = "family") => `${capital(your(noun, name))} already chose ${shortGroup(chosenGroup)}.`;
 const HERE = ["up here", "on the open ground", "at the water's edge"];
 /** A fair test showed the way the family went hurting: the way back, with its reason. "Chunkier bodies are doing better up here. Go back?" */
 export const goBackLine = (group, zone) => { const w = shortGroup(group); return `${capital(w)} ${isAre(w)} doing better ${HERE[zone]}. Go back?`; };
@@ -187,21 +188,28 @@ export const sameTraitLabel = (trait, zone) => `${capital(hasWords(trait, 2))} $
 
 /** The ending's first step (scope decision 62): the family's average body when the story began, beside the end. */
 export const startLine = (name = null) => `Here's how ${your("animals", name)} began.`;
-/** The ending's result row: the family's size when the story began and at the end. */
-export const familyLabel = (name = null) => capital(your("family", name));
+/** The ending's result row: the family's size when the story began and, as the line once followed, at the end. */
+export const familyLabel = (name = null, noun = "family") => capital(your(noun, name));
 /** Above the chosen traits on the ending: "You chose:". */
 export const YOU_CHOSE = "You chose:";
 
 /** The living portrait's sheet (scope decision 61): "Your Mossfoot animals, on average". */
 export const averageTitle = (name = null) => `${capital(your("animals", name))}, on average`;
-/** Above the family tree strip. */
+/** Above the family tree strip, before a follow. */
 export const TREE_TITLE = "Your family tree";
-/** The strip read aloud: "Your family tree: first mother, then great-grandmother, grandmother, mother, this baby." */
-export const treeSpoken = (first, labels) =>
-  `${TREE_TITLE}: ${[first, ...labels].filter(Boolean).map((l) => l.toLowerCase()).join(", then ")}.`;
+/** Above it once the line is followed (scope decision 66): the first animal tapped, then each followed baby. */
+export const LINE_TREE_TITLE = "Your line, baby by baby";
+/** A followed baby on the strip, by the trait it was followed for: "Sleeker body", "More webbing" (scope decision 66). */
+export const babyLabel = (group) => capital(group.replace(/^an? /, "").replace(" between the toes", ""));
+/** The strip read aloud: "Your family tree: great-grandmother, then grandmother, then mother, then first mother." */
+export const treeSpoken = (first, labels, title = TREE_TITLE) =>
+  `${title}: ${[first, ...labels].filter(Boolean).map((l) => l.toLowerCase()).join(", then ")}.`;
+/** The line's strip read aloud, one short sentence a baby: "Your line, baby by baby. First mother. Then sleeker body." */
+export const lineTreeSpoken = (labels) => [LINE_TREE_TITLE, ...labels.map((l, i) => (i ? `Then ${l.toLowerCase()}` : l))].map((t) => `${t}.`).join(" ");
 
-/** "Your family so far" (scope decision 59): each chosen trait, and why one faded. */
+/** "Your family so far" (scope decision 59): each chosen trait, and why one faded. "Your Mossfoot line so far" (scope decision 66). */
 export const SO_FAR = "Your family so far";
+export const soFarTitle = (name = null, noun = "family") => `${capital(your(noun, name))} so far`;
 export const chipWords = (group) => capital(shortGroup(group));
 /** "Bigger eyes faded. They didn't help here." "More webbing faded. It wasn't passed on." */
 export function fadedLine(group, why) {
@@ -348,6 +356,12 @@ export const noChoices = (outcome, name = null) =>
 
 export const inYour = (noun, name = null) => `In ${your(noun, name)}`;
 export const notInYour = (noun, name = null) => `Not in ${your(noun, name)}`;
+/** The rest of each line the child narrowed from, and their babies (scope decision 66): on a relative's card. */
+export const ONE_OF_RELATIVES = "One of your relatives";
+/** A relative who is one of the fair test's twins without the chosen trait. */
+export const RELATIVE_IN_TEST = "One of your relatives, in your fair test";
+/** The row label for the child's relatives, on a relative's card and the ending. */
+export const RELATIVES = "Your relatives";
 export const PASSED_AWAY = "This one has passed away.";
 
 /** Where else an animal spends some of its time. */

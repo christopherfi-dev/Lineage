@@ -15,7 +15,7 @@ import { Bridge } from "./bridge.js";
 import { FIXTURE_URL } from "./engine.js";
 import { World, clamp } from "./world.js";
 import { Sky, skyAt } from "./light.js";
-import { Herd, GROUP_COLORS } from "./herd.js";
+import { Herd, GROUP_COLORS, KIN_COLOR } from "./herd.js";
 import { paintCreature } from "./creature.js";
 import {
   Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS, storyLength, nearlyOver,
@@ -28,13 +28,13 @@ import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, SINCE_TITLE, twinsLabel, othersLabel, ABOUT_SAME, NEARBY_IN_TEST, fairHeading,
+  evidenceLine, countLine, SINCE_TITLE, twinsLabel, othersLabel, ABOUT_SAME, NEARBY_IN_TEST, ONE_OF_RELATIVES, RELATIVE_IN_TEST, RELATIVES, fairHeading,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
-  GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
-  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
+  GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, passedMoved, dangerLine, needsYou,
+  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, LINE_TREE_TITLE, treeSpoken, lineTreeSpoken,
   startLine, familyLabel, YOU_CHOSE, ZONE_AT, fairLater,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
-  awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, SO_FAR, chipWords, fadedLine,
+  awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { explainGuess, variationEffect } from "./why.js";
@@ -344,7 +344,8 @@ export class Game {
     this.bridge = bridge;
     if (herd) {
       this.herd = herd;
-      Object.assign(herd, { followed: new Set(), marks: new Map(), glowing: new Set(), following: false, selected: null, pace: 1 });
+      Object.assign(herd, { followed: new Set(), relatives: new Set(), marks: new Map(), glowing: new Set(), following: false, selected: null, pace: 1 });
+      bridge.unfollow(); // the last story's line, relatives and fair test are no one's now
     } else {
       this.herd = new Herd(this.world, 7919);
       this.herd.placeFounders(bridge);
@@ -497,6 +498,7 @@ export class Game {
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
       `${ev.mutations.length} mutations at birth` +
       (g ? ` · your ${s.noun} ${g.count} (was ${g.before}: +${g.born.length} −${g.gone.length}, ${g.mutated.length} new traits)` : "") +
+      (this.bridge.relatives.size ? ` · relatives ${this.bridge.relatives.size}` : "") +
       (ev.test ? ` · fair test: with ${ev.test.mine.count}, without ${ev.test.theirs.count}` : "") +
       (s.moved ? ` · moved to ${s.moved.zone}${s.moved.main ? " (most of the family)" : ""}` : "") +
       ` · glowing ${s.glowing.length}` + (sp ? ` · spread of ${sp.v.group}: ${sp.counts.join(", ")}${sp.outcome ? ` (${sp.outcome})` : ""}` : "") +
@@ -506,11 +508,13 @@ export class Game {
   }
 
   /**
-   * The map shows your family, the fair test's two sides ringed in their
-   * colours (with animals from nearby that fill in drawn in them), and which newborns glow.
+   * The map shows your family, then your line, and your relatives in a quiet
+   * colour (scope decision 66), the fair test's two sides ringed in their
+   * colours, and which newborns glow.
    */
   syncGroups() {
     this.herd.followed = new Set(this.bridge.followedIds());
+    this.herd.relatives = new Set(this.bridge.relativeIds());
     this.herd.marks = new Map([...this.bridge.mineIds().map((id) => [id, [WITH_COLOR]]), ...this.bridge.otherIds().map((id) => [id, [WITHOUT_COLOR]])]);
     this.syncGlow();
     this.homeT = 0; // work the camera target out again on the next frame
@@ -795,30 +799,25 @@ export class Game {
   }
 
   /**
-   * The family tree strip (story.js familyTree): the first one tapped, then
-   * great-grandmother → grandmother → mother → this baby, each drawn from its
-   * real body, with one speaker for the strip.
+   * The family tree strip (story.js familyTree): before any follow, the first
+   * one tapped after her mothers; then the chain of followed babies (scope
+   * decision 66), the in-between ancestors smaller, each drawn from its real
+   * body, with one speaker for the strip (the first one and the followed babies).
    * @param {HTMLElement} el @param {ReturnType<import("./story.js").Story["familyTree"]>} tree
    */
   renderTree(el, tree) {
-    const doc = this.doc, items = [];
-    const who = (a, cls) => {
-      const w = Object.assign(doc.createElement("div"), { className: `who ${cls}` });
+    const doc = this.doc, items = [], nodes = [];
+    tree.nodes.forEach((a, i) => {
+      const w = Object.assign(doc.createElement("div"), { className: `who ${a.kind}${i === tree.nodes.length - 1 ? " last" : ""}` });
       const cv = doc.createElement("canvas");
       w.append(cv, Object.assign(doc.createElement("span"), { textContent: a.label }));
-      return { w, cv, a };
-    };
-    const step = (text) => Object.assign(doc.createElement("span"), { className: "step", textContent: text });
-    if (!tree.joined) items.push(who(tree.first, "first"));
-    tree.line.forEach((a, i) => items.push(who(a, `${i === tree.line.length - 1 ? "baby" : ""} ${a.id === tree.first.id ? "first" : ""}`)));
-    const nodes = [];
-    items.forEach((x, i) => {
-      if (i) nodes.push(step(!tree.joined && i === 1 ? "…" : "→"));
-      nodes.push(x.w);
+      if (i) nodes.push(Object.assign(doc.createElement("span"), { className: "step", textContent: a.joined ? "→" : "…" }));
+      nodes.push(w);
+      items.push({ cv, a });
     });
     el.replaceChildren(...nodes);
-    this.treeSaid = treeSpoken(tree.joined ? null : tree.first.label, tree.line.map((a) => a.label));
-    this.treeTitle.set(TREE_TITLE);
+    this.treeSaid = tree.line ? lineTreeSpoken(tree.nodes.filter((a) => a.kind !== "between").map((a) => a.label)) : treeSpoken(null, tree.nodes.map((a) => a.label));
+    this.treeTitle.set(tree.line ? LINE_TREE_TITLE : TREE_TITLE);
     for (const x of items) paintCreature(x.cv, x.a.genome, { seed: x.a.id, habitat: x.a.zone });
   }
 
@@ -939,15 +938,17 @@ export class Game {
   }
 
   /**
-   * Follow as a fair test inside the family (story.js, scope decision 59): its
-   * animals with the variation in its place against their twins without it.
+   * Follow as a fair test inside the line (story.js, scope decisions 59 and
+   * 66): its animals with the variation in its place against their twins
+   * without it; the line narrows to them, and the rest become relatives.
    * Every third follow, a prediction first; then the world fast-forwards.
    */
   doFollow(x, byChance) {
     const s = this.story;
     this.revealAll(performance.now());
     s.follow(x, byChance);
-    // Where the test's animals come from (playtest): the family's light up, and any from nearby walk in.
+    this.setHomeLabel(); // "Back to my line" from the first follow on
+    // Where the test's animals come from (playtest): the line's light up (none walk in from nearby now).
     // Each one's twin without the variation is at the same place in the other list (cohorts.js).
     const mine = this.bridge.mineIds(), theirs = this.bridge.otherIds();
     const stay = mine.filter((id) => this.bridge.isFollowed(id)), come = mine.filter((id) => !this.bridge.isFollowed(id));
@@ -976,7 +977,8 @@ export class Game {
     this.joining = null;
     if (j) this.herd.gather(j.stay, j.come, j.twins, j.at, performance.now());
     this.preRoll(2);
-    this.say(chosenLines(x.v.group, s.fair.fromFamily, s.fair.fromNearby, s.theirs.now, s.fair.zone, SKIP_GENERATIONS, s.name));
+    // The test was inside the family at the first follow, then inside the line (scope decision 66).
+    this.say(chosenLines(x.v.group, s.fair.fromFamily, s.fair.fromNearby, s.theirs.now, s.fair.zone, SKIP_GENERATIONS, s.name, s.choices.length > 1 ? "line" : "family"));
   }
 
   /* ================= since your last choice (scope decision 34) ================= */
@@ -1172,9 +1174,10 @@ export class Game {
     this.spreadCounter();
     // Gone: a trait that hurts there gets the table's reason; one that helps was lost by chance, as most new traits are.
     const gone = variationEffect(sp.v.t, sp.v.dir, sp.zone) < 0 ? passedGoneLine(s.whyHere(sp.v)) : PASSED_GONE;
-    this.logQueue = [outcome === "gone" ? gone : outcome === "common" ? PASSED_COMMON : outcome === "moved" ? PASSED_MOVED : PASSED_SHORT,
+    const moved = passedMoved(s.noun);
+    this.logQueue = [outcome === "gone" ? gone : outcome === "common" ? PASSED_COMMON : outcome === "moved" ? moved : PASSED_SHORT,
       ...this.moveLines()];
-    for (const l of [gone, PASSED_COMMON, PASSED_SHORT, PASSED_MOVED]) this.logMoods.set(l, "gentle");
+    for (const l of [gone, PASSED_COMMON, PASSED_SHORT, moved]) this.logMoods.set(l, "gentle");
     this.logCues.set(gone, () => this.sound.goneTone());
     this.updateCard(); // follow buttons again
   }
@@ -1276,7 +1279,7 @@ export class Game {
 
   fastForwardDone() {
     const s = this.story;
-    this.say([...skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, s.fair.v.group, changedTraits(s.formAtPoint, s.lastForm), s.name),
+    this.say([...skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, s.fair.v.group, changedTraits(s.formAtPoint, s.lastForm), s.name, s.noun),
       ...this.moveLines()]);
     this.updateCard(); // follow buttons again
   }
@@ -1313,10 +1316,13 @@ export class Game {
     this.endingStart.set(startLine(s.name));
     this.endingLook.set(lookLine(s.outcome, s.name));
     const tree = s.familyTree();
-    this.endingTreeTitle.set(TREE_TITLE);
-    const size = { label: familyLabel(s.name), then: s.sizeAtStart, now: s.outcome === "died" ? 0 : s.lastAnimals.length, color: MINE_COLOR };
+    this.endingTreeTitle.set(tree.line ? LINE_TREE_TITLE : TREE_TITLE);
+    // Once the line is followed (scope decision 66): the line since the latest follow, and the relatives beside it.
+    const followed = s.choices.length > 0, kin = s.relatives;
+    const sizes = [{ label: familyLabel(s.name, s.noun), then: followed ? s.lineStart : s.sizeAtStart, now: s.outcome === "died" ? 0 : s.lastAnimals.length, color: MINE_COLOR },
+      ...(followed && (kin.then || kin.now) ? [{ label: RELATIVES, then: kin.then, now: kin.now, color: KIN_COLOR }] : [])];
     const result = Object.assign(doc.createElement("div"), { className: "group-rows" });
-    result.append(...this.countRows([size]), speakerButton(doc, () => `${countLine(size.label, size)}.`));
+    result.append(...this.countRows(sizes), speakerButton(doc, () => sizes.map((r) => `${countLine(r.label, r)}.`).join(" ")));
     const chips = s.chips.map((c) => chipWords(c.v.group));
     const chosen = Object.assign(doc.createElement("div"), { className: "chips" });
     if (chips.length) {
@@ -1529,13 +1535,13 @@ export class Game {
     button.textContent = "Making your card…";
     try {
       const canvas = await storyCard(this.doc, {
-        name: s.name, title: endingTitle(s.outcome, s.lasted, s.noun, s.name), tree: s.familyTree(),
+        name: s.name, noun: s.noun, title: endingTitle(s.outcome, s.lasted, s.noun, s.name), tree: s.familyTree(),
         chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
         reveal: s.reveal ? namedReveal(s.outcome === "died" ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name) : null,
         idea: this.idea?.sentence ?? null, died: s.outcome === "died",
       });
       this.cardCanvas = canvas; // for checking from the console and the moments
-      await shareCard(canvas, s.name);
+      await shareCard(canvas, s.name, s.noun);
     } catch (err) {
       console.warn("[lineage] story card", err);
     } finally {
@@ -1545,7 +1551,7 @@ export class Game {
   }
 
   /* ================= the Field Guide (scope decision 62) ================= */
-  /** Open the Field Guide: the 21 discoveries, each trait in each place, found on this iPad. The world waits. */
+  /** Open the Field Guide: the 24 discoveries, each trait in each place and each neutral trait, found on this iPad. The world waits. */
   openGuide() {
     const doc = this.doc, found = discoveries(), n = FIELD_GUIDE.filter((e) => found.has(e.key)).length;
     this.guideTitle.set(FIELD_GUIDE_TITLE);
@@ -1643,7 +1649,8 @@ export class Game {
     const following = s.phase !== "waiting" && s.phase !== "ended";
     this.genEl.textContent = String(this.bridge.generation);
     this.countsEl.textContent = `${this.bridge.living.length} animals alive · ` +
-      (following ? `your ${s.name ? `${s.name} ` : ""}${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet");
+      (following ? `your ${s.name ? `${s.name} ` : ""}${s.noun} ${this.herd.followed.size}` : s.phase === "ended" ? "story over" : "no family yet") +
+      (following && this.herd.relatives.size ? ` · relatives ${this.herd.relatives.size}` : "");
     this.zonesEl.textContent = `leaves ${zones[0]} · ground ${zones[1]} · water's edge ${zones[2]}`;
     // The slim bar on a phone: the same count of your animals, beside your group's dot.
     this.miniEl.hidden = !following;
@@ -1693,15 +1700,16 @@ export class Game {
    * @param {import("./story.js").Chip[]} chips
    */
   showSoFar(chips) {
-    const key = chips.map((c) => `${c.v.group}:${c.faded}`).join("|");
+    const key = `${this.story?.name}:${this.story?.noun}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}`;
     if (key === this.soFarKey) return;
     this.soFarKey = key;
     const doc = this.doc, el = this.soFarEl;
     el.hidden = !chips.length;
     if (!chips.length) { el.replaceChildren(); return; }
     const faded = chips.filter((c) => c.faded).map((c) => fadedLine(c.v.group, c.faded));
-    const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: SO_FAR });
-    title.append(speakerButton(doc, () => `${SO_FAR}: ${chips.map((c) => chipWords(c.v.group)).join(", ")}.`));
+    const words = soFarTitle(this.story.name, this.story.noun);
+    const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: words });
+    title.append(speakerButton(doc, () => `${words}: ${chips.map((c) => chipWords(c.v.group)).join(", ")}.`));
     const row = Object.assign(doc.createElement("div"), { className: "chips" });
     row.append(...chips.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: chipWords(c.v.group) })));
     el.replaceChildren(title, row, ...faded.map((t) => {
@@ -1793,11 +1801,13 @@ export class Game {
       this.cardEl.classList.add("gone");
       return;
     }
-    // An animal from nearby that fills in a fair test is ringed in its side's colour (scope decision 59).
+    // A fair test's twin outside the line is ringed in its side's colour (scope decision 59); a relative is in its
+    // quiet colour (scope decision 66).
     const side = mine ? null : this.bridge.isMine(c.id) ? WITH_COLOR : this.bridge.isOther(c.id) ? WITHOUT_COLOR : null;
-    this.cardWho.set(mine ? inYour(s.noun, s.name) : side ? NEARBY_IN_TEST : notInYour(s.noun, s.name));
-    this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : side ?? PLAIN_COLOR);
-    this.renderGroup(c.id, mine);
+    const kin = !mine && this.bridge.isRelative(c.id);
+    this.cardWho.set(mine ? inYour(s.noun, s.name) : side ? (kin ? RELATIVE_IN_TEST : NEARBY_IN_TEST) : kin ? ONE_OF_RELATIVES : notInYour(s.noun, s.name));
+    this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : side ?? (kin ? KIN_COLOR : PLAIN_COLOR));
+    this.renderGroup(c.id, mine, kin);
     this.renderFollow();
     this.fitLog(); // the card's height may have changed
   }
@@ -1806,15 +1816,17 @@ export class Game {
    * An animal outside your family (playtest): above its traits, its family
    * beside yours, then and now as counts with bars, and whether it is doing
    * better or worse than yours since the last follow; then up to three
-   * meaningful traits where it differs most from yours.
-   * @param {number} id @param {boolean} mine in your family
+   * meaningful traits where it differs most from yours. A relative (scope
+   * decision 66): all your relatives beside your line, the same way.
+   * @param {number} id @param {boolean} mine in your family or line @param {boolean} [kin] one of your relatives
    */
-  renderGroup(id, mine) {
+  renderGroup(id, mine, kin = false) {
     const s = this.story, doc = this.doc, el = this.cardGroupEl;
     el.hidden = mine || !s.mark || s.phase === "ended";
     if (el.hidden) { this.groupKey = ""; return; }
-    const f = familySince(this.bridge, s.mark, id);
-    const rows = [{ label: ITS_FAMILY, then: f.then, now: f.now, color: PLAIN_COLOR }, { label: yoursLabel(s.name), then: s.mark.family, now: s.family.now, color: MINE_COLOR }];
+    const f = kin ? { ...s.relatives, ids: this.bridge.relativeIds() } : familySince(this.bridge, s.mark, id);
+    const rows = [{ label: kin ? RELATIVES : ITS_FAMILY, then: f.then, now: f.now, color: kin ? KIN_COLOR : PLAIN_COLOR },
+      { label: kin ? familyLabel(s.name, s.noun) : yoursLabel(s.name), then: s.mark.family, now: s.family.now, color: MINE_COLOR }];
     const doing = doingLine(better(rows[0], rows[1]), s.choices.length > 0);
     const group = f.ids.map((i) => this.bridge.animal(i));
     const diffs = differences(group, this.bridge.followedAnimals()).map((d) => thanYours(d.trait, d.dir));
@@ -1861,8 +1873,8 @@ export class Game {
     if (!open) { this.followKey = ""; return; }
     const why = s.inDanger ? "danger" : s.whyNot(g), went = s.went.get(g.v.t);
     // Any trait can be followed, with no hint whether it matters here (scope decision 65).
-    const note = why === "danger" ? needsYou(s.noun, s.name) : why === "away" ? awayLine(this.bridge.zoneOf(g.id), s.name) :
-      why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) : why === "common" ? PASSED_COMMON :
+    const note = why === "danger" ? needsYou(s.noun, s.name) : why === "away" ? awayLine(this.bridge.zoneOf(g.id), s.name, s.noun) :
+      why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name, s.noun) : why === "common" ? PASSED_COMMON :
       s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
     const text = why ? null : s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : PASS_ON_BUTTON;
     const key = `${g.id}:${note}:${text}`;

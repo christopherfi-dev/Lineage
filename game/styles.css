@@ -773,13 +773,17 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #average h3, #ending h3.tree-title { display: flex; align-items: center; margin: 18px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9A8E70; }
 @media (max-height: 599px), (max-width: 599px) { #average .cols { grid-template-columns: 1fr; } #average-animal { max-width: 280px; } }
 
-/* The family tree strip: great-grandmother to this baby, each drawn from its real body. */
+/* The family tree strip: the first one tapped, then each followed baby (scope decision 66), each drawn from its real
+   body; the ancestors in between are smaller. */
 .tree { display: flex; align-items: flex-end; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
 .tree .who { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; }
 .tree .who canvas { width: 104px; height: 76px; border-radius: 14px; box-shadow: 0 0 0 2px #E6DAC0; }
 .tree .who.first canvas { box-shadow: 0 0 0 3px #D9892B; }
 .tree .who.baby canvas { box-shadow: 0 0 0 3px #14657F; }
 .tree .who span { font-size: 13px; font-weight: 700; line-height: 1.2; text-align: center; color: #585A4A; }
+.tree .who.between { width: 64px; }
+.tree .who.between canvas { width: 64px; height: 47px; border-radius: 10px; }
+.tree .who.between span { font-size: 11px; font-weight: 600; color: #8A8266; }
 .tree .step { flex: 0 0 auto; align-self: center; margin-bottom: 22px; font-size: 20px; color: #B7AA8A; }
 
 /* ---- The ending in four short steps (scope decision 62). ---- */
@@ -793,6 +797,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #ending .pair figcaption { display: flex; align-items: center; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #3E4436; }
 #ending-animal { height: 200px; animation: none; }
 #ending-result { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+/* The line and, beside it, your relatives (scope decision 66). */
+#ending-result .group-rows { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; }
 #ending-result .count { font-family: Petrona, Georgia, serif; font-size: 20px; }
 #ending-result .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 #ending-result .chip { padding: 4px 11px; border-radius: 99px; background: #14657F; color: #EFFAFD; font-size: 14px; font-weight: 700; }
