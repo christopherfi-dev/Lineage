@@ -69,8 +69,11 @@ const ENDING_DELAY_MS = 2600;
 const FAST_PACE = 2.5;
 /** How often the camera target (your group's largest cluster) is worked out again. */
 const HOME_MS = 400;
-/** In the defining world, seed 6 lets the webbed canopy family's decline play out over a few generations. */
-const DEFAULT_SEED = 6;
+/**
+ * The world a child meets first, when the page has no ?seed=: a seed of the
+ * common-ancestor world where every moment shortcut finds its moment.
+ */
+const DEFAULT_SEED = 13;
 /** Your group's colour, as on the map. */
 const MINE_COLOR = "#14657F";
 /** The fair test's other group, "the others here", on the map and in the counts. */
@@ -317,7 +320,7 @@ export class Game {
     this.showHint();
     this.say([START_LINE]);
     this.updateHud();
-    // The camera opens on the first founding family, high in the leaves, close enough to tap one of them.
+    // The camera opens on the first founding family, close enough to tap one of them.
     this.frameArrival(bridge.families.founding[0].ids);
   }
 
@@ -1043,7 +1046,10 @@ export class Game {
   restart(seed) {
     this.endingEl.hidden = true;
     this.seed = seed;
-    history.replaceState(null, "", `?seed=${seed}`);
+    const q = new URLSearchParams(location.search); // keeps ?demo=webbed
+    q.set("seed", String(seed));
+    q.delete("moment");
+    history.replaceState(null, "", `?${q}`);
     this.start(this.makeWorld(seed));
   }
 
@@ -2016,7 +2022,7 @@ export class Game {
  * @property {string} size the drawing's box when it was last drawn, "WxH"
  */
 
-/** The defining fixture, fetched once; null if it can't be read. */
+/** The teacher demo's fixture (?demo=webbed), fetched once; null otherwise, or if it can't be read. */
 let fixture = null;
 
 async function loadFixture() {
@@ -2025,25 +2031,30 @@ async function loadFixture() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     fixture = await res.json();
   } catch (err) {
-    console.warn("[lineage] defining fixture unavailable; using a random world", err);
+    console.warn("[lineage] defining fixture unavailable; using the common-ancestor world", err);
   }
 }
 
-/** The defining-experiment world for a seed, or the engine's random world without the fixture. */
-const makeWorld = (seed) => (fixture ? Bridge.fromFixture(fixture, seed) : Bridge.fromRandom(seed));
+/**
+ * The common-ancestor world for a seed (scope decision 56): every founder on
+ * the open ground with one body. With ?demo=webbed, the old defining world
+ * instead: the webbed family in the high leaves.
+ */
+const makeWorld = (seed) => (fixture ? Bridge.fromFixture(fixture, seed) : Bridge.fromAncestor(seed));
 
 // ---- bootstrap ----
 if (typeof document !== "undefined") {
   const q = new URLSearchParams(location.search);
   const asked = Number.parseInt(q.get("seed") ?? "", 10);
-  loadFixture().then(() => {
+  (q.get("demo") === "webbed" ? loadFixture() : Promise.resolve()).then(() => {
     let seed = Number.isFinite(asked) && asked > 0 ? asked : DEFAULT_SEED;
     // Only curated worlds: a seed that loses a habitat before the story's end is swapped for one that doesn't.
     if (!isGoodSeed(makeWorld, seed)) {
       const good = goodSeed(makeWorld, seed) ?? seed;
       console.info(`[lineage] seed ${seed} loses a habitat by generation ${STORY_GENERATIONS}; showing seed ${good} instead`);
       seed = good;
-      history.replaceState(null, "", `?seed=${seed}`);
+      q.set("seed", String(seed));
+      history.replaceState(null, "", `?${q}`);
     }
     globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld }); // for poking at the live engine from the console
     // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.

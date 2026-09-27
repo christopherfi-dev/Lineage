@@ -30,7 +30,11 @@ export const MOMENTS = [
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
 ];
 
-/** Founding families to try, in order. Family 0 is the webbed family in the high leaves, which dies out fast. */
+/**
+ * Founding families to try, in order; a world tries those it has (the
+ * common-ancestor world has three). In the ?demo=webbed world, family 0 is
+ * the webbed family in the high leaves, which dies out fast.
+ */
 const FROM_WEBBED = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const FROM_OTHERS = [4, 1, 2, 3, 5, 6, 7, 8, 0];
 
@@ -220,7 +224,8 @@ function copyOf(game) {
  */
 async function findStory(game, moment, relaxed = false) {
   const { families, policies } = MOMENT[moment], at = relaxed ? MOMENT[moment].relaxed : MOMENT[moment].at;
-  for (const family of families) {
+  const founding = game.bridge.families.founding.length;
+  for (const family of families.filter((f) => f < founding)) {
     for (const name of policies) {
       const { bridge, story, step } = copyOf(game), policy = POLICIES[name], actions = [];
       story.begin(bridge.families.founding[family].ids[0]);
@@ -373,7 +378,7 @@ export async function goToMoment(game, moment) {
   const doc = game.doc;
   if (!MOMENTS.includes(moment)) { console.warn(`[lineage] unknown moment "${moment}"; try one of ${MOMENTS.join(", ")}`); return; }
   if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself, with its mist
-  if (moment === "naming") { // right after the first tap on the webbed family in the high leaves: time waits for a name
+  if (moment === "naming") { // right after the first tap on the first founding family: time waits for a name
     const G = game;
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
     G.begin(G.herd.animals.get(G.bridge.families.founding[0].ids[0]));

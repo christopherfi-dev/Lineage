@@ -8,7 +8,7 @@
  * scores. DOM-free.
  */
 
-import { TRAITS, EFFECT, UPKEEP, currentModelConfig } from "./engine.js";
+import { TRAITS, PLACE_EFFECTS } from "./engine.js";
 import { TRAIT_WORDS, isNeutral } from "./variations.js";
 import { ZONE_AT, OTHERS_HERE, your, yoursLabel, yoursWith } from "./narration.js";
 
@@ -25,15 +25,17 @@ export const JOURNAL_SECONDS = 15;
  */
 const CYCLE = ["mine", "fair"];
 
-const { zoneWeights, zoneScarcity } = currentModelConfig;
-
 /**
- * What one unit of a trait does for survival in a habitat: its benefits there
- * minus its upkeep, from the engine's own numbers.
+ * What a trait does for survival in a habitat, from the engine's Classroom
+ * mode (scope decision 55): 1 it helps, -1 it hurts, 0 it doesn't matter
+ * there (a "~", or a neutral trait).
  */
 export function netEffect(t, zone) {
-  return zoneWeights[zone].reduce((sum, w, d) => sum + w * EFFECT[t][d], 0) - zoneScarcity[zone] * UPKEEP[t];
+  return PLACE_EFFECTS[t][zone];
 }
+
+/** A trait that doesn't matter in this habitat: a neutral one anywhere, or a "~" there. */
+const noMatter = (t, zone) => isNeutral(t) || netEffect(t, zone) === 0;
 
 /* ================= words (every line under about 12 words) ================= */
 
@@ -87,7 +89,7 @@ export const needLine = (trait, dir) =>
 function growOptions(trait, dir, zone) {
   const t = TRAITS.indexOf(trait), words = TRAIT_WORDS[trait][dir > 0 ? 1 : 0];
   const options = [];
-  if (isNeutral(t)) {
+  if (noMatter(t, zone)) {
     options.push({ text: `${cap(words)} won't matter. Other traits will decide.`, outcome: "nomatter", reasonable: true, words });
     options.push({ text: `Grow. ${cap(words)} will help them.`, outcome: "grow", tag: "matters" });
   } else {
@@ -111,7 +113,7 @@ function growOptions(trait, dir, zone) {
  */
 function fairOptions(v, zone, name = null) {
   const words = v.group, options = [], yours = yoursLabel(name);
-  if (v.neutral) {
+  if (noMatter(v.t, zone)) {
     options.push({ text: `About the same. ${cap(words)} won't matter.`, outcome: "same", reasonable: true });
     options.push({ text: `${yours}. ${cap(words)} will help them.`, outcome: "mine", tag: "matters" });
   } else {
@@ -122,7 +124,7 @@ function fairOptions(v, zone, name = null) {
   }
   options.push({ text: `${yours}, because I picked them.`, outcome: "mine", tag: "chose" });
   options.push({ text: `${yours}. ${needLine(v.trait, v.dir)}`, outcome: "mine", tag: "need" });
-  if (options.length < 4 && !v.neutral) options.push({ text: "About the same. It's all luck.", outcome: "same", tag: "luck" });
+  if (options.length < 4 && !noMatter(v.t, zone)) options.push({ text: "About the same. It's all luck.", outcome: "same", tag: "luck" });
   return options;
 }
 

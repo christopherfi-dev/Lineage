@@ -1,9 +1,10 @@
 # LINEAGE — the game
 
-Built step by step from `LINEAGE_M2_CLASSROOM_SCOPE.md`: the frozen M1 engine runs the
-biology on the canvas from `design/Lineage World.dc.html`, played as a story (scope decision
-6). The engine is imported from `../lineage-m1/src`, never copied or edited. `src/engine.js`
-is the only file that imports it.
+Built step by step from `LINEAGE_M2_CLASSROOM_SCOPE.md`: the engine runs the biology on the
+canvas from `design/Lineage World.dc.html`, played as a story (scope decision 6). The game runs
+the engine's Classroom mode (`../lineage-classroom`, scope decision 55), which is built from the
+frozen M1 engine's own parts (`../lineage-m1/src`, never copied or edited). `src/engine.js` is
+the only file that imports either.
 
 ## Run it
 
@@ -14,15 +15,17 @@ python3 -m http.server 8000      # from the repo root
 # open http://localhost:8000/game/
 ```
 
-Plain ES modules, no build step. The world is M1's defining experiment: the fixture with its
-webbing override, so the same webbed feet start in one canopy family and one shoreline
-family. `?seed=N` picks another trajectory (default 6).
+Plain ES modules, no build step. The world is the common-ancestor world: every founder starts
+on the open ground with the same ancestral body, and the high leaves and the water's edge start
+empty. `?seed=N` picks another trajectory (default 13). `?demo=webbed` is the teacher demo, M1's
+defining experiment: the fixture with its webbing override, so the same webbed feet start in one
+canopy family and one shoreline family.
 
 **Curated worlds** (`src/seeds.js`). The game only shows a seed whose three habitats all still
 have living animals at generation 76, where every story that lasts ends. Before a world is
 shown, the engine runs ahead in a throwaway copy of it (an observer run: the biology is
-unchanged, and the world you see starts again from generation 0 with the same seed). 95 of
-seeds 1–100 pass. A `?seed=` that fails is swapped for a good one, and "New world" only picks
+unchanged, and the world you see starts again from generation 0 with the same seed). All of
+seeds 1–100 pass in the common-ancestor world (and 30 of 1–30 in the demo). A `?seed=` that fails is swapped for a good one, and "New world" only picks
 good seeds.
 
 ## The story (scope decisions 6, 32–35 and 42)

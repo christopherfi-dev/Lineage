@@ -151,6 +151,8 @@ const TREND = { up: "growing", down: "shrinking", same: "steady" };
  * @param {null|{trait:string, share:number}} common the meaningful trait at its high end that the most there have
  */
 export function placeLine(zone, n, trend, common) {
+  // The common-ancestor world (scope decision 56) starts with nobody in the leaves or at the water.
+  if (n === 0) return `${PLACE_NAMES[zone]}: no animals live here yet.`;
   const head = `${PLACE_NAMES[zone]}: ${plural(n, "animal", "animals")}, ${TREND[trend]}.`;
   if (!common || common.share < 0.1) return head;
   return `${head} ${common.share > 0.5 ? "Most" : common.share >= 0.25 ? "Many" : "Some"} have ${hasWords(common.trait, 2)}.`;

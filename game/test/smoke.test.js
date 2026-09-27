@@ -16,10 +16,12 @@ test("the game loads and the engine advances a generation", async () => {
   await import("../src/moments.js"); // loaded only with ?moment= (design shortcuts)
 
   const { Bridge } = await import("../src/bridge.js");
+  // The common-ancestor world (the default) and the teacher demo (?demo=webbed), both in Classroom mode.
   const fixture = JSON.parse(readFileSync(join(GAME, "..", "lineage-m1", "fixtures", "defining_fixture_v1.json"), "utf8"));
-  const bridge = Bridge.fromFixture(fixture, 6);
-  bridge.followFamilyOf(bridge.living[0].id);
-  const ev = bridge.step();
-  assert.equal(ev.generation, 1);
-  assert.equal(bridge.generation, 1);
+  for (const bridge of [Bridge.fromAncestor(13), Bridge.fromFixture(fixture, 6)]) {
+    bridge.followFamilyOf(bridge.living[0].id);
+    const ev = bridge.step();
+    assert.equal(ev.generation, 1);
+    assert.equal(bridge.generation, 1);
+  }
 });
