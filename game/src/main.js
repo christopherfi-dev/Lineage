@@ -1,14 +1,14 @@
 /**
- * LINEAGE — Milestone 2: the frozen M1 engine on the designed canvas, played
- * as a story (scope decisions 6, 32–34 and 42, rules in story.js).
+ * LINEAGE — Milestone 2: the engine's Classroom mode on the designed canvas,
+ * played as a story (scope decisions 6, 32–34, 42, 58 and 59, rules in story.js).
  *
  * Time waits for the child: the animals wander from the start, but no
  * generation runs until an animal is tapped and its family followed. Then one
- * engine generation happens every GENERATION_SECONDS. Newborns with a new
- * variation glow; tapping one starts a fair test, after which the world
- * fast-forwards. When too few have the variation yet, the world first
- * fast-forwards to see if it spreads. Births, deaths, glows and every count on
- * screen come from the engine's records.
+ * engine generation happens every GENERATION_SECONDS. Newborns in the family
+ * with a new variation glow; tapping one starts a fair test inside the family,
+ * after which the world fast-forwards. When too few have the variation yet,
+ * the world first fast-forwards to see if it is passed on. Births, deaths,
+ * glows and every count on screen come from the engine's records.
  */
 
 import { Bridge } from "./bridge.js";
@@ -22,19 +22,32 @@ import {
   APPEAR_SPAN, appearFraction,
 } from "./story.js";
 import { familySince, better, differences, placeNow, timeSplit, misfit } from "./groups.js";
-import { isGoodSeed, goodSeed } from "./seeds.js";
-import { averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
+import { isGoodSeed, goodSeed, familiesWithAFuture } from "./seeds.js";
+import { TRAIT_WORDS, averageOf, changedTraits, comparedRows, plainRows } from "./variations.js";
 import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, SINCE_TITLE, comparisonLines, OTHERS_HERE, yoursWith, fairHeading, OTHERS_DIED_TOO, OTHERS_ALIVE,
+  evidenceLine, countLine, SINCE_TITLE, withLabel, WITHOUT, NEARBY_IN_TEST, fairHeading,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
-  GLOW_HINT, followButton, followSpread, KEEP_LOOKING, spreadLine, SPREAD_GONE, SPREAD_SHORT, SPREAD_COMMON, dangerLine, needsYou,
-  joinLine, placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
+  GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
+  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
+  startLine, familyLabel, YOU_CHOSE, ZONE_AT, fairLater,
+  placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
+  awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
-import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
+import { nothingToTest, explainGuess, variationEffect } from "./why.js";
+import {
+  IDEA_TRAITS, IDEA_OR, IDEA_DONE, CHECK_TITLE, REVEAL_TITLE, HAPPENED_TITLE, IDEA_TITLE, MY_IDEA, ideaSentence, cleanIdea, truthOf, checkIdea,
+  FIELD_GUIDE, FIELD_GUIDE_TITLE, NOT_YET, discoveryLine, discoveredLine, guideEntry, discoveries, discover, keepInJournal,
+} from "./reflection.js";
+import { storyCard, shareCard } from "./storycard.js";
+import { placeOf } from "./cohorts.js";
+import {
+  familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS, TYPE_OWN, USE_MY_NAME, TYPE_PROMPT, MY_NAME_PROMPT,
+  TRY_ANOTHER_NAME, NAME_MAX, typedName, myNameFamily, standoutWord, hasBlockedWord,
+} from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
   PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
@@ -59,6 +72,10 @@ const LOG_ROOM = 120;
 const PICKED_MS = 1200;
 /** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
 const ANSWERED_MS = 2000;
+/** Seconds to tap a guess (scope decision 60); like the other panels, the countdown waits while a line is read aloud. */
+const GUESS_SECONDS = 20;
+/** After a guess, why stays up this long (or until Next); it waits while a line is read aloud. */
+const EXPLAIN_SECONDS = 9;
 /** How long "Since your last choice" stays up, at most, before the new follow goes ahead. */
 const SINCE_SECONDS = 15;
 /** How long "Time's up!" shows before the fast-forward. */
@@ -74,10 +91,10 @@ const HOME_MS = 400;
  * common-ancestor world where every moment shortcut finds its moment.
  */
 const DEFAULT_SEED = 13;
-/** Your group's colour, as on the map. */
+/** Your family's colour, as on the map. */
 const MINE_COLOR = "#14657F";
-/** The fair test's other group, "the others here", on the map and in the counts. */
-const OTHERS_COLOR = GROUP_COLORS[0];
+/** A fair test's two sides in the family (scope decision 59), ringed on the map and in the counts: with the variation, and without. */
+const WITH_COLOR = "#D9892B", WITHOUT_COLOR = GROUP_COLORS[1];
 /** The clue's two sides: the animals with the trait, and the rest. */
 const CLUE_WITH_COLOR = "#D9892B", CLUE_WITHOUT_COLOR = "#9A917C";
 /** On a creature card, an animal in no group on the map. */
@@ -112,9 +129,10 @@ export class Game {
   /**
    * @param {Document} doc
    * @param {Bridge} bridge the engine world to show, at generation 0
-   * @param {{seed:number, makeWorld:(seed:number)=>Bridge}} world how to make this world again, or another
+   * @param {{seed:number, makeWorld:(seed:number)=>Bridge, demo?:boolean}} world how to make this world again, or
+   *   another; the teacher demo (?demo=webbed) lets any family be picked
    */
-  constructor(doc, bridge, { seed, makeWorld }) {
+  constructor(doc, bridge, { seed, makeWorld, demo = false }) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.doc = doc;
     this.stage = $("stage");
@@ -132,6 +150,7 @@ export class Game {
     this.countsEl = $("counts");
     this.zonesEl = $("zones");
     this.othersEl = $("others");
+    this.soFarEl = $("so-far");
     this.cardEl = $("card");
     this.cardAnimalEl = /** @type {HTMLCanvasElement} */ ($("card-animal"));
     this.cardNewEl = $("card-new");
@@ -150,16 +169,45 @@ export class Game {
     this.sinceBarEl = $("since-bar");
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
-    this.endingFairLineEl = $("ending-fair-line");
-    this.endingLeadEl = $("ending-lead");
+    // The ending's four steps (scope decision 62).
+    this.stepEls = ["step-happened", "step-idea", "step-check", "step-reveal"].map($);
+    this.stepNameEl = $("ending-step-name");
+    this.stepCountEl = $("ending-step-count");
+    this.endingNextEl = /** @type {HTMLButtonElement} */ ($("ending-next"));
+    this.endingStartEl = /** @type {HTMLCanvasElement} */ ($("ending-start"));
+    this.endingTreeEl = $("ending-tree");
+    this.endingResultEl = $("ending-result");
+    this.ideaBuilderEl = $("idea-builder");
+    this.ideaOwnEl = /** @type {HTMLTextAreaElement} */ ($("idea-own"));
+    this.ideaNoteEl = $("idea-note");
+    this.ideaDoneEl = /** @type {HTMLButtonElement} */ ($("idea-done"));
+    this.ideaCheckEl = $("idea-check");
+    this.guideButtonEl = /** @type {HTMLButtonElement} */ ($("guide-button"));
+    this.guideEl = $("guide");
+    this.guideGridEl = $("guide-grid");
     this.journalEl = $("journal");
     this.journalOptionsEl = $("journal-options");
     this.journalBarEl = $("journal-bar");
     this.journalNoteEl = $("journal-note");
+    this.guessEl = $("guess");
+    this.guessOptionsEl = $("guess-options");
+    this.guessNoteEl = $("guess-note");
+    this.guessNextEl = /** @type {HTMLButtonElement} */ ($("guess-next"));
+    this.guessBarEl = $("guess-bar");
+    this.whyHereEl = $("why-here");
     this.namingEl = $("naming");
     this.namingOptionsEl = $("naming-options");
     this.namingBarEl = $("naming-bar");
     this.namingNoteEl = $("naming-note");
+    this.namingMoreEl = $("naming-more");
+    this.namingTypingEl = $("naming-typing");
+    this.namingInputEl = /** @type {HTMLInputElement} */ ($("naming-input"));
+    this.portraitEl = /** @type {HTMLButtonElement} */ ($("portrait"));
+    this.portraitCanvas = /** @type {HTMLCanvasElement} */ (this.portraitEl.querySelector("canvas"));
+    this.averageEl = $("average");
+    this.averageAnimalEl = /** @type {HTMLCanvasElement} */ ($("average-animal"));
+    this.averageTraitsEl = $("average-traits");
+    this.treeEl = $("tree");
     this.endingPredictionsEl = $("ending-predictions");
     this.endingPredictionsListEl = $("ending-predictions-list");
     this.endingEl = $("ending");
@@ -194,8 +242,19 @@ export class Game {
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
     this.namingQuestion = this.speakable($("naming-question"));
-    this.endingFairLine = this.speakable(this.endingFairLineEl);
+    this.guessQuestion = this.speakable($("guess-question"));
+    this.namingPrompt = this.speakable($("naming-prompt"));
+    this.averageTitle = this.speakable($("average-title"));
+    this.treeTitle = this.speakable($("tree-title"), () => this.treeSaid ?? TREE_TITLE);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
+    this.endingStart = this.speakable($("ending-start-line"));
+    this.endingTreeTitle = this.speakable($("ending-tree-title"), () => this.endingTreeSaid ?? TREE_TITLE);
+    this.ideaSaidEl = $("idea-said");
+    this.ideaSaid = this.speakable(this.ideaSaidEl);
+    this.ideaOr = this.speakable($("idea-or"));
+    this.ideaMine = this.speakable($("idea-mine"));
+    this.guideTitle = this.speakable($("guide-title"));
+    this.guideCount = this.speakable($("guide-count"));
     this.bloomEl = $("bloom");
     // Sound (Step 5, sound.js): off until the first tap, and muted by ?sound=off or as it was last left here.
     let stored = null;
@@ -206,7 +265,7 @@ export class Game {
     this.muteEl = $("mute");
     this.showMute();
     /** @type {Map<string, () => void>} a sound for a log line, played when the line shows */
-    this.logCues = new Map([[SPREAD_GONE, () => this.sound.goneTone()]]);
+    this.logCues = new Map([[PASSED_GONE, () => this.sound.goneTone()], [IN_TROUBLE, () => this.sound.waitTone()]]);
     this.hudEl = $("hud");
     this.miniEl = $("mini");
     this.miniCountEl = $("mini-count");
@@ -236,6 +295,7 @@ export class Game {
     this.painted = false;
     this.seed = seed;
     this.makeWorld = makeWorld;
+    this.demo = demo;
     this.cam = { x: 0, y: 0 };
     this.camTween = null;
     this.logQueue = [];
@@ -246,6 +306,8 @@ export class Game {
     this.journal = null;
     /** @type {null|SinceState} "Since your last choice", on screen before a new follow */
     this.since = null;
+    /** @type {null|GuessState} a tap-to-guess question on screen (scope decision 60) */
+    this.guess = null;
     this.last = performance.now();
 
     this.setupCanvas();
@@ -265,11 +327,25 @@ export class Game {
     this.raf = requestAnimationFrame(this.step);
   }
 
-  /** A world at generation 0: the animals wander, and time waits for the child's first tap. */
-  start(bridge) {
+  /**
+   * A world at generation 0, or this world as it is now with its herd ("Try
+   * another family", scope decision 59): the animals wander, and time waits for
+   * the child's tap on a family with a future.
+   * @param {Bridge} bridge @param {null|Herd} [herd] the herd of a world kept as it is
+   */
+  start(bridge, herd = null) {
     this.bridge = bridge;
-    this.herd = new Herd(this.world, 7919);
-    this.herd.placeFounders(bridge);
+    if (herd) {
+      this.herd = herd;
+      Object.assign(herd, { followed: new Set(), marks: new Map(), glowing: new Set(), following: false, selected: null, pace: 1 });
+    } else {
+      this.herd = new Herd(this.world, 7919);
+      this.herd.placeFounders(bridge);
+    }
+    // The families a tap may start with: an observer run shows each still alive a few generations on (seeds.js).
+    // The teacher demo keeps every family, so the webbed family in the high leaves can still be followed.
+    const future = this.demo ? null : familiesWithAFuture(this.makeWorld, this.seed, bridge);
+    this.future = future && future.size ? future : null;
     // Fair tests measure "nearest" between the animals' spots (herd.js), which never move.
     this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null });
     this.clock = 0;
@@ -278,7 +354,7 @@ export class Game {
     this.home = null;
     this.homeT = 0;
     this.fastShown = null;
-    /** the child is looking around on their own: the camera stays until "Back to my group" (playtest) */
+    /** the child is looking around on their own: the camera stays until "Back to my family" (playtest) */
     this.exploring = false;
     /** @type {null|number} the place the camera is flying to: its summary is said on arrival */
     this.visiting = null;
@@ -288,8 +364,11 @@ export class Game {
     this.zonesBefore = [null, null, null];
     this.glowKey = "";
     this.logLinks.clear();
-    /** @type {null|{stay:number[], come:number[], noun:string, at:{x:number,y:number}, twins:Map<number,number>}} a follow's gather-in, shown as the fast-forward begins */
+    /** @type {null|{stay:number[], come:number[], at:{x:number,y:number}, twins:Map<number,number>}} a follow's gather-in, shown as the fast-forward begins */
     this.joining = null;
+    /** @type {null|{zone:number, main:boolean}} a move of the family during a fast-forward, told when it ends */
+    this.moveToTell = null;
+    this.soFarKey = "";
     this.closeCard(true);
     this.choiceEl.classList.remove("open");
     this.choiceEl.hidden = true;
@@ -298,6 +377,21 @@ export class Game {
     this.predictions = [];
     this.journalEl.classList.remove("open");
     this.journalEl.hidden = true;
+    this.guess = null;
+    this.guessEl.classList.remove("open");
+    this.guessEl.hidden = true;
+    this.whyKey = "";
+    this.averageOpen = false;
+    this.averageEl.classList.remove("open");
+    this.averageEl.hidden = true;
+    this.portraitEl.hidden = true;
+    this.guideOpen = false;
+    this.guideEl.classList.remove("open");
+    this.guideEl.hidden = true;
+    this.guideButtonEl.hidden = false;
+    /** @type {Array<{question:string, answer:null|string, right:boolean}>} this story's tap-to-guess answers, for the journal */
+    this.guesses = [];
+    this.storyId = null;
     /** @type {null|NamingState} naming the family, right after the first tap */
     this.naming = null;
     this.namingEl.classList.remove("open");
@@ -320,8 +414,26 @@ export class Game {
     this.showHint();
     this.say([START_LINE]);
     this.updateHud();
-    // The camera opens on the first founding family, close enough to tap one of them.
-    this.frameArrival(bridge.families.founding[0].ids);
+    // The camera opens on a family with a future, close enough to tap one of them: the first founding family
+    // that has one, or in a world kept as it is, the biggest.
+    this.frameArrival(this.arrivalFamily());
+  }
+
+  /** Whether a tap on this animal may start a story: its family has a future (or no check applies). */
+  hasFuture(id) { return !this.future || this.future.has(this.bridge.familyTopOf(id)); }
+
+  /** The animals of the family the arrival shows (scope decision 59). */
+  arrivalFamily() {
+    const b = this.bridge;
+    if (b.generation === 0) return (b.families.founding.find((f) => !this.future || this.future.has(f.key)) ?? b.families.founding[0]).ids;
+    const counts = b.families.lineCounts(b.livingIds()), by = new Map();
+    for (const id of b.livingIds()) {
+      const top = b.families.top(id, counts);
+      if (this.future && !this.future.has(top)) continue;
+      if (!by.has(top)) by.set(top, []);
+      by.get(top).push(id);
+    }
+    return [...by.values()].sort((a, c) => c.length - a.length)[0] ?? b.livingIds();
   }
 
   /* ================= engine generations ================= */
@@ -344,7 +456,9 @@ export class Game {
       this.moodTarget = Math.abs(d) >= 2 && Math.abs(k) >= 0.08 ? clamp(k * 3, -1, 1) : 0;
     }
     const what = s.afterGeneration(ev);
+    if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
     this.syncGroups();
+    this.updatePortrait();
     this.updateHud();
     this.updateCard(); // counts change each generation, and the animal may pass away
     if (what === "ended") this.storyEnded();
@@ -357,7 +471,13 @@ export class Game {
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The babies are named as each one lights up
       // (glowLines), never more than glow; the line just shown stays a moment first.
-      this.say([...groupLines(ev.group, s.noun, [], s.name), ...this.glowLines()], true);
+      // Every change gets a reason from the table (scope decision 60).
+      this.say([...groupLines(ev.group, s.noun, [], s.name), ...s.changeReasons(ev), ...this.moveLines(), ...this.glowLines()], true);
+    }
+    // See, guess, explain: at a fair test's result or a sudden drop, the world waits for a guess (scope decision 60).
+    if (s.phase === "watch" && !this.since && !this.journal && !this.naming && !this.guess) {
+      const q = s.guessNow(ev);
+      if (q) this.openGuess(q);
     }
     if (s.phase !== "watch") this.revealAll(now); // a panel, a fast-forward or the end: the day's babies show at once
     const g = ev.group, sp = s.spread ?? (what?.startsWith("spread-") ? s.lastSpread : null);
@@ -365,17 +485,21 @@ export class Game {
       `[lineage] generation ${ev.generation}: ${ev.births.length} births, ${ev.deaths.length} deaths, ` +
       `${ev.mutations.length} mutations at birth` +
       (g ? ` · your ${s.noun} ${g.count} (was ${g.before}: +${g.born.length} −${g.gone.length}, ${g.mutated.length} new traits)` : "") +
-      (ev.others ? ` · the others here ${ev.others.count}` : "") +
+      (ev.test ? ` · fair test: with ${ev.test.mine.count}, without ${ev.test.theirs.count}` : "") +
+      (s.moved ? ` · moved to ${s.moved.zone}${s.moved.main ? " (most of the family)" : ""}` : "") +
       ` · glowing ${s.glowing.length}` + (sp ? ` · spread of ${sp.v.group}: ${sp.counts.join(", ")}${sp.outcome ? ` (${sp.outcome})` : ""}` : "") +
       ` · story: ${s.phase}, ${s.choices.length} follows`
     );
     if (ev.observerErrors.length) console.warn("[lineage] observer errors", ev.observerErrors);
   }
 
-  /** The map shows whom you follow now, the others here in their colour, and which newborns glow. */
+  /**
+   * The map shows your family, the fair test's two sides ringed in their
+   * colours (with animals from nearby that fill in drawn in them), and which newborns glow.
+   */
   syncGroups() {
     this.herd.followed = new Set(this.bridge.followedIds());
-    this.herd.marks = new Map(this.bridge.otherIds().map((id) => [id, [OTHERS_COLOR]]));
+    this.herd.marks = new Map([...this.bridge.mineIds().map((id) => [id, [WITH_COLOR]]), ...this.bridge.otherIds().map((id) => [id, [WITHOUT_COLOR]])]);
     this.syncGlow();
     this.homeT = 0; // work the camera target out again on the next frame
   }
@@ -387,6 +511,13 @@ export class Game {
     this.glowKey = key;
     this.herd.glowing = new Set(ids);
     return true;
+  }
+
+  /** A real move of the family (scope decision 59), once: "Some of your animals are moving to the water's edge." */
+  moveLines() {
+    const m = this.moveToTell, s = this.story;
+    this.moveToTell = null;
+    return m ? [m.main ? movedLine(m.zone, s.name) : movingLine(m.zone, s.name)] : [];
   }
 
   /** Every baby of the day still to appear shows now. */
@@ -449,7 +580,7 @@ export class Game {
     this.herd.following = true;
     this.clock = 0;
     this.hideHint();
-    this.say([followLine(this.bridge.zoneOf(animal.id), f.members.size)]);
+    this.say([followLine(this.story.place, f.members.size)]);
     // The arrival came close on one family; the story goes on at its own zoom, unless the child chose one.
     if (this.framed) this.zoomTo(this.comfortZoom());
     this.framed = false;
@@ -468,10 +599,21 @@ export class Game {
    */
   openNaming() {
     const s = this.story, doc = this.doc;
-    const names = familyNames(s.lastAnimals, s.startWorld, this.seed * 7919 + Math.min(...s.lastAnimals.map((a) => a.id)));
+    // Fresh names every story (scope decision 61), from the browser's own random numbers, never the engine's.
+    const names = familyNames(s.lastAnimals, s.startWorld, Math.floor(Math.random() * 2 ** 31));
     this.namingQuestion.set(NAME_QUESTION);
     this.namingNoteEl.replaceChildren();
     this.namingBarEl.style.width = "100%";
+    this.namingEl.classList.remove("typing");
+    this.namingTypingEl.hidden = true;
+    // Or type a name, or use your own: "Mia" makes "the Miapaddle family".
+    this.namingMoreEl.replaceChildren(...[[TYPE_OWN, "own"], [USE_MY_NAME, "mine"]].map(([text, kind]) => {
+      const el = Object.assign(doc.createElement("div"), { className: "more" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", textContent: text });
+      button.addEventListener("click", () => this.startTyping(kind));
+      el.append(button, speakerButton(doc, () => `${text}.`));
+      return el;
+    }));
     this.nameEls = names.map((name) => {
       const el = Object.assign(doc.createElement("div"), { className: "answer" });
       const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: nameButton(name) });
@@ -483,7 +625,7 @@ export class Game {
     clearTimeout(this.namingHideT);
     this.namingEl.hidden = false;
     requestAnimationFrame(() => this.namingEl.classList.add("open"));
-    this.naming = { names, left: NAMING_SECONDS * 1000, paused: 0, picked: null, goAt: 0 };
+    this.naming = { names, left: NAMING_SECONDS * 1000, paused: 0, picked: null, goAt: 0, typing: null, word: standoutWord(s.lastAnimals, s.startWorld) };
     this.centerOnGroup(0.3);
   }
 
@@ -496,6 +638,14 @@ export class Game {
       el.button.disabled = true;
       el.classList.add(el.name === name ? "picked" : "not-picked");
     }
+    // A typed name shows as a picked plate too.
+    if (!this.nameEls.some((el) => el.name === name)) {
+      const el = Object.assign(this.doc.createElement("div"), { className: "answer picked" });
+      el.append(Object.assign(this.doc.createElement("button"), { type: "button", className: "pick", textContent: nameButton(name), disabled: true }),
+        speakerButton(this.doc, () => `${nameButton(name)}.`));
+      this.namingOptionsEl.prepend(el);
+    }
+    this.namingMoreEl.replaceChildren();
     this.story.name = name;
     this.updateHud();
     this.updateCard();
@@ -503,13 +653,56 @@ export class Game {
     if (byChance) this.namingNoteEl.replaceChildren(NAME_PICKED, speakerButton(this.doc, () => NAME_PICKED));
   }
 
-  /** The countdown; when it runs out, one of the names is picked at random. */
+  /**
+   * Typing a name (scope decision 61): "own", a whole name, or "mine", the
+   * child's own name joined to the family's standout trait word. The sheet
+   * moves to the top, clear of the keyboard, and the countdown waits.
+   * Letters only, up to NAME_MAX; nothing typed leaves the iPad.
+   * @param {"own"|"mine"} kind
+   */
+  startTyping(kind) {
+    const n = this.naming;
+    if (!n || n.picked) return;
+    n.typing = kind;
+    this.namingPrompt.set(kind === "own" ? TYPE_PROMPT : MY_NAME_PROMPT);
+    this.namingNoteEl.replaceChildren();
+    this.namingInputEl.value = "";
+    this.namingTypingEl.hidden = false;
+    this.namingEl.classList.add("typing");
+    this.namingInputEl.focus();
+  }
+
+  /** OK: the typed name, if it can be used; else "Let's try a different name." */
+  submitTyping() {
+    const n = this.naming;
+    if (!n?.typing || n.picked) return;
+    const name = n.typing === "own" ? typedName(this.namingInputEl.value) : myNameFamily(this.namingInputEl.value, n.word);
+    if (!name) {
+      this.namingNoteEl.replaceChildren(TRY_ANOTHER_NAME, speakerButton(this.doc, () => TRY_ANOTHER_NAME));
+      this.namingInputEl.focus();
+      return;
+    }
+    this.namingInputEl.blur();
+    this.stopTyping();
+    this.pickName(name, false, performance.now());
+  }
+
+  /** Back to the three names. */
+  stopTyping() {
+    const n = this.naming;
+    if (n) n.typing = null;
+    this.namingTypingEl.hidden = true;
+    this.namingEl.classList.remove("typing");
+  }
+
+  /** The countdown; when it runs out, one of the names is picked at random. It waits while the child types. */
   tickNaming(now, dt) {
     const n = this.naming;
     if (n.picked) {
       if (now >= n.goAt) this.closeNaming();
       return;
     }
+    if (n.typing) return;
     if (!this.card) {
       if (isSpeaking() && n.paused < MAX_READING_PAUSE_MS) n.paused += dt;
       else n.left = Math.max(0, n.left - dt);
@@ -522,6 +715,7 @@ export class Game {
   closeNaming() {
     if (!this.naming) return;
     this.naming = null;
+    this.updatePortrait();
     this.namingEl.classList.remove("open");
     this.namingHideT = setTimeout(() => { if (!this.naming) this.namingEl.hidden = true; }, 450);
     this.placeCard();
@@ -538,6 +732,84 @@ export class Game {
     return w;
   }
 
+  /* ================= your animals, on average (scope decision 61) ================= */
+  /** The family's average body now, and where most of it lives. */
+  averageNow() {
+    const s = this.story, animals = s.lastAnimals.length ? s.lastAnimals : s.startAnimals;
+    return { genome: averageOf(animals.map((a) => a.genome)).map((a) => a.mean), zone: s.place };
+  }
+
+  /** The living portrait in the corner, redrawn each generation while a family is followed. */
+  updatePortrait() {
+    const s = this.story, on = s.phase !== "waiting" && s.phase !== "ended" && s.lastAnimals.length > 0;
+    this.portraitEl.hidden = !on;
+    if (!on) return;
+    const a = this.averageNow();
+    paintCreature(this.portraitCanvas, a.genome, { seed: s.startGeneration + 1, habitat: a.zone });
+  }
+
+  /**
+   * "Your animals, on average": the family's average body now, drawn large,
+   * each meaningful trait against the world at the start (as on the ending),
+   * and the family tree strip. The world waits while it is open.
+   */
+  openAverage() {
+    const s = this.story, doc = this.doc;
+    if (this.portraitEl.hidden || this.naming || this.journal || this.since || this.guess || this.choice) return;
+    const a = this.averageNow();
+    this.averageTitle.set(averageTitle(s.name));
+    this.averageTraitsEl.replaceChildren(...comparedRows(a.genome, s.startWorld, GAP).map((r) => {
+      const row = Object.assign(doc.createElement("div"), { className: r.changed ? "row changed" : "row" });
+      row.append(Object.assign(doc.createElement("span"), { className: "k", textContent: r.label }),
+        Object.assign(doc.createElement("span"), { className: "v", textContent: r.value }), speakerButton(doc, () => `${r.label}: ${r.value}.`));
+      return row;
+    }));
+    this.closeCard(true);
+    this.averageOpen = true;
+    this.averageEl.hidden = false;
+    requestAnimationFrame(() => this.averageEl.classList.add("open"));
+    // Drawn once the sheet has its size.
+    requestAnimationFrame(() => {
+      paintCreature(this.averageAnimalEl, a.genome, { seed: s.startGeneration + 1, habitat: a.zone });
+      this.renderTree(this.treeEl, s.familyTree());
+    });
+  }
+
+  closeAverage() {
+    if (!this.averageOpen) return;
+    this.averageOpen = false;
+    this.averageEl.classList.remove("open");
+    this.averageHideT = setTimeout(() => { if (!this.averageOpen) this.averageEl.hidden = true; }, 450);
+  }
+
+  /**
+   * The family tree strip (story.js familyTree): the first one tapped, then
+   * great-grandmother → grandmother → mother → this baby, each drawn from its
+   * real body, with one speaker for the strip.
+   * @param {HTMLElement} el @param {ReturnType<import("./story.js").Story["familyTree"]>} tree
+   */
+  renderTree(el, tree) {
+    const doc = this.doc, items = [];
+    const who = (a, cls) => {
+      const w = Object.assign(doc.createElement("div"), { className: `who ${cls}` });
+      const cv = doc.createElement("canvas");
+      w.append(cv, Object.assign(doc.createElement("span"), { textContent: a.label }));
+      return { w, cv, a };
+    };
+    const step = (text) => Object.assign(doc.createElement("span"), { className: "step", textContent: text });
+    if (!tree.joined) items.push(who(tree.first, "first"));
+    tree.line.forEach((a, i) => items.push(who(a, `${i === tree.line.length - 1 ? "baby" : ""} ${a.id === tree.first.id ? "first" : ""}`)));
+    const nodes = [];
+    items.forEach((x, i) => {
+      if (i) nodes.push(step(!tree.joined && i === 1 ? "…" : "→"));
+      nodes.push(x.w);
+    });
+    el.replaceChildren(...nodes);
+    this.treeSaid = treeSpoken(tree.joined ? null : tree.first.label, tree.line.map((a) => a.label));
+    this.treeTitle.set(TREE_TITLE);
+    for (const x of items) paintCreature(x.cv, x.a.genome, { seed: x.a.id, habitat: x.a.zone });
+  }
+
   /** The mute button shows what a tap will do, and remembers the choice on this device. */
   showMute() {
     const m = this.sound.muted;
@@ -550,7 +822,7 @@ export class Game {
     this.showMute();
   }
 
-  /** "Back to my family" until the first follow, then "Back to my group", with the family's name once it has one. */
+  /** "Back to my family", with the family's name once it has one. */
   setHomeLabel() {
     const text = [...this.homeEl.childNodes].find((n) => n.nodeType === 3);
     if (text) text.nodeValue = homeLabel(this.story?.noun ?? "family", this.story?.name ?? null);
@@ -636,18 +908,18 @@ export class Game {
   }
 
   /**
-   * The child follows a glowing newborn's variation. When too few have it here
-   * to start a fair test right away, the world first fast-forwards to see if it
-   * spreads (scope decision 42). While the child's group is very small, nothing
-   * can be followed at all (scope decision 44, and the playtest's "no jumping
-   * ship"). When there is a fair test to look back on, "Since your last choice"
-   * comes before the new one.
+   * The child follows a glowing newborn's variation. When too few in the family
+   * have it to start a fair test right away, the world first fast-forwards to
+   * see if it is passed on (scope decisions 42 and 59). While the child's family
+   * is very small, nothing can be followed at all (scope decision 44, and the
+   * playtest's "no jumping ship"). When there is a fair test to look back on,
+   * "Since your last choice" comes before the new one.
    * @param {import("./story.js").Glow} x
    */
   followFromMap(x) {
     const s = this.story;
-    if (!s.followOpen || this.since || this.journal || this.choice || this.naming) return;
-    if (s.inDanger) return; // the card offers only "Keep looking"
+    if (!s.followOpen || this.since || this.journal || this.choice || this.naming || this.guess) return;
+    if (s.inDanger || !s.followable(x)) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
     else if (s.choices.length) this.openSince(x);
@@ -655,24 +927,23 @@ export class Game {
   }
 
   /**
-   * Follow as a fair test (story.js): two groups of the same size from the
-   * habitat, yours and the others here. Every third follow, a prediction
-   * first; then the world fast-forwards.
+   * Follow as a fair test inside the family (story.js, scope decision 59): its
+   * animals with the variation in its place against their twins without it.
+   * Every third follow, a prediction first; then the world fast-forwards.
    */
   doFollow(x, byChance) {
-    const s = this.story, noun = s.noun, was = new Set(this.bridge.followedIds());
+    const s = this.story;
     this.revealAll(performance.now());
     s.follow(x, byChance);
-    // Where the new group comes from (playtest): the carriers already yours, and the ones new to it.
-    // Each member's twin among the others here is at the same place in their list (cohorts.js).
-    const mine = this.bridge.followedIds(), theirs = this.bridge.otherIds();
-    const stay = mine.filter((id) => was.has(id)), come = mine.filter((id) => !was.has(id));
+    // Where the test's animals come from (playtest): the family's light up, and any from nearby walk in.
+    // Each one's twin without the variation is at the same place in the other list (cohorts.js).
+    const mine = this.bridge.mineIds(), theirs = this.bridge.otherIds();
+    const stay = mine.filter((id) => this.bridge.isFollowed(id)), come = mine.filter((id) => !this.bridge.isFollowed(id));
     const at = this.herd.largestCluster(stay) ?? this.herd.largestCluster(mine);
-    this.joining = at && { stay, come, noun, at, twins: new Map(mine.map((id, i) => [id, theirs[i]])) };
-    this.setHomeLabel(); // "family" becomes "group" at the first follow
+    this.joining = at && { stay, come, at, twins: new Map(mine.map((id, i) => [id, theirs[i]])) };
     this.syncGroups();
     this.updateCard();
-    this.exploring = false; // the child chose this group: the camera goes to it
+    this.exploring = false; // the child chose: the camera goes to the family
     this.centerOnGroup();
     this.updateHud();
     // After every third follow, one prediction first (Step 6, scope decision 28).
@@ -683,21 +954,17 @@ export class Game {
   }
 
   /**
-   * The new group gathers (playtest): the ones already yours light up, then
-   * the others with the trait walk in, with one line that counts both. Then
-   * the new groups are announced, and after a moment to read it the world
-   * fast-forwards.
+   * The fair test gathers (playtest): the family's animals with the trait light
+   * up, any from nearby walk in, and each twin without it comes beside its
+   * partner, with lines that count both sides. After a moment to read them,
+   * the world fast-forwards.
    */
   fastForward(x) {
     const s = this.story, j = this.joining;
     this.joining = null;
-    const lines = chosenLines(x.v.group, s.mine.now, s.theirs.now, s.fair.zone, SKIP_GENERATIONS);
-    if (j) {
-      this.herd.gather(j.stay, j.come, j.twins, j.at, performance.now());
-      lines.unshift(joinLine(j.stay.length, j.come.length, x.v.group, j.noun));
-    }
-    this.preRoll(j ? 2 : 1);
-    this.say(lines);
+    if (j) this.herd.gather(j.stay, j.come, j.twins, j.at, performance.now());
+    this.preRoll(2);
+    this.say(chosenLines(x.v.group, s.fair.fromFamily, s.fair.fromNearby, s.theirs.now, s.fair.zone, SKIP_GENERATIONS, s.name));
   }
 
   /* ================= since your last choice (scope decision 34) ================= */
@@ -756,31 +1023,104 @@ export class Game {
     this.doFollow(w.x, false);
   }
 
-  /* ================= will it spread? (scope decision 42) ================= */
+  /* ================= see, guess, explain (scope decision 60) ================= */
   /**
-   * Too few have the variation here to start a fair test right away, so the
-   * world fast-forwards to see if it spreads, with a live counter. Your group
-   * lives on meanwhile, as usual.
+   * A question with three answers from the table, the same trait in each
+   * place: the world waits for a guess, then says why. With no guess within
+   * GUESS_SECONDS it says why anyway. Nothing is ever marked wrong.
+   * @param {import("./why.js").Guess} q
+   */
+  openGuess(q) {
+    const doc = this.doc;
+    this.guessQuestion.set(q.text);
+    this.guessNoteEl.replaceChildren();
+    this.guessNoteEl.className = "";
+    this.guessNextEl.hidden = true;
+    this.guessBarEl.style.width = "100%";
+    this.guessAnswerEls = q.options.map((o) => {
+      const el = Object.assign(doc.createElement("div"), { className: "answer" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: o.text });
+      button.addEventListener("click", () => this.answerGuess(o));
+      el.append(button, speakerButton(doc, () => o.text));
+      return Object.assign(el, { option: o, button });
+    });
+    this.guessOptionsEl.replaceChildren(...this.guessAnswerEls);
+    clearTimeout(this.guessHideT);
+    this.guessEl.hidden = false;
+    requestAnimationFrame(() => this.guessEl.classList.add("open"));
+    this.guess = { question: q, left: GUESS_SECONDS * 1000, paused: 0, answered: false };
+    this.updateCard(); // no follow buttons while it is up
+    this.placeCard();
+    this.centerOnGroup(0.3);
+  }
+
+  /** A guess, or none (time ran out): then why, with its speaker, and Next. */
+  answerGuess(option) {
+    const g = this.guess;
+    if (!g || g.answered) return;
+    const line = explainGuess(g.question, option);
+    Object.assign(g, { answered: true, option, left: EXPLAIN_SECONDS * 1000, paused: 0 });
+    this.guesses.push({ question: g.question.text, answer: option?.text ?? null, right: !!option?.right });
+    for (const el of this.guessAnswerEls) {
+      el.button.disabled = true;
+      el.classList.add(el.option === option ? "picked" : el.option.right ? "right-answer" : "not-picked");
+    }
+    this.guessNoteEl.className = option?.right ? "right" : "";
+    const said = [line, ...(g.question.extra ? [g.question.extra] : [])].join(" ");
+    this.guessNoteEl.replaceChildren(Object.assign(this.doc.createElement("span"), { className: "text", textContent: said }), speakerButton(this.doc, () => said));
+    this.guessNextEl.hidden = false;
+    this.guessBarEl.style.width = "100%";
+  }
+
+  /** Like the other panels' countdowns: it waits while a line is read aloud or a card is open. */
+  tickGuess(now, dt) {
+    const g = this.guess;
+    if (!this.card) {
+      if (isSpeaking() && g.paused < MAX_READING_PAUSE_MS) g.paused += dt;
+      else g.left = Math.max(0, g.left - dt);
+    }
+    this.guessBarEl.style.width = `${(100 * g.left / ((g.answered ? EXPLAIN_SECONDS : GUESS_SECONDS) * 1000)).toFixed(1)}%`;
+    if (g.left === 0) { if (g.answered) this.closeGuess(); else this.answerGuess(null); }
+  }
+
+  closeGuess() {
+    if (!this.guess) return;
+    const found = this.guess.question.discovery;
+    this.guess = null;
+    // A fair test showed what the table says: a Field Guide discovery (scope decision 62).
+    if (found) this.discovered(guideEntry(found.t, found.zone));
+    this.guessEl.classList.remove("open");
+    this.guessHideT = setTimeout(() => { if (!this.guess) this.guessEl.hidden = true; }, 450);
+    this.updateCard();
+    this.placeCard();
+  }
+
+  /* ================= will it be passed on? (scope decisions 42 and 59) ================= */
+  /**
+   * Too few in the family have the variation to start a fair test right away,
+   * so the world fast-forwards to see if it is passed on, with a live counter.
+   * The family lives on meanwhile, as usual.
    * @param {import("./story.js").Glow} x
    */
   startSpread(x) {
-    const what = this.story.trySpread(x);
-    if (!what) return; // the child's group is very small: no spread starts
+    const s = this.story, what = s.trySpread(x);
+    if (!what) return; // the child's family is very small: no fast-forward starts
     this.syncGroups(); // the tapped newborn stops glowing
     this.updateHud();
-    // Most here have it already: too few others for a fair test, and no spread can change that.
-    if (what === "spread-failed") { this.logMoods.set(SPREAD_COMMON, "gentle"); this.say([SPREAD_COMMON]); this.updateCard(); return; }
     this.preRoll();
-    this.spreadShown = false;
-    this.spreadCounter();
+    // First the table's reason there (scope decision 60), then the counter, which changes in place each generation.
+    const first = passingOnLine(x.v.group, s.whyHere(x.v));
+    this.logMoods.set(first, "spread");
+    this.spreadShown = true;
+    this.say([first]);
   }
 
   /**
-   * "Will it spread? Animals with smaller eyes: 3… 7… 12…": one line, whose
+   * "Webbed feet are being passed on. 3… 7… 12 have it now.": one line, whose
    * counter changes in place each generation. Returns the line.
    */
   spreadCounter() {
-    const s = this.story, sp = s.spread ?? s.lastSpread, line = spreadLine(sp.v.group, sp.counts);
+    const s = this.story, sp = s.spread ?? s.lastSpread, line = passedOnLine(sp.v.group, sp.counts);
     this.logMoods.set(line, "spread");
     this.sound.spreadNote(sp.counts[sp.counts.length - 1]);
     if (!this.spreadShown) { this.spreadShown = true; this.say([line]); return line; }
@@ -792,9 +1132,9 @@ export class Game {
   }
 
   /**
-   * The child's group fell to DANGER_SIZE or fewer during a spread: it stops at
-   * once, and the world goes back to its usual pace, so the child sees what
-   * happens to their group (scope decision 44). This was not a follow.
+   * The child's family fell to DANGER_SIZE or fewer during the fast-forward: it
+   * stops at once, and the world goes back to its usual pace, so the child sees
+   * what happens to their family (scope decision 44). This was not a follow.
    */
   spreadDanger() {
     this.logMoods.set(dangerLine(this.story.noun, this.story.name), "danger");
@@ -804,7 +1144,7 @@ export class Game {
     this.updateCard(); // follow buttons again, or "Stay with them?"
   }
 
-  /** It spread: the fair test starts, with "Since your last choice" first when there is a last test. */
+  /** It was passed on: the fair test starts, with "Since your last choice" first when there is a last test. */
   spreadReady() {
     const s = this.story, sp = s.lastSpread;
     this.spreadCounter();
@@ -814,12 +1154,16 @@ export class Game {
     this.placeCard();
   }
 
-  /** It didn't spread: the last count stays a moment, then why. Your group stays as it is; this was not a follow. */
+  /** It wasn't passed on far enough: the last count stays a moment, then why. The family goes on as it was; this was not a follow. */
   spreadFailed() {
-    const outcome = this.story.lastSpread.outcome;
+    const s = this.story, sp = s.lastSpread, outcome = sp.outcome;
     this.spreadCounter();
-    this.logQueue = [outcome === "gone" ? SPREAD_GONE : outcome === "common" ? SPREAD_COMMON : SPREAD_SHORT];
-    for (const l of [SPREAD_GONE, SPREAD_COMMON, SPREAD_SHORT]) this.logMoods.set(l, "gentle");
+    // Gone: a trait that hurts there gets the table's reason; one that helps was lost by chance, as most new traits are.
+    const gone = variationEffect(sp.v.t, sp.v.dir, sp.zone) < 0 ? passedGoneLine(s.whyHere(sp.v)) : PASSED_GONE;
+    this.logQueue = [outcome === "gone" ? gone : outcome === "common" ? PASSED_COMMON : outcome === "moved" ? PASSED_MOVED : PASSED_SHORT,
+      ...this.moveLines()];
+    for (const l of [gone, PASSED_COMMON, PASSED_SHORT, PASSED_MOVED]) this.logMoods.set(l, "gentle");
+    this.logCues.set(gone, () => this.sound.goneTone());
     this.updateCard(); // follow buttons again
   }
 
@@ -907,7 +1251,7 @@ export class Game {
    */
   predictionBlock(p, title) {
     const doc = this.doc, r = p.result;
-    const rows = r.rows.map((x) => ({ ...x, color: x.mine ? MINE_COLOR : OTHERS_COLOR }));
+    const rows = r.rows.map((x) => ({ ...x, color: x.mine ? WITH_COLOR : WITHOUT_COLOR }));
     const el = Object.assign(doc.createElement("div"), { className: "prediction" });
     const head = Object.assign(doc.createElement("div"), { className: "since-title", textContent: title });
     head.append(speakerButton(doc, () => [title, ...rows.map((x) => `${countLine(x.label, x)}.`), ...r.lines].join(" ")));
@@ -920,7 +1264,8 @@ export class Game {
 
   fastForwardDone() {
     const s = this.story;
-    this.say(skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, changedTraits(s.formAtPoint, s.lastForm), s.noun, s.name));
+    this.say([...skipDoneLines(SKIP_GENERATIONS, s.mine.now, s.theirs.now, s.fair.v.group, changedTraits(s.formAtPoint, s.lastForm), s.name),
+      ...this.moveLines()]);
     this.updateCard(); // follow buttons again
   }
 
@@ -932,15 +1277,72 @@ export class Game {
     this.updateHud();
   }
 
-  /** Every ending is a reflection screen, not a game-over screen. */
+  /**
+   * Every ending is a reflection, not a game-over screen, in four short steps
+   * with Next (scope decision 62): what happened (the family at the start and
+   * at the end, its family tree, the result); your idea (a sentence to build,
+   * or the child's own words, which must be given before the story can be
+   * played again); check my idea (against the table, with the clue and the
+   * last fair test); and the reveal (the real animal, the traits, the story's
+   * predictions and choices, the Field Guide and the story card).
+   */
   showEnding() {
     const s = this.story, doc = this.doc;
     this.closeCard(true);
+    this.closeAverage();
+    this.ideaAnswered = false;
+    this.idea = null;
+    // 1. What happened. The family's actual average body at the start and at the end (the last members alive),
+    // drawn, never a list of choices (scope decision 20).
     this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun, s.name));
-    // The group's actual average body at the end (the last members alive), drawn and in words, not a
-    // list of the choices. Each meaningful trait is compared with the whole world at the start (scope decision 20).
     const average = averageOf(s.lastAnimals.map((a) => a.genome)).map((a) => a.mean);
+    const began = averageOf(s.startAnimals.map((a) => a.genome)).map((a) => a.mean);
+    this.endingStart.set(startLine(s.name));
     this.endingLook.set(lookLine(s.outcome, s.name));
+    const tree = s.familyTree();
+    this.endingTreeTitle.set(TREE_TITLE);
+    const size = { label: familyLabel(s.name), then: s.sizeAtStart, now: s.outcome === "died" ? 0 : s.lastAnimals.length, color: MINE_COLOR };
+    const result = Object.assign(doc.createElement("div"), { className: "group-rows" });
+    result.append(...this.countRows([size]), speakerButton(doc, () => `${countLine(size.label, size)}.`));
+    const chips = s.chips.map((c) => chipWords(c.v.group));
+    const chosen = Object.assign(doc.createElement("div"), { className: "chips" });
+    if (chips.length) {
+      chosen.append(Object.assign(doc.createElement("span"), { className: "chips-title", textContent: YOU_CHOSE }),
+        ...s.chips.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: chipWords(c.v.group) })),
+        speakerButton(doc, () => `${YOU_CHOSE} ${chips.join(", ")}.`));
+    }
+    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []));
+    // 2. Your idea.
+    this.endingQuestion.set(question(s.outcome, s.noun, s.name));
+    this.buildIdea(s);
+    // 3. Check my idea: filled in when the idea is given. The clue is the same trait in different places (scope decision 60), else one line.
+    this.endingEvidenceEl.hidden = !s.clue && !s.evidence;
+    this.endingEvidenceLineEl.hidden = !!s.clue;
+    this.endingCompareEl.hidden = !s.clue;
+    if (s.clue) {
+      const rows = [
+        { label: sameTraitLabel(s.clue.trait, s.clue.helps.zone), ...s.clue.helps, color: CLUE_WITH_COLOR },
+        { label: sameTraitLabel(s.clue.trait, s.clue.hurts.zone), ...s.clue.hurts, color: CLUE_WITHOUT_COLOR },
+      ];
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: SAME_TRAIT });
+      heading.append(speakerButton(doc, () => [SAME_TRAIT, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
+      this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
+    } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
+    // The last fair test: the family's animals with the variation beside those without (scope decisions 33 and 59),
+    // when its result was clear (story.js), or else at the end.
+    const last = s.choices[s.choices.length - 1];
+    this.endingFairEl.hidden = !last;
+    if (last) {
+      const r = last.result, rows = [
+        { label: withLabel(last.group), then: last.sizeAtChoice, now: r ? r.mine : last.sizeAtEnd, color: WITH_COLOR },
+        { label: WITHOUT, then: last.othersAtChoice, now: r ? r.theirs : last.othersAtEnd, color: WITHOUT_COLOR },
+      ];
+      const head = r ? fairLater(last.zone, r.after) : fairHeading(last.zone);
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: head });
+      heading.append(speakerButton(doc, () => [head, ...rows.map((x) => `${countLine(x.label, x)}.`)].join(" ")));
+      this.endingFairRowsEl.replaceChildren(heading, ...this.countRows(rows));
+    }
+    // 4. The reveal. Each meaningful trait is compared with the whole world at the start (scope decision 20).
     this.endingTraitsTitle.set(traitsTitle(s.noun, s.name));
     const rows = comparedRows(average, s.startWorld, GAP);
     this.traitsSpoken = rows.map((r) => `${r.label}: ${r.value}.`).join(" ");
@@ -954,61 +1356,13 @@ export class Game {
     this.endingChoicesTitleEl.textContent = choicesHeading(s.choices.length);
     const items = s.choices.length ? s.choices.map((c) => {
       const li = Object.assign(doc.createElement("li"), { textContent: choiceRecap(c) });
-      let spoken = choiceRecap(c);
-      li.append(speakerButton(doc, () => spoken));
-      // A neutral trait the child followed made no difference to who survived (scope
-      // decision 8): said in words, with the group's size as counts and bars.
-      if (c.neutral) {
-        const size = { then: c.sizeAtChoice, now: c.sizeAtEnd };
-        const note = neutralLines(c.group, size, s.name).join(" ");
-        const row = { label: yoursLabel(s.name), ...size, color: MINE_COLOR };
-        li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }), ...this.countRows([row]));
-        spoken = `${spoken}. ${note} ${countLine(row.label, row)}.`;
-      }
+      li.append(speakerButton(doc, () => choiceRecap(c)));
       return li;
     }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome, s.name) })];
     if (!s.choices.length) items[0].append(speakerButton(doc, () => noChoices(s.outcome, s.name)));
     this.endingChoicesEl.replaceChildren(...items);
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
-    // One line of real evidence from the world, not the answer (evidence.js).
-    // The clue shows both sides when it can (scope decision 14), else one line.
-    this.endingEvidenceEl.hidden = !s.comparison && !s.evidence;
-    this.endingEvidenceLineEl.hidden = !!s.comparison;
-    this.endingCompareEl.hidden = !s.comparison;
-    if (s.comparison) {
-      const c = comparisonLines(s.comparison);
-      const rows = [
-        { label: c.withLabel, ...s.comparison.with, color: CLUE_WITH_COLOR },
-        { label: c.withoutLabel, ...s.comparison.without, color: CLUE_WITHOUT_COLOR },
-      ];
-      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: c.heading });
-      heading.append(speakerButton(doc, () => [c.heading, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
-      this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
-    } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
-    this.endingQuestion.set(question(s.outcome, s.noun, s.name));
-    // The last fair test: your group beside the others here, from the follow to the end (scope decision 33).
-    // When your group died out, the ending leads with it, then the question (scope decision 37).
-    const last = s.choices[s.choices.length - 1];
-    const lead = s.outcome === "died" && !!last;
-    if (lead) this.endingLeadEl.append(this.endingFairEl, this.endingQuestionEl);
-    else {
-      this.endingEvidenceEl.parentElement.prepend(this.endingQuestionEl);
-      this.endingPredictionsEl.before(this.endingFairEl);
-    }
-    this.endingLeadEl.hidden = !lead;
-    this.endingFairEl.hidden = !last;
-    this.endingFairLineEl.hidden = !lead;
-    if (lead) this.endingFairLine.set(last.othersAtEnd === 0 ? OTHERS_DIED_TOO : OTHERS_ALIVE);
-    if (last) {
-      const rows = [
-        { label: yoursWith(last.group, s.name), then: last.sizeAtChoice, now: last.sizeAtEnd, color: MINE_COLOR },
-        { label: OTHERS_HERE, then: last.othersAtChoice, now: last.othersAtEnd, color: OTHERS_COLOR },
-      ];
-      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: fairHeading(last.zone) });
-      heading.append(speakerButton(doc, () => [fairHeading(last.zone), ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
-      this.endingFairRowsEl.replaceChildren(heading, ...this.countRows(rows));
-    }
     // The story's predictions beside what happened, labelled as a story from the simulation (Step 6).
     for (const p of this.predictions) if (!p.result) p.result = resultOf(p, s);
     this.endingPredictionsEl.hidden = !this.predictions.length;
@@ -1019,27 +1373,219 @@ export class Game {
       return li;
     }));
     // The real-animal reveal on every ending (scope decisions 10 and 40, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
-    // the group's actual average traits and main habitat when the story ended, never its choices.
-    // A group that died out gets it in the past tense. Text for now; art comes later.
+    // the family's actual average traits and main habitat when the story ended, never its choices.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       const died = s.outcome === "died";
       this.revealLine.set(namedReveal(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name));
-      this.sound.revealChord(1.3); // as the reveal comes in (styles.css)
-      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" ")); // only the sentences whose traits the group has
-      // Then "Did you know?": true facts about the real animal, each with its own speaker (scope decision 46).
+      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" "));
       this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
         const p = Object.assign(doc.createElement("p"), { className: "fact" });
         p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: fact }), speakerButton(doc, () => fact));
         return p;
       }));
     }
+    for (const [id, text] of [["guide-open", FIELD_GUIDE_TITLE], ["card-save", "Save my story card"], ["journal-link", "My journal"]]) doc.getElementById(id).textContent = text;
     this.endingEl.classList.toggle("died", s.outcome === "died");
     this.endingEl.classList.remove("show");
     this.endingEl.hidden = false;
-    void this.endingEl.offsetWidth; // the parts come in one after another (styles.css)
+    this.setEndingStep(0);
+    void this.endingEl.offsetWidth;
     this.endingEl.classList.add("show");
+    paintCreature(this.endingStartEl, began, { seed: s.startGeneration + 1, habitat: placeOf(s.startAnimals) });
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
+    this.renderTree(this.endingTreeEl, tree);
+    this.endingTreeSaid = this.treeSaid;
+  }
+
+  /** Show one step of the ending: Next goes on, but "Your idea" goes on only once it is given (its own button). */
+  setEndingStep(k) {
+    this.endingStep = k;
+    this.stepEls.forEach((el, i) => { el.hidden = i !== k; });
+    this.stepNameEl.textContent = [HAPPENED_TITLE, IDEA_TITLE, CHECK_TITLE, REVEAL_TITLE][k];
+    this.stepCountEl.textContent = `${k + 1} of 4`;
+    this.endingNextEl.hidden = k === 1 || k === 3;
+    this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
+    this.endingEl.querySelector(".card").scrollTop = 0;
+    if (k === 3 && this.story.reveal) this.sound.revealChord(0.4);
+  }
+
+  /**
+   * "Your idea": "My animals [did / didn't] survive because their [trait]
+   * [helped / didn't help] [in the place]." Each part a large picker; the trait
+   * and the place start empty, so the child chooses them. Or the child types
+   * their own words. The sentence as built is read aloud by its speaker.
+   * @param {import("./story.js").Story} s
+   */
+  buildIdea(s) {
+    const doc = this.doc, survived = s.outcome === "survived";
+    const pick = (name, options, value) => {
+      const sel = Object.assign(doc.createElement("select"), { name });
+      sel.setAttribute("aria-label", name);
+      for (const [v, text] of options) sel.append(Object.assign(doc.createElement("option"), { value: String(v), textContent: text }));
+      sel.value = String(value);
+      sel.addEventListener("change", () => this.ideaChanged());
+      return sel;
+    };
+    this.ideaPicks = {
+      did: pick("did", [[1, "did"], [0, "didn't"]], survived ? 1 : 0),
+      t: pick("trait", [["", "choose…"], ...IDEA_TRAITS.map((x) => [x.t, x.words])], ""),
+      helped: pick("helped", [[1, "helped"], [0, "didn't help"]], survived ? 1 : 0),
+      zone: pick("place", [["", "choose…"], ...ZONE_AT.map((z, i) => [i, z])], ""),
+    };
+    const word = (text) => Object.assign(doc.createElement("span"), { textContent: text });
+    const p = this.ideaPicks;
+    this.ideaBuilderEl.replaceChildren(word("My animals"), p.did, word("survive because their"), p.t, p.helped, p.zone, word("."));
+    this.ideaOr.set(IDEA_OR);
+    this.ideaOwnEl.value = "";
+    this.ideaNoteEl.replaceChildren();
+    this.ideaDoneEl.textContent = IDEA_DONE;
+    this.ideaChanged();
+  }
+
+  /** The idea as it stands: the built sentence, or null until its trait and place are chosen. */
+  builtIdea() {
+    const p = this.ideaPicks;
+    if (p.t.value === "" || p.zone.value === "") return null;
+    return { did: p.did.value === "1", t: Number(p.t.value), helped: p.helped.value === "1", zone: Number(p.zone.value) };
+  }
+
+  /** The sentence and the button follow what the child picks or types. */
+  ideaChanged() {
+    const idea = this.builtIdea(), own = cleanIdea(this.ideaOwnEl.value).trim();
+    for (const sel of Object.values(this.ideaPicks)) sel.classList.toggle("empty", sel.value === "");
+    this.ideaSaid.set(idea ? ideaSentence(idea) : "");
+    this.ideaSaidEl.hidden = !idea;
+    this.ideaDoneEl.disabled = !idea && own.replace(/[^\p{L}]/gu, "").length < 3;
+  }
+
+  /**
+   * The idea is given: check it (reflection.js), keep the story in this iPad's
+   * journal for the teacher, and go on to "Check my idea". The play-again
+   * buttons come now. A typed idea the filter catches is not taken.
+   */
+  answerIdea() {
+    const s = this.story, own = cleanIdea(this.ideaOwnEl.value).trim(), built = this.builtIdea();
+    const typed = own.replace(/[^\p{L}]/gu, "").length >= 3;
+    if (!built && !typed) return;
+    if (typed && hasBlockedWord(own)) {
+      const line = "Let's try different words.";
+      this.ideaNoteEl.replaceChildren(line, speakerButton(this.doc, () => line));
+      return;
+    }
+    const idea = typed ? null : built, sentence = typed ? own : ideaSentence(built);
+    const check = checkIdea(idea, truthOf(s));
+    this.idea = { sentence, typed, check };
+    this.ideaAnswered = true;
+    this.ideaMine.set(`${MY_IDEA} ${sentence}`);
+    this.ideaCheckEl.classList.toggle("right", check.right);
+    this.ideaCheckEl.replaceChildren(...check.lines.map((line) => {
+      const p = this.doc.createElement("p");
+      p.append(Object.assign(this.doc.createElement("span"), { className: "text", textContent: line }), speakerButton(this.doc, () => line));
+      return p;
+    }));
+    this.keepStory(check);
+    this.setEndingStep(2);
+  }
+
+  /** The story, kept in this iPad's own journal for the teacher (reflection.js; nothing leaves the iPad). */
+  keepStory(check) {
+    const s = this.story;
+    this.storyId = this.storyId ?? Date.now();
+    keepInJournal({
+      id: this.storyId, when: new Date().toISOString(), name: s.name, seed: this.seed,
+      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, lasted: s.lasted,
+      choices: s.choices.map((c) => `${c.group}${c.byChance ? " (picked at random)" : ""}`),
+      idea: this.idea.sentence, typed: this.idea.typed, check: check.lines, right: check.right,
+      reveal: s.reveal?.animal.name ?? null,
+      predictions: this.predictions.map((p) => ({ question: p.question.text, answer: p.answer.text, lines: p.result?.lines ?? [], came: !!p.result?.came })),
+      guesses: this.guesses ?? [],
+    });
+  }
+
+  /**
+   * The story card (scope decision 62): one picture of the story, made here
+   * (storycard.js), to save or share from the iPad's own share sheet, or to
+   * download. Nothing is uploaded.
+   */
+  async saveCard() {
+    const s = this.story, button = /** @type {HTMLButtonElement} */ (this.doc.getElementById("card-save"));
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Making your card…";
+    try {
+      const canvas = await storyCard(this.doc, {
+        name: s.name, title: endingTitle(s.outcome, s.lasted, s.noun, s.name), tree: s.familyTree(),
+        chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
+        reveal: s.reveal ? namedReveal(s.outcome === "died" ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name) : null,
+        idea: this.idea?.sentence ?? null, died: s.outcome === "died",
+      });
+      this.cardCanvas = canvas; // for checking from the console and the moments
+      await shareCard(canvas, s.name);
+    } catch (err) {
+      console.warn("[lineage] story card", err);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  /* ================= the Field Guide (scope decision 62) ================= */
+  /** Open the Field Guide: the 21 discoveries, each trait in each place, found on this iPad. The world waits. */
+  openGuide() {
+    const doc = this.doc, found = discoveries(), n = FIELD_GUIDE.filter((e) => found.has(e.key)).length;
+    this.guideTitle.set(FIELD_GUIDE_TITLE);
+    this.guideCount.set(discoveredLine(n));
+    const cells = [doc.createElement("span"), ...["High leaves", "Open ground", "Water's edge"].map((t) => Object.assign(doc.createElement("span"), { className: "place", textContent: t }))];
+    for (const x of IDEA_TRAITS.slice(0, 7)) {
+      cells.push(Object.assign(doc.createElement("span"), { className: "trait", textContent: x.words.charAt(0).toUpperCase() + x.words.slice(1) }));
+      for (const e of FIELD_GUIDE.filter((y) => y.t === x.t)) {
+        const known = found.has(e.key), el = Object.assign(doc.createElement("div"), { className: `entry ${known ? { "✓": "helps", "✗": "hurts", "~": "little" }[e.mark] : "unknown"}` });
+        el.append(Object.assign(doc.createElement("span"), { className: "mark", textContent: known ? e.mark : "?" }),
+          Object.assign(doc.createElement("span"), { className: "text", textContent: known ? e.line : NOT_YET }));
+        if (known) el.append(speakerButton(doc, () => e.line));
+        cells.push(el);
+      }
+    }
+    this.guideGridEl.replaceChildren(...cells);
+    this.guideOpen = true;
+    this.guideEl.hidden = false;
+    requestAnimationFrame(() => this.guideEl.classList.add("open"));
+  }
+
+  closeGuide() {
+    if (!this.guideOpen) return;
+    this.guideOpen = false;
+    this.guideEl.classList.remove("open");
+    this.guideHideT = setTimeout(() => { if (!this.guideOpen) this.guideEl.hidden = true; }, 450);
+  }
+
+  /** A new discovery: said in the narration, with a chime ("You discovered: webbed feet help at the water's edge."). */
+  discovered(entry) {
+    if (!entry || !discover(entry)) return;
+    const line = discoveryLine(entry);
+    this.logLinks.delete(line);
+    this.sayNext([line]);
+    this.sound.chime();
+  }
+
+  /**
+   * "Try another family" (scope decision 59): this world as it is now, and the
+   * child taps a living family with a future. Only a story that reached the
+   * last generation starts the world again from generation 0.
+   */
+  anotherFamily() {
+    if (this.bridge.generation >= STORY_GENERATIONS || this.bridge.extinct) { this.restart(this.seed); return; }
+    const label = this.againEl.textContent;
+    this.againEl.textContent = "Finding a family…";
+    this.newWorldEl.disabled = this.againEl.disabled = true;
+    // Let the button repaint before the observer run looks ahead.
+    setTimeout(() => {
+      this.againEl.textContent = label;
+      this.newWorldEl.disabled = this.againEl.disabled = false;
+      this.endingEl.hidden = true;
+      this.start(this.bridge, this.herd);
+    }, 40);
   }
 
   /** Same seed: the same world again from generation 0. */
@@ -1078,11 +1624,63 @@ export class Game {
     // The slim bar on a phone: the same count of your animals, beside your group's dot.
     this.miniEl.hidden = !following;
     this.miniCountEl.textContent = String(this.herd.followed.size);
-    // The fair test since the last follow, as counts with bars: yours and the others here.
+    // The fair test since the last follow, as counts with bars: with the variation, and without.
     const rows = following ? this.fairRows() : [];
     this.othersEl.replaceChildren(...this.countRows(rows));
     this.othersEl.hidden = !rows.length;
+    this.showSoFar(following ? s.chips : []);
+    this.showWhyHere(following ? s.reasons : null);
     if (!s.running) this.barEl.style.width = "0%";
+  }
+
+  /**
+   * "Helping here" and "Hurting here" (scope decision 60): what the family has
+   * that helps or hurts where it lives, under the generation panel, always shown
+   * while a family is followed. Each line with its speaker.
+   * @param {null|{helping:import("./why.js").Reason[], hurting:import("./why.js").Reason[]}} r
+   */
+  showWhyHere(r) {
+    const lines = r ? [helpingLine(r.helping.slice(0, 3).map((x) => x.words)), hurtingLine(r.hurting.slice(0, 3).map((x) => x.words))] : [];
+    const key = lines.join("|");
+    if (key !== this.whyKey) {
+      this.whyKey = key;
+      this.whyHereEl.hidden = !lines.length;
+      this.whyHereEl.replaceChildren(...lines.map((text, i) => {
+        const p = Object.assign(this.doc.createElement("p"), { className: i ? "hurt" : "help" });
+        p.append(Object.assign(this.doc.createElement("span"), { className: "text", textContent: text }), speakerButton(this.doc, () => text));
+        return p;
+      }));
+    }
+    if (lines.length) this.placeWhyHere();
+  }
+
+  /** The note sits just under the generation panel, whatever its size (a slim bar on a phone, or open). */
+  placeWhyHere() {
+    if (!this.whyHereEl.hidden) this.whyHereEl.style.top = `${this.hudEl.offsetTop + this.hudEl.offsetHeight + 8}px`;
+  }
+
+  /**
+   * "Your family so far" (scope decision 59): each chosen trait as a chip, in
+   * the order chosen; a faded one greys out, with its reason as a line below.
+   * @param {import("./story.js").Chip[]} chips
+   */
+  showSoFar(chips) {
+    const key = chips.map((c) => `${c.v.group}:${c.faded}`).join("|");
+    if (key === this.soFarKey) return;
+    this.soFarKey = key;
+    const doc = this.doc, el = this.soFarEl;
+    el.hidden = !chips.length;
+    if (!chips.length) { el.replaceChildren(); return; }
+    const faded = chips.filter((c) => c.faded).map((c) => fadedLine(c.v.group, c.faded));
+    const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: SO_FAR });
+    title.append(speakerButton(doc, () => `${SO_FAR}: ${chips.map((c) => chipWords(c.v.group)).join(", ")}.`));
+    const row = Object.assign(doc.createElement("div"), { className: "chips" });
+    row.append(...chips.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: chipWords(c.v.group) })));
+    el.replaceChildren(title, row, ...faded.map((t) => {
+      const p = Object.assign(doc.createElement("p"), { className: "faded-line" });
+      p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: t }), speakerButton(doc, () => t));
+      return p;
+    }));
   }
 
   /* ================= the creature card (Step 3, scope decisions 21-23) ================= */
@@ -1137,10 +1735,10 @@ export class Game {
   placeCard() {
     const c = this.card;
     if (!c) return;
-    const above = !!this.choice || !!this.journal || !!this.since || !!this.naming;
+    const above = !!this.choice || !!this.journal || !!this.since || !!this.naming || !!this.guess;
     this.cardEl.classList.toggle("above", above);
     if (above) {
-      const panel = this.journal ? this.journalEl : this.since ? this.sinceEl : this.naming ? this.namingEl : this.choiceEl;
+      const panel = this.journal ? this.journalEl : this.guess ? this.guessEl : this.since ? this.sinceEl : this.naming ? this.namingEl : this.choiceEl;
       const panelTop = this.stage.clientHeight - panel.offsetHeight;
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
@@ -1167,36 +1765,31 @@ export class Game {
       this.cardEl.classList.add("gone");
       return;
     }
-    const theirs = !mine && this.bridge.isOther(c.id);
-    this.cardWho.set(mine ? inYour(s.noun, s.name) : theirs ? OTHERS_HERE : notInYour(s.noun, s.name));
-    this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : theirs ? OTHERS_COLOR : PLAIN_COLOR);
-    this.renderGroup(c.id, mine, theirs);
+    // An animal from nearby that fills in a fair test is ringed in its side's colour (scope decision 59).
+    const side = mine ? null : this.bridge.isMine(c.id) ? WITH_COLOR : this.bridge.isOther(c.id) ? WITHOUT_COLOR : null;
+    this.cardWho.set(mine ? inYour(s.noun, s.name) : side ? NEARBY_IN_TEST : notInYour(s.noun, s.name));
+    this.cardSwatchEl.style.setProperty("--mark", mine ? MINE_COLOR : side ?? PLAIN_COLOR);
+    this.renderGroup(c.id, mine);
     this.renderFollow();
     this.fitLog(); // the card's height may have changed
   }
 
   /**
-   * An animal outside your group (playtest): above its traits, its group beside
-   * yours (the others here, or else its family), then and now as counts with
-   * bars, and whether it is doing better or worse than yours since the last
-   * follow; then up to three meaningful traits where it differs most from yours.
-   * @param {number} id @param {boolean} mine in your group @param {boolean} theirs one of the others here
+   * An animal outside your family (playtest): above its traits, its family
+   * beside yours, then and now as counts with bars, and whether it is doing
+   * better or worse than yours since the last follow; then up to three
+   * meaningful traits where it differs most from yours.
+   * @param {number} id @param {boolean} mine in your family
    */
-  renderGroup(id, mine, theirs) {
+  renderGroup(id, mine) {
     const s = this.story, doc = this.doc, el = this.cardGroupEl;
     el.hidden = mine || !s.mark || s.phase === "ended";
     if (el.hidden) { this.groupKey = ""; return; }
-    let rows, ids;
-    if (theirs) { rows = this.fairRows().reverse(); ids = this.bridge.otherIds(); }
-    else {
-      const f = familySince(this.bridge, s.mark, id);
-      rows = [{ label: ITS_FAMILY, then: f.then, now: f.now, color: PLAIN_COLOR }, { label: yoursLabel(s.name), ...s.mine, color: MINE_COLOR }];
-      ids = f.ids;
-    }
+    const f = familySince(this.bridge, s.mark, id);
+    const rows = [{ label: ITS_FAMILY, then: f.then, now: f.now, color: PLAIN_COLOR }, { label: yoursLabel(s.name), then: s.mark.family, now: s.family.now, color: MINE_COLOR }];
     const doing = doingLine(better(rows[0], rows[1]), s.choices.length > 0);
-    const group = ids.map((i) => this.bridge.animal(i));
-    const test = theirs && s.fair && !s.fair.v.neutral ? s.fair.v : null; // the others were picked for not having it
-    const diffs = differences(group, this.bridge.followedAnimals(), undefined, test).map((d) => thanYours(d.trait, d.dir));
+    const group = f.ids.map((i) => this.bridge.animal(i));
+    const diffs = differences(group, this.bridge.followedAnimals()).map((d) => thanYours(d.trait, d.dir));
     // A trait the group has that doesn't fit where most of it lives.
     const where = [0, 1, 2].map((z) => group.filter((a) => a.zone === z).length), home = where.indexOf(Math.max(...where));
     const m = group.length ? misfit(averageOf(group.map((a) => a.genome)).map((a) => a.mean), home) : null;
@@ -1218,26 +1811,34 @@ export class Game {
   }
 
   /**
-   * A glowing newborn's card always offers to follow its new variation (scope
-   * decisions 32, 36 and 42), and "Keep looking" (decision 43). When both sides
-   * have at least MIN_SIZE animals in its habitat, the button says the fair
-   * test's real size: "Follow 14 animals with smaller eyes". Otherwise "Follow
-   * animals with smaller eyes", and the world first fast-forwards to see if it
-   * spreads. While the child's group is at DANGER_SIZE or fewer, no follow can
-   * start at all: the card says "Your group needs you. Stay with them?", with
-   * only "Keep looking" (decision 44 and the playtest). Only while the world is
-   * watched and follows are left.
+   * A glowing newborn's card (scope decisions 32, 36, 42, 43, 58 and 59). When
+   * enough of the family's animals in its place have the variation, with twins
+   * without it, the button says the fair test's real size: "Follow 14 animals
+   * with smaller eyes". Otherwise "Will it be passed on?", and the world first
+   * fast-forwards to see. Always "Keep looking". The card explains instead of
+   * offering a follow while the family is at DANGER_SIZE or fewer ("Your family
+   * needs you. Stay with them?"), for a baby living away from the family's
+   * place, for a trait that doesn't help or hurt there, and for the way back
+   * from a direction the family already took. When a fair test showed that
+   * direction hurting, the way back is offered with its reason: "Chunkier
+   * bodies are doing better up here. Go back?" Only while the world is watched
+   * and follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
     const g = c && !c.gone ? s.glowFor(c.id) : null;
-    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice && !this.naming;
+    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice && !this.naming && !this.guess;
     this.cardFollowEl.hidden = !open;
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
-    const stay = s.inDanger, now = !stay && s.canStartFor(g);
-    const text = stay ? needsYou(s.noun, s.name) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
-    const key = `${g.id}:${text}`;
+    const why = s.inDanger ? "danger" : s.whyNot(g), went = s.went.get(g.v.t);
+    const note = why === "danger" ? needsYou(s.noun, s.name) : why === "away" ? awayLine(this.bridge.zoneOf(g.id), s.name) :
+      why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) : why === "common" ? PASSED_COMMON :
+      why ? nothingToTest(g.v, s.testZone()) : s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
+    const text = why ? null : s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : PASS_ON_BUTTON;
+    // A card that says a trait doesn't matter much here is a Field Guide discovery (scope decision 62).
+    if (why === "little") this.discovered(guideEntry(g.v.t, s.testZone()));
+    const key = `${g.id}:${note}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
     const doc = this.doc;
@@ -1249,10 +1850,9 @@ export class Game {
       return row;
     };
     const keep = button(KEEP_LOOKING, "keep", () => this.keepLooking());
-    if (!stay) { this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), keep); return; }
-    const note = Object.assign(doc.createElement("p"), { className: "follow-note" });
-    note.append(Object.assign(doc.createElement("span"), { className: "text", textContent: text }), speakerButton(doc, () => text));
-    this.cardFollowEl.replaceChildren(note, keep);
+    const noteEl = note && Object.assign(doc.createElement("p"), { className: "follow-note" });
+    if (noteEl) noteEl.append(Object.assign(doc.createElement("span"), { className: "text", textContent: note }), speakerButton(doc, () => note));
+    this.cardFollowEl.replaceChildren(...(noteEl ? [noteEl] : []), ...(text ? [button(text, "go", () => this.followFromMap(g))] : []), keep);
   }
 
   /**
@@ -1277,13 +1877,13 @@ export class Game {
   }
 
   /* ================= counts, never percentages ================= */
-  /** The fair test since the last follow: "Yours (smaller eyes): 20 → 27", "The others here: 20 → 19". */
+  /** The fair test since the last follow, in the family (scope decision 59): "With smaller eyes: 14 → 17", "Without: 14 → 12". */
   fairRows() {
     const s = this.story;
     if (!s.fair) return [];
     return [
-      { label: yoursWith(s.fair.v.group, s.name), ...s.mine, color: MINE_COLOR },
-      { label: OTHERS_HERE, ...s.theirs, color: OTHERS_COLOR },
+      { label: withLabel(s.fair.v.group), ...s.mine, color: WITH_COLOR },
+      { label: WITHOUT, ...s.theirs, color: WITHOUT_COLOR },
     ];
   }
 
@@ -1378,7 +1978,7 @@ export class Game {
   /**
    * Fly the camera to a baby: from a line or a caption that names it (its card
    * opens too), or from an arrow at the screen's edge. The child is exploring
-   * now, so the camera stays there until "Back to my group".
+   * now, so the camera stays there until "Back to my family".
    * @param {number} id @param {boolean} [card] open its card
    */
   flyToBaby(id, card = false) {
@@ -1519,7 +2119,7 @@ export class Game {
    */
   /** How far out the map zooms: ZOOM_MIN, or less far on a screen so big that the world would stop filling it. */
   zoomMin() { return Math.max(ZOOM_MIN, this.vw / this.world.W, this.vh / this.world.H); }
-  /** The zoom the story is told at, and "Back to my group" goes back to. */
+  /** The zoom the story is told at, and "Back to my family" goes back to. */
   comfortZoom() { return Math.min(this.vw, this.vh) < SHORT_PX ? PHONE_ZOOM : 1; }
   /** The zoom being gone to: the end of a zoom in progress, or the zoom now. */
   zoomGoal() { return this.zoomTween?.to ?? this.zoomBase; }
@@ -1562,7 +2162,7 @@ export class Game {
    * across habitats. `high` of the screen above the middle, to clear a panel.
    */
   centerOnGroup(high = 0) {
-    if (this.exploring) return; // the child is looking around: only "Back to my group" goes back (playtest)
+    if (this.exploring) return; // the child is looking around: only "Back to my family" goes back (playtest)
     const p = this.herd.largestCluster(this.herd.followed); if (!p) return;
     this.camTween = { x: p.x - this.vw / 2, y: p.y - this.vh / 2 + high * this.vh / this.zoomGoal(), t: 0 };
   }
@@ -1632,7 +2232,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running && !this.journal && !this.since && !this.naming) { // a panel on screen holds the world
+    if (s.running && !this.journal && !this.since && !this.naming && !this.guess && !this.averageOpen && !this.guideOpen) { // a panel on screen holds the world
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000, step = Math.min(250, raw);
       this.clock += step;
       if (s.phase === "watch" && this.clock >= 0) this.dayGoesOn(step / 1000, now); // (a moment being reached holds the clock below 0)
@@ -1657,6 +2257,7 @@ export class Game {
     this.stage.classList.toggle("spreading", !!(s.spread && fastNow));
     // On the backup choice panel, and while a prediction or "Since your last choice" is up, the world pauses.
     if (this.journal) this.tickJournal(now, Math.min(250, raw));
+    else if (this.guess) this.tickGuess(now, Math.min(250, raw));
     else if (this.since) this.tickSince(now, Math.min(250, raw));
     else if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
     else {
@@ -1665,7 +2266,7 @@ export class Game {
     }
     if (this.endingAt !== null && now >= this.endingAt) { this.endingAt = null; this.showEnding(); }
 
-    // Where "Back to my group" goes: the group's largest cluster.
+    // Where "Back to my family" goes: the family's largest cluster.
     if ((this.homeT -= dt) <= 0) { this.homeT = HOME_MS; this.home = this.herd.largestCluster(this.herd.followed); }
 
     this.pumpLog(dt);
@@ -1701,7 +2302,7 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.since || this.journal || this.naming) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -1804,7 +2405,7 @@ export class Game {
    */
   placeBloom(now, view) {
     const named = (id) => this.namedBirths.has(id);
-    const b = !this.choice && !this.journal && !this.since && !this.naming && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
+    const b = !this.choice && !this.journal && !this.since && !this.naming && !this.guess && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
     if (!b) {
       if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
       return;
@@ -1834,7 +2435,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -1874,7 +2475,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #average, #guide, #ending")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -1888,7 +2489,7 @@ export class Game {
       e.preventDefault();
       this.setHud(!this.hudEl.classList.contains("open"));
     });
-    // "Back to my group": the camera goes to the group, at the story's zoom, and stays with it again.
+    // "Back to my family": the camera goes to the family, at the story's zoom, and stays with it again.
     this.homeEl.addEventListener("click", () => {
       this.exploring = false; this.visiting = null;
       this.zoomTo(this.comfortZoom()); this.centerOnGroup(); this.hideHint();
@@ -1906,8 +2507,27 @@ export class Game {
     for (const b of this.placesEl.querySelectorAll("button")) b.addEventListener("click", () => this.visitPlace(Number(b.dataset.zone)));
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
-    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
-    this.againEl.addEventListener("click", () => this.restart(this.seed));
+    this.guessNextEl.addEventListener("click", () => this.closeGuess());
+    // Naming: typing a name; letters only, as the child types.
+    this.namingInputEl.addEventListener("input", () => {
+      const clean = this.namingInputEl.value.replace(/[^\p{L}]/gu, "").slice(0, NAME_MAX);
+      if (clean !== this.namingInputEl.value) this.namingInputEl.value = clean;
+    });
+    this.namingInputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); this.submitTyping(); } });
+    this.doc.getElementById("naming-ok").addEventListener("click", () => this.submitTyping());
+    this.doc.getElementById("naming-back").addEventListener("click", () => this.stopTyping());
+    this.portraitEl.addEventListener("click", () => this.openAverage());
+    // The ending's steps, the idea, the Field Guide and the story card (scope decision 62).
+    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(3, this.endingStep + 1)));
+    this.ideaDoneEl.addEventListener("click", () => this.answerIdea());
+    this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
+    this.guideButtonEl.addEventListener("click", () => this.openGuide());
+    this.doc.getElementById("guide-open").addEventListener("click", () => this.openGuide());
+    this.doc.getElementById("guide-close").addEventListener("click", () => this.closeGuide());
+    this.doc.getElementById("card-save").addEventListener("click", () => this.saveCard());
+    this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); } });
+    this.againEl.addEventListener("click", () => this.anotherFamily());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
     for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });
@@ -1962,6 +2582,7 @@ export class Game {
   setHud(open) {
     const el = this.hudEl, compact = this.compact.matches;
     el.classList.toggle("open", open);
+    this.placeWhyHere();
     if (compact) {
       el.setAttribute("role", "button");
       el.tabIndex = 0;
@@ -1986,9 +2607,17 @@ export class Game {
       this.endArrival();
     }
     if (!a) { this.closeCard(); return; }
-    // Before the story starts, a tap chooses the family to follow. After that, a tap opens the animal's card.
-    if (this.story.phase === "waiting") this.begin(a);
-    else this.showCard(a.id);
+    // Before the story starts, a tap chooses the family to follow, if it has a future (scope decision 59).
+    // After that, a tap opens the animal's card.
+    if (this.story.phase !== "waiting") this.showCard(a.id);
+    else this.tapFamily(a);
+  }
+
+  /** Before the story starts: follow this animal's family, or, when it has no future, say so (scope decision 59). */
+  tapFamily(a) {
+    if (this.hasFuture(a.id)) { this.begin(a); return; }
+    this.hideHint();
+    this.say([IN_TROUBLE]);
   }
 }
 
@@ -2005,6 +2634,13 @@ export class Game {
  * @property {number} paused ms stood still for read-aloud
  * @property {null|import("./journal.js").Answer} answer the child's answer, once given
  * @property {number} goAt when an answered question closes
+ *
+ * @typedef {Object} GuessState
+ * @property {import("./why.js").Guess} question
+ * @property {number} left ms left to guess, or to read why
+ * @property {number} paused ms stood still for read-aloud
+ * @property {boolean} answered a guess was tapped, or time ran out: why is on screen
+ * @property {null|{text:string, right:boolean}} [option] the guess
  *
  * @typedef {Object} NamingState
  * @property {string[]} names the three names offered
@@ -2056,7 +2692,7 @@ if (typeof document !== "undefined") {
       q.set("seed", String(seed));
       history.replaceState(null, "", `?${q}`);
     }
-    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld }); // for poking at the live engine from the console
+    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture }); // for poking at the live engine from the console
     // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.
     const moment = q.get("moment");
     if (moment) import("./moments.js").then((m) => m.goToMoment(globalThis.lineageGame, moment));

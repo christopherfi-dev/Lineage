@@ -51,18 +51,26 @@ export function homeBand(a, zone) {
   if (water >= 0.9) return { lo: 1.02, hi: 1.1, wader: water >= WADER }; // by the waterline
   return band(k(0.9 - water, 0, 0.45), 1.06, 0.835, 0.81, 1.1); // its other time lies up the map, on the ground or in the leaves
 }
-/** Animals with at least this much of their time at the water's edge sometimes wade into the shallows. */
-export const WADER = 0.95;
-/** How far into the water a wader goes (world.zoneT; the waterline is at 1.12). */
-const SHALLOWS = [1.135, 1.17], WADE_MAX = 1.19;
+/** Animals with at least this much of their time at the water's edge go swimming (scope decision 63). */
+export const WADER = 0.9;
+/** How far into the water a swimmer goes (world.zoneT; the waterline is at 1.12), and from where it is drawn swimming. */
+const SHALLOWS = [1.15, 1.24], WADE_MAX = 1.27, SWIM_T = 1.135;
 
 const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
 const BABY_MS = 7000;  // and stays a little smaller for a while, beside its mother
 const FADE_MS = 1500;  // a death fades softly, a little light rising from it
 
-/** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then breathes. */
+/** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then pulses gently. */
 const BLOOM_MS = 3400;
+/** A glow's gentle pulse, once every this many ms, with a small sparkle above the baby (scope decision 59). */
+const PULSE_MS = 2400;
+/**
+ * With more of your animals than this in view, they are drawn cheaply (scope
+ * decision 59): one shared outline for all of them, and no glow under each;
+ * glowing babies keep theirs.
+ */
+export const CHEAP_ABOVE = 36;
 
 /** Zoomed out, an animal this small on screen (its body unit, in pixels) skips details too fine to see there. */
 const FINE_PX = 5.5;
@@ -141,6 +149,10 @@ export class Herd {
     this.mood = 0;
     /** how big the map is drawn (main.js): zoomed out, small animals skip details too fine to see */
     this.zoom = 1;
+    /** how many of your animals were in view at the last frame, and whether they were drawn cheaply */
+    this.drawn = { mine: 0, cheap: false };
+    /** more of your animals in view than this are drawn cheaply (CHEAP_ABOVE; a measurement may turn it off) */
+    this.cheapAbove = CHEAP_ABOVE;
   }
 
   /** @param {{lo:number, hi:number, wader:boolean}} hb where it lives (homeBand) */
@@ -222,14 +234,14 @@ export class Herd {
       a.wasMarked = this.marks.get(a.id) ?? null;
       this.fading.push(a);
     }
-    // Real births: each newborn appears beside its mother (the first parent in its birth record),
+    // Real births: each newborn appears beside its mother (the parent whose family it joins, bridge.js),
     // and makes its home near hers, as near as its own habitat use lets it. Its spot is placed
     // exactly as before, for the fair tests.
     for (const b of ev.births) {
       const child = bridge.get(b.childId);
       if (!child) continue;
       const zone = bridge.zoneOf(b.childId);
-      const mother = this.animals.get(b.parentAId) ?? null;
+      const mother = this.animals.get(b.motherId ?? b.parentAId) ?? null;
       const near = mother ? mother.spot : this.world.pointIn(zone, this.placeRnd);
       const spot = this.world.pointIn(zone, this.placeRnd, { x: near.x, y: near.y, radius: 46 });
       const hb = homeBand(child.timeAllocation, zone), by = mother ? mother.home : spot;
@@ -238,7 +250,7 @@ export class Herd {
       const a = this.make(b.childId, zone, child.bodyGenome, at.x + this.rr(-4, 4), at.y + this.rr(-3, 3), home, now, spot, hb);
       if (mother) a.face = mother.face;
       const t = appearAt(b.childId);
-      if (t > now) { a.hidden = true; a.appearAt = t; a.mother = b.parentAId; }
+      if (t > now) { a.hidden = true; a.appearAt = t; a.mother = b.motherId ?? b.parentAId; }
       this.animals.set(b.childId, a);
     }
     // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.
@@ -411,21 +423,21 @@ export class Herd {
       const band = this.world.zoneAt(c.x, c.y);
       if (band !== c.band && !(c.hb.wader && band === "water" && this.world.zoneT(c.x, c.y) < WADE_MAX)) {
         c.x = px; c.y = py; c.vx *= -0.6; c.vy *= -0.6;
-      } else c.wet = band === "water";
+      } else { c.wet = band === "water"; c.swim = c.wet && this.world.zoneT(c.x, c.y) > SWIM_T; }
       c.x = clamp(c.x, 20, W - 20); c.y = clamp(c.y, 20, H - 20);
       if (c.mode !== "pause" && Math.abs(c.vx) > 0.05) c.face = c.vx > 0 ? 1 : -1;
     }
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
   }
 
-  /** Visual only: now and then a wader walks into the shallows below its home, stays a while, and comes back. */
+  /** Visual only: a swimmer goes out into the water below its home, swims there a while, and comes back to rest. */
   wade(c, now) {
-    if (c.wadeAt === undefined) c.wadeAt = now + this.mr(3000, 30000);
+    if (c.wadeAt === undefined) c.wadeAt = now + this.mr(1500, 14000);
     if (now < c.wadeAt) return;
-    if (c.wadeTo) { c.wadeTo = null; c.wadeAt = now + this.mr(25000, 60000); return; }
-    const x = clamp(c.home.x + this.mr(-40, 40), 40, this.world.W - 40);
+    if (c.wadeTo) { c.wadeTo = null; c.wadeAt = now + this.mr(10000, 26000); return; }
+    const x = clamp(c.home.x + this.mr(-60, 60), 40, this.world.W - 40);
     c.wadeTo = { x, y: this.world.yAt(x, this.mr(SHALLOWS[0], SHALLOWS[1])) };
-    c.wadeAt = now + this.mr(20000, 32000);
+    c.wadeAt = now + this.mr(22000, 40000);
   }
 
   /**
@@ -474,8 +486,13 @@ export class Herd {
       if (age < baby) return 0.7 + 0.3 * (age - c.growMs) / (baby - c.growMs);
       return 1;
     };
+    // Many of your animals in view: they are drawn cheaply, with one shared outline and no glow under each.
+    let mineInView = 0;
+    for (const c of vis) if (c.diedAt === null && this.followed.has(c.id)) mineInView++;
+    const cheap = mineInView > this.cheapAbove, outline = cheap && minePass ? new Path2D() : null;
+    if (minePass) this.drawn = { mine: mineInView, cheap };
     // Under your animals: a soft warm glow, a little stronger at night and when the group grows.
-    if (minePass && this.following) {
+    if (minePass && this.following && !cheap) {
       const sprite = glowSprite(), r = sprite.width / 2;
       const k = (0.8 + 0.9 * L.night) * (1 + 0.35 * Math.max(0, this.mood) - 0.3 * Math.max(0, -this.mood));
       for (const c of vis) {
@@ -485,9 +502,10 @@ export class Herd {
       }
       x.globalAlpha = 1;
     }
+    // A fair test's rings (your family's animals get theirs as they are drawn, over the light).
     if (worldPass) for (const c of vis) {
       const colors = marksOf(c);
-      if (!colors) continue;
+      if (!colors || style(c) === "mine") continue;
       const life = c.diedAt !== null ? lifeOf(c) : 1, rx = 13;
       colors.forEach((col, k) => {
         x.beginPath(); x.ellipse(c.x, c.y + 1, rx + 5 * k, (rx + 5 * k) * 0.38, 0, 0, TAU);
@@ -510,7 +528,12 @@ export class Herd {
         if (!this.glowSince.has(c.id)) this.glowSince.set(c.id, now);
         glowAt = this.glowSince.get(c.id);
       }
-      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom);
+      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom, outline);
+    }
+    if (outline) {
+      x.globalAlpha = 0.5; x.strokeStyle = "#08333F"; x.lineWidth = 0.9;
+      x.stroke(outline);
+      x.globalAlpha = 1;
     }
     // A follow's gather-in: yours light up first, then the newcomers come in with a softer light.
     if (minePass) for (const c of vis) {
@@ -570,40 +593,100 @@ function sparkle(x, cx, cy, s) {
 
 /**
  * A new trait on the map. A bloom: a ring of light opens around the newborn with
- * a few sparkles drifting up, then settles into a slow breathing ring for the
- * rest of the day. A quiet mark: a small speck of light above the back.
+ * a few sparkles drifting up, then settles into a bright ring that pulses
+ * gently, with a small sparkle twinkling above the baby, so a glowing baby is
+ * easy to spot among many (scope decision 59).
  */
 function drawMark(x, c, u, midY, now, night, glowAt) {
-  {
-    const t = (now - glowAt) / BLOOM_MS;
-    const open = 1 - Math.pow(1 - clamp(t, 0, 1), 3);
-    const breathe = (Math.sin(now * 0.0024 + c.id) + 1) / 2;
-    const rad = u * (0.9 + 1.2 * open) + (t >= 1 ? breathe * u * 0.1 : 0);
-    const g = bloomSprite(), R = rad * 2.2;
-    x.globalAlpha = t < 1 ? 0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.2)) * 0.8 + 0.2 * open : 0.32 + 0.14 * breathe;
-    x.drawImage(g, c.x - R, midY - R, 2 * R, 2 * R);
-    x.strokeStyle = night > 0.5 ? "#FFF0C8" : "#FFE2A2";
-    x.lineWidth = 2.2;
-    x.globalAlpha = t < 1 ? 0.95 - 0.4 * open : 0.42 + 0.14 * breathe;
-    x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
-    if (t < 1) {
-      x.lineWidth = 1.2; x.globalAlpha = 0.5 * (1 - open);
-      x.beginPath(); x.ellipse(c.x, midY, rad * 1.3, rad * 1.2, 0, 0, TAU); x.stroke();
+  const t = (now - glowAt) / BLOOM_MS;
+  const open = 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  const pulse = (Math.sin((now / PULSE_MS) * TAU + c.id) + 1) / 2;
+  const settled = t >= 1 ? pulse : 0;
+  const rad = u * (0.9 + 1.4 * open) + settled * u * 0.28;
+  const g = bloomSprite(), R = rad * 2.5;
+  x.globalAlpha = t < 1 ? 0.3 + 0.7 * Math.sin(Math.PI * Math.min(1, t * 1.2)) * 0.8 + 0.25 * open : 0.55 + 0.3 * pulse;
+  x.drawImage(g, c.x - R, midY - R, 2 * R, 2 * R);
+  x.strokeStyle = night > 0.5 ? "#FFF0C8" : "#FFE2A2";
+  x.lineWidth = 2.8;
+  x.globalAlpha = t < 1 ? 0.95 - 0.25 * open : 0.72 + 0.23 * pulse;
+  x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
+  // A second, fainter ring: while it opens, and as the pulse swells.
+  x.lineWidth = 1.4; x.globalAlpha = t < 1 ? 0.5 * (1 - open) : 0.35 * pulse;
+  x.beginPath(); x.ellipse(c.x, midY, rad * 1.28, rad * 1.18, 0, 0, TAU); x.stroke();
+  x.fillStyle = "#FFF4D6";
+  // A few sparkles drift up and fade.
+  if (t < 1.9) {
+    for (let k = 0; k < 5; k++) {
+      const tk = t * 0.75 - k * 0.07;
+      if (tk <= 0 || tk >= 1) continue;
+      const a = (k / 5) * TAU + c.id * 0.7, r0 = rad * (0.55 + 0.1 * k);
+      const sx = c.x + Math.cos(a) * r0 + Math.sin(now * 0.002 + k) * u * 0.15;
+      const sy = midY + Math.sin(a) * r0 * 0.6 - tk * u * 2.4;
+      x.globalAlpha = Math.sin(Math.PI * tk) * 0.9;
+      sparkle(x, sx, sy, u * (0.16 + 0.06 * (k % 2)));
     }
-    // A few sparkles drift up and fade.
-    if (t < 1.9) {
-      x.fillStyle = "#FFF4D6";
-      for (let k = 0; k < 5; k++) {
-        const tk = t * 0.75 - k * 0.07;
-        if (tk <= 0 || tk >= 1) continue;
-        const a = (k / 5) * TAU + c.id * 0.7, r0 = rad * (0.55 + 0.1 * k);
-        const sx = c.x + Math.cos(a) * r0 + Math.sin(now * 0.002 + k) * u * 0.15;
-        const sy = midY + Math.sin(a) * r0 * 0.6 - tk * u * 2.4;
-        x.globalAlpha = Math.sin(Math.PI * tk) * 0.9;
-        sparkle(x, sx, sy, u * (0.16 + 0.06 * (k % 2)));
-      }
-    }
-    x.globalAlpha = 1;
+  }
+  // A small sparkle above the baby, twinkling with the pulse.
+  const sy = midY - u * (2.5 + 0.18 * pulse), ss = u * (0.3 + 0.12 * pulse) * Math.min(1, open * 1.4);
+  if (ss > 0) {
+    const sp = speckSprite();
+    x.globalAlpha = 0.65 + 0.35 * pulse;
+    x.drawImage(sp, c.x - ss * 2.2, sy - ss * 2.2, ss * 4.4, ss * 4.4);
+    x.globalAlpha = 0.9 + 0.1 * pulse;
+    sparkle(x, c.x, sy, ss);
+  }
+  x.globalAlpha = 1;
+}
+
+/** The leaves' greens, from the painted canopy. */
+const LEAF_GREENS = ["#3C6130", "#4E7838", "#628F44", "#78A553"];
+/** Its own small, fixed numbers (by id), so a branch and its leaves never flicker. */
+const rand = (id, k) => { const v = Math.sin(id * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+
+/** A branch under a leaves' animal's feet, leaning a little its own way. */
+function branch(x, c, u, A) {
+  const tilt = (rand(c.id, 1) - 0.5) * 0.5, len = u * (2.3 + rand(c.id, 2));
+  x.save();
+  x.translate(c.x, c.y + u * 0.08);
+  x.rotate(tilt);
+  x.globalAlpha = A(0.95);
+  x.strokeStyle = "#5E4428"; x.lineCap = "round";
+  x.lineWidth = u * 0.36;
+  x.beginPath(); x.moveTo(-len, u * 0.1); x.quadraticCurveTo(0, -u * 0.12, len, u * 0.18); x.stroke();
+  x.lineWidth = u * 0.16; // a twig
+  x.beginPath(); x.moveTo(len * 0.55, u * 0.02); x.quadraticCurveTo(len * 0.8, -u * 0.5, len * 1.05, -u * 0.72); x.stroke();
+  x.globalAlpha = A(0.35); x.strokeStyle = "#E8D2A8"; x.lineWidth = u * 0.07;
+  x.beginPath(); x.moveTo(-len * 0.9, -u * 0.02); x.quadraticCurveTo(0, -u * 0.22, len * 0.9, u * 0.05); x.stroke();
+  x.restore();
+}
+
+/** A few leaves in front of a leaves' animal, round its feet and belly, so it sits among them. */
+function leavesInFront(x, c, u, A) {
+  for (let k = 0; k < 5; k++) {
+    const lx = c.x + (rand(c.id, 10 + k) - 0.5) * u * 3.2, ly = c.y - u * (0.1 + rand(c.id, 20 + k) * 0.9);
+    const a = rand(c.id, 30 + k) * TAU, r = u * (0.32 + rand(c.id, 40 + k) * 0.22);
+    x.globalAlpha = A(0.92);
+    x.fillStyle = LEAF_GREENS[k % LEAF_GREENS.length];
+    x.beginPath(); x.ellipse(lx, ly, r, r * 0.5, a, 0, TAU); x.fill();
+    x.globalAlpha = A(0.4); x.strokeStyle = "#2E4A24"; x.lineWidth = u * 0.04;
+    x.beginPath(); x.moveTo(lx - Math.cos(a) * r * 0.8, ly - Math.sin(a) * r * 0.8); x.lineTo(lx + Math.cos(a) * r * 0.8, ly + Math.sin(a) * r * 0.8); x.stroke();
+  }
+}
+
+/** A swimmer: the water at its body, rings round it, and a small V of wake behind it as it moves. */
+function swimming(x, c, u, waterline, dir, now, A) {
+  const wy = c.y + waterline, moving = Math.hypot(c.vx, c.vy) > 0.05;
+  x.globalAlpha = A(0.55); x.fillStyle = "rgb(128,182,194)";
+  x.beginPath(); x.ellipse(c.x, wy + u * 0.08, u * 1.25, u * 0.26, 0, 0, TAU); x.fill();
+  x.globalAlpha = A(0.8); x.strokeStyle = "#F2FAFF"; x.lineWidth = 1.4;
+  x.beginPath(); x.ellipse(c.x, wy + u * 0.05, u * (1.3 + 0.08 * Math.sin(now * 0.004 + c.id)), u * 0.3, 0, 0, TAU); x.stroke();
+  if (moving) {
+    const back = -dir, spread = u * (0.55 + 0.1 * Math.sin(now * 0.006 + c.id));
+    x.globalAlpha = A(0.6); x.lineWidth = 1.6;
+    x.beginPath();
+    x.moveTo(c.x + back * u * 0.9, wy); x.lineTo(c.x + back * u * 2.6, wy - spread);
+    x.moveTo(c.x + back * u * 0.9, wy + u * 0.1); x.lineTo(c.x + back * u * 2.6, wy + spread + u * 0.1);
+    x.stroke();
   }
 }
 
@@ -626,8 +709,10 @@ function shade(hex, k) {
  * @param {number} alpha 1, or less while a death fades
  * @param {null|number} [glowAt] when this newborn began to glow (a new variation you can follow), else null
  * @param {number} [zoom] how big the map is drawn: zoomed out, a small animal skips its fur, rim light, eyes and webbing
+ * @param {null|Path2D} [outline] many of your animals in view: each one's outline joins this shared one, stroked once,
+ *   and its rim light and the light on its back are left out
  */
-function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1) {
+function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1, outline = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
@@ -649,21 +734,31 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   const nose = hR * (0.72 + g.snout * 0.26);
   const web = gray || !fine ? 0 : clamp((g.feet / 2 - 0.2) / 0.45, 0, 1);
 
+  // Where it lives shows (scope decision 63): the leaves' animals stand on a branch among leaves; the water's swim.
+  const perched = c.band === "canopy" && fine, swim = !!c.swim;
+  const waterline = -(legL + bRY * 0.42);
   /* the shadow leans away from the sun, long when the sun is low */
   const lean = -L.sun * (0.25 + 0.75 * L.low), stretch = 1 + 0.55 * L.low * Math.abs(L.sun);
-  x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
-  x.fillStyle = "#2E2616";
-  x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
-  /* your animals: a light ring on the ground, the non-colour sign of your group */
+  if (!swim && !perched) {
+    x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
+    x.fillStyle = "#2E2616";
+    x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
+  }
+  if (perched) branch(x, c, u, A);
+  /* your animals: a light ring on the ground, the non-colour sign of your family; in a fair test, its side's colour */
   if (mine) {
-    x.globalAlpha = A(0.6 * Math.min(1, scale + 0.2));
-    x.strokeStyle = L.night > 0.5 ? "#D6F0F6" : "#FFF3D6"; x.lineWidth = 1.5;
-    x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU); x.stroke();
+    x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU);
+    if (color) { x.globalAlpha = A(0.3); x.fillStyle = color; x.fill(); }
+    x.globalAlpha = A((color ? 0.95 : 0.6) * Math.min(1, scale + 0.2));
+    x.strokeStyle = color ?? (L.night > 0.5 ? "#D6F0F6" : "#FFF3D6"); x.lineWidth = color ? 2.4 : 1.5;
+    x.stroke();
   }
 
   x.save();
   x.translate(c.x, c.y);
   x.scale(dir, 1);
+  // A swimmer is drawn above the water only: its legs and belly are under it.
+  if (swim) { x.beginPath(); x.rect(-u * 4, -u * 8, u * 8, u * 8 + waterline); x.clip(); }
 
   const body = shade(mine ? "#237089" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
   const dark = mine ? "#0E4051" : other ? shade(color, -0.45) : "#7C7463";
@@ -731,15 +826,17 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   if (fine && shag > 0.05) {
     x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
+    x.beginPath(); // ten tufts, one stroke
     for (let k = 0; k < 10; k++) {
       const a = k / 10 * TAU;
       const px = Math.cos(a) * bRX, py = bodyY + Math.sin(a) * bRY;
-      x.beginPath(); x.moveTo(px * 0.82, bodyY + (py - bodyY) * 0.82); x.lineTo(px * 1.22, bodyY + (py - bodyY) * 1.34); x.stroke();
+      x.moveTo(px * 0.82, bodyY + (py - bodyY) * 0.82); x.lineTo(px * 1.22, bodyY + (py - bodyY) * 1.34);
     }
+    x.stroke();
   }
 
   /* the rim of light is on the sun's side, whichever way the animal faces */
-  if (fine) {
+  if (fine && !(mine && outline)) {
     x.save();
     x.translate(-(L.sun || -0.8) * (mine ? 1.3 : 0.9) * dir, -1.0);
     x.fillStyle = rim; x.globalAlpha = A(mine ? 1 : 0.5);
@@ -748,7 +845,8 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   }
   x.globalAlpha = A(mine || other ? 1 : 0.82);
   x.fillStyle = body; x.fill(P);
-  if (mine) {
+  if (mine && outline) outline.addPath(P, new DOMMatrix([dir, 0, 0, 1, c.x, c.y]));
+  else if (mine) {
     x.strokeStyle = "#08333F"; x.globalAlpha = A(0.5); x.lineWidth = u * 0.07; x.stroke(P);
     /* a soft light on the back */
     x.globalAlpha = A(0.22 * (1 - L.night));
@@ -775,8 +873,11 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   }
   x.restore();
 
+  if (swim) {
+    swimming(x, c, u, waterline, dir, now, A);
+  } else if (perched) leavesInFront(x, c, u, A);
   /* wading: the shallows cover its feet, with a ring of ripples */
-  if (c.wet) {
+  else if (c.wet) {
     x.globalAlpha = A(0.72); x.fillStyle = "rgb(150,196,204)";
     x.beginPath(); x.ellipse(c.x, c.y - u * 0.04, u * 1.18, u * 0.3, 0, 0, TAU); x.fill();
     x.globalAlpha = A(0.65); x.strokeStyle = "#F4FBFF"; x.lineWidth = 1.2;

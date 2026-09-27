@@ -8,12 +8,14 @@
  * death events, mating events, body-mutation events) and hands them to the
  * canvas as plain events.
  *
- * "Your group" starts as a family, a mother line (families.js). After a
- * follow it is a cohort: the fair test's animals with the chosen variation, and a
- * second cohort, "the others here", is tracked beside it (scope decisions
- * 32–33). A family and both cohorts grow by babies whose mother is in them and
- * shrink by deaths. Following is observer state only and cannot change the
- * biology.
+ * The child follows a family (families.js) for the whole story: a follow
+ * never moves it (scope decision 59). A follow starts a fair test inside it:
+ * two groups tracked beside the family, the animals with the chosen
+ * variation and their twins without it (cohorts.js). The family and both
+ * groups grow by babies whose mother is in them and shrink by deaths. A
+ * pair's two babies have one mother each: the first joins parent A's family,
+ * the second parent B's (scope decision 58). Following is observer state only
+ * and cannot change the biology.
  */
 
 import {
@@ -42,10 +44,10 @@ export class Bridge {
       state.currentIndividuals.map((i) => ({ id: i.id, zone: currentZoneBinIndex(i) })),
       keepTogether,
     );
-    /** @type {null|{roots?:Array<number|string>, members:Set<number>}} your group: a family, then a cohort */
+    /** @type {null|{roots?:Array<number|string>, members:Set<number>}} the child's family, for the whole story */
     this.follow = null;
-    /** @type {null|{members:Set<number>}} the fair test's other cohort, "the others here" */
-    this.others = null;
+    /** @type {null|{mine:Set<number>, theirs:Set<number>}} the latest fair test: yours with the variation, and the twins without */
+    this.test = null;
     /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
     this.newAtBirth = new Map();
   }
@@ -88,8 +90,11 @@ export class Bridge {
 
   /* ================= following (observer state only) ================= */
 
-  /** Follow the family of this animal's ancestor FAMILY_DEPTH generations back. */
-  followFamilyOf(id) { return this.followLinesOf([this.families.ancestor(id)]); }
+  /** The top of the family a tap on this animal follows (families.js): FAMILY_DEPTH generations back, or up to FAMILY_MIN living. */
+  familyTopOf(id) { return this.families.top(id, this.families.lineCounts(this.livingIds())); }
+
+  /** Follow the family a tap on this animal follows. */
+  followFamilyOf(id) { return this.followLinesOf([this.familyTopOf(id)]); }
 
   /** Follow these animals' mother lines: each of them and her descendants through the mother line. */
   followLinesOf(roots) {
@@ -100,22 +105,27 @@ export class Bridge {
   }
 
   /**
-   * A fair test: follow one cohort and track the other beside it. Both keep
-   * their babies (by mother) and lose their dead, like a family.
-   * @param {number[]} mine @param {number[]} theirs
+   * A fair test inside the family: two groups tracked beside it. Both keep
+   * their babies (by mother) and lose their dead, like a family. The family
+   * itself stays as it is.
+   * @param {number[]} mine yours with the variation @param {number[]} theirs their twins without it
    */
-  followCohorts(mine, theirs) {
-    this.follow = { members: new Set(mine) };
-    this.others = { members: new Set(theirs) };
-    return this.follow;
+  startTest(mine, theirs) {
+    this.test = { mine: new Set(mine), theirs: new Set(theirs) };
+    return this.test;
   }
 
+  /** In the child's family. */
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
-  isOther(id) { return !!this.others && this.others.members.has(id); }
-  otherIds() { return this.others ? [...this.others.members] : []; }
+  /** In the fair test's group with the variation ("yours with …"). */
+  isMine(id) { return !!this.test && this.test.mine.has(id); }
+  mineIds() { return this.test ? [...this.test.mine] : []; }
+  /** In the fair test's group without it. */
+  isOther(id) { return !!this.test && this.test.theirs.has(id); }
+  otherIds() { return this.test ? [...this.test.theirs] : []; }
 
-  /** Your group's living members with their body genomes and habitats. */
+  /** The family's living members with their body genomes and habitats. */
   followedAnimals() {
     return this.followedIds().map((id) => this.animal(id));
   }
@@ -148,7 +158,13 @@ export class Bridge {
 
     const result = this.state.lastGenerationResult;
     const g = result.generation;
-    const births = result.births.map((b) => ({ childId: b.childId, parentAId: b.parentAId, parentBId: b.parentBId }));
+    // A pair's babies come one after another; the first joins parent A's family, the second parent B's.
+    const nth = new Map();
+    const births = result.births.map((b) => {
+      const pair = `${b.parentAId}:${b.parentBId}`, k = nth.get(pair) ?? 0;
+      nth.set(pair, k + 1);
+      return { childId: b.childId, parentAId: b.parentAId, parentBId: b.parentBId, motherId: k % 2 ? b.parentBId : b.parentAId };
+    });
     const deaths = this.state.deathEvents
       .filter((e) => e.generation === g)
       .map((e) => ({ id: e.individualId, cause: e.cause }));
@@ -162,8 +178,8 @@ export class Bridge {
         delta: e.requestedDelta,
       }));
 
-    // Every baby joins its mother's family: the first parent in its birth record.
-    for (const b of births) this.families.addBirth(b.childId, b.parentAId, g);
+    // Every baby joins its mother's family.
+    for (const b of births) this.families.addBirth(b.childId, b.motherId, g);
     if (g % 50 === 0) this.families.prune(result.livingIds, g);
     // What a baby did not get from its parents: a body mutation at birth, when it
     // changed the trait by at least APART (the smallest difference the game shows).
@@ -172,13 +188,16 @@ export class Bridge {
     }
     if (g % 10 === 0) for (const id of this.newAtBirth.keys()) if (!this.byId.has(id)) this.newAtBirth.delete(id);
 
-    // The fair test's other cohort changes the same way as yours.
-    let others = null;
-    if (this.others) {
-      const o = this.others.members, before = o.size;
-      for (const b of births) if (o.has(b.parentAId)) o.add(b.childId);
-      for (const d of deaths) o.delete(d.id);
-      others = { count: o.size, before };
+    // The fair test's two groups change the same way as the family.
+    let test = null;
+    if (this.test) {
+      const grow = (set) => {
+        const before = set.size;
+        for (const b of births) if (set.has(b.motherId)) set.add(b.childId);
+        for (const d of deaths) set.delete(d.id);
+        return { count: set.size, before };
+      };
+      test = { mine: grow(this.test.mine), theirs: grow(this.test.theirs) };
     }
     return {
       generation: g,
@@ -186,7 +205,7 @@ export class Bridge {
       deaths,
       mutations,
       group: this.updateGroup(births, deaths, mutations, g),
-      others,
+      test,
       observerErrors: result.observerErrors,
     };
   }
@@ -197,7 +216,7 @@ export class Bridge {
     const before = f.members.size;
     // A family or a cohort grows through its mothers: a mother is always a
     // survivor of this generation, so she is still a member here.
-    const born = births.filter((b) => f.members.has(b.parentAId)).map((b) => b.childId);
+    const born = births.filter((b) => f.members.has(b.motherId)).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
     for (const id of born) f.members.add(id);
     for (const id of gone) f.members.delete(id);
@@ -226,11 +245,13 @@ export class Bridge {
 /**
  * @typedef {Object} GenerationEvents
  * @property {number} generation
- * @property {Array<{childId:number, parentAId:number, parentBId:number}>} births engine birth records
+ * @property {Array<{childId:number, parentAId:number, parentBId:number, motherId:number}>} births engine birth
+ *   records, with the parent whose family each baby joins
  * @property {Array<{id:number, cause:string}>} deaths engine death events
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
- * @property {null|GroupEvents} group what happened to your group (null when you have none)
- * @property {null|{count:number, before:number}} others the fair test's other cohort (null before a follow)
+ * @property {null|GroupEvents} group what happened to the child's family (null when there is none)
+ * @property {null|{mine:{count:number, before:number}, theirs:{count:number, before:number}}} test the fair test's
+ *   two groups (null before a follow)
  * @property {ReadonlyArray<Object>} observerErrors
  *
  * @typedef {Object} GroupEvents

@@ -4,6 +4,8 @@ Purpose: after some follows, the child predicts what will happen next. The game 
 
 Principle: nothing is ever called wrong, and there are no scores or points. Each question has one reasonable answer and two or three common Grade 3 misconceptions. The result only says what the child thought and what happened. After two of the misconceptions, one short line says why. Everything happens inside the game. There are no network calls, and no student data leaves the device (scope decision 25).
 
+*Updated 2026-09-27 for Parts 2 and 3 (scope decisions 59 and 60). A follow now starts a fair test inside the child's family: its animals with the variation against its animals without it, in the family's place. The questions name the trait and the place: "Some of your animals now have longer back legs. They live in the high leaves. What will happen?" The reasonable answer gives the reason from `docs/LINEAGE_WHY.md`: "Grow. Long back legs help them leap between branches." Its direction is the engine's Classroom table (✓, ✗ or ~), not the old net effects. The two sides are "With longer back legs" and "Without". Only a trait that helps or hurts in the family's place can be followed (scope decision 58), so the neutral and "~" questions below no longer come up. Family names no longer change these lines. The tables below are the current ones.*
+
 *Updated 2026-09-27 after Marc's first real play: the "need" option now always names the trait the child just chose ("They'll grow even bigger eyes because they need them."), so no option names a trait unrelated to the follow. It is offered in every question.*
 
 *Updated 2026-09-26 for family names (Step 5, `docs/LINEAGE_FAMILY_NAMES.md`): once the family has a name, the lines below name it. "Yours" reads "Your Mossfoot animals" (in the answers, the rows and the results), "yours" reads "your Mossfoot animals", and "your new group" reads "your new Mossfoot group". The lines below are shown without a name.*
@@ -21,12 +23,12 @@ Principle: nothing is ever called wrong, and there are no scores or points. Each
 
 ## The question types
 
-The two types take turns: the 1st, 3rd and 5th prediction are about your group, the 2nd and 4th about the fair test. If the fair test has no other group (it never happens: a fair test starts with at least 10 on each side), the question is about your group.
+The two types take turns: the 1st, 3rd and 5th prediction are about your animals with the variation, the 2nd and 4th about the fair test. If the fair test has no side without it (it never happens: a fair test starts with at least 10 on each side), the question is about your animals with it.
 
 | Type | Question | What is measured |
 |---|---|---|
-| Your group | "Will your new group grow or shrink?" | your group's size at the follow (the fair test's size) and at the next follow |
-| The fair test | "Which will do better: yours or the others here?" | both groups' sizes at the next follow; both started at the same size, so the bigger one did better |
+| Your animals with it | "Some of your animals now have longer back legs. They live in the high leaves. What will happen?" | the side with the variation, at the follow (the fair test's size) and at the next follow |
+| The fair test | "Some of your animals now have longer back legs. They live in the high leaves. Which will do better?" | both sides at the next follow; both started at the same size, so the bigger one did better |
 
 The variation words are the game's own ("more webbing between the toes", "a stronger tail"). The habitat is the fair test's. The ending resolves a prediction whose story ends before the next follow.
 
@@ -34,39 +36,39 @@ The earlier "ones not chosen" and "where" types (scope decision 30) went with th
 
 ## The reasonable answer
 
-It comes from the engine's own numbers. A trait's **net effect** in a habitat is what one unit of it does for survival there: its benefits in that habitat minus its upkeep. In the engine's terms, that is the zone weights times the trait's effects, minus the zone's scarcity times its upkeep.
+It comes from the engine's Classroom table (scope decision 55): each trait helps (✓), hurts (✗) or doesn't matter (~) in each place, and `docs/LINEAGE_WHY.md` gives each a reason in a child's words.
 
 | Trait | High leaves | Open ground | Water's edge |
 |---|---|---|---|
-| Webbing | −2.53 | −0.37 | 2.88 |
-| Claws | 2.31 | 0.17 | −1.15 |
-| Fur | 0.30 | 0.90 | −0.70 |
-| Back legs | 0.93 | 1.89 | −1.07 |
-| Tail | −0.63 | −0.80 | 1.42 |
-| Eyes | 0.35 | 1.25 | −0.55 |
-| Body (sleek) | −1.38 | −0.34 | 1.82 |
+| Webbed feet | ✗ | ~ | ✓ |
+| Curved claws | ✓ | ~ | ✗ |
+| Thick fur | ~ | ✓ | ✗ |
+| Long back legs | ✓ | ✓ | ✗ |
+| Strong tail | ✗ | ✗ | ✓ |
+| Big eyes | ~ | ✓ | ✗ |
+| Sleek body | ✗ | ~ | ✓ |
 
-The neutral traits (coat, ear tips, tail tip) have no effect.
+The neutral traits (coat, ear tips, tail tip) have no effect anywhere.
 
-The reasonable answer for each type:
+The reasonable answer for each type, with the reason for the fair test's place:
 
-- **Grow or shrink, meaningful trait.** It is "grow" if the variation's direction helps in the fair test's habitat, and "shrink" if not.
-  - "Grow. More webbing between the toes helps at the water's edge."
-  - "Shrink. Less webbing between the toes doesn't help at the water's edge."
-- **Grow or shrink, neutral trait.** "A lighter coat won't matter. Other traits will decide." Neutral traits never change who survives (scope decision 8).
-- **The fair test, meaningful trait.** "Yours" if the variation's direction helps there, "the others" if not.
-  - "Yours. A sleeker body helps at the water's edge."
-  - "The others. More webbing between the toes doesn't help in the high leaves."
-- **The fair test, neutral trait.** "About the same. A darker coat won't matter."
+- **Your animals with it.** "Grow" if the variation's direction helps there, and "shrink" if not.
+  - "Grow. Webbed feet push through water." (more webbing at the water's edge)
+  - "Shrink. Webbed feet push through water." (less webbing at the water's edge)
+  - "Grow. Big eyes don't help underwater, and cost energy." (smaller eyes at the water's edge)
+- **The fair test.** "With them" (or "With it") if the variation's direction helps there, "Without them" if not.
+  - "With it. A sleek body slides through water."
+  - "Without it. Webbing makes it hard to grip branches."
+- *No longer asked, since only a trait that helps or hurts there can be followed: a neutral trait or a "~" there ("A lighter coat won't matter. Other traits will decide." and "About the same. A darker coat won't matter.").*
 
 ## The misconceptions
 
 | Kind | Option | Offered | The idea behind it |
 |---|---|---|---|
 | need | "Grow. They'll grow even bigger eyes because they need them." | grow or shrink, always | Animals grow what they need. |
-| need | "Yours. They'll grow even bigger eyes because they need them." | the fair test, always | The same idea. |
+| need | "With them. They'll grow even bigger eyes because they need them." | the fair test, always | The same idea. |
 | chose | "Grow, because I picked them." | grow or shrink, always | My choice changes the animals. |
-| chose | "Yours, because I picked them." | the fair test, always | The same idea. |
+| chose | "With them, because I picked them." | the fair test, always | The same idea. |
 | matters | "Grow. A lighter coat will help them." | grow or shrink, neutral trait | Every difference helps or hurts. |
 | matters | "Yours. A darker coat will help them." | the fair test, neutral trait | The same idea. |
 | same | "Stay the same. Animals don't change." | grow or shrink, meaningful trait (the fourth option) | Groups and bodies stay fixed. |
@@ -107,12 +109,12 @@ At the next follow, "Since your last choice" shows the last fair test: in the ba
 | | "You thought it would stay the same. It shrank." |
 | (if the group is gone) | "… It died out." |
 | won't matter (neutral trait) | "You thought a lighter coat wouldn't matter. It didn't." |
-| yours / the others / about the same | "You thought yours would do better. Yours did." |
-| | "You thought the others would do better. Yours did." |
-| | "You thought they'd do about the same. The others did." |
+| with / without / about the same | "You thought the ones with it would do better." "The ones with it did better." |
+| | "You thought the ones without would do better." "The ones with it did better." |
+| | "You thought they'd do about the same." "The ones without did better." |
 | (if both are gone) | "… Both died out." |
 
-For the fair test the rows are both groups: "Yours (smaller eyes): 20 → 27" and "The others here: 20 → 19". The bigger one now did better. If they are equal: "They did the same."
+For the fair test the rows are both sides: "With smaller eyes: 14 → 20" and "Without: 14 → 11". The bigger one now did better. If they are equal: "They did about the same." Each sentence is its own line.
 
 After two of the misconceptions, one more line follows:
 

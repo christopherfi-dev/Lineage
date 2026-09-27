@@ -25,7 +25,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
-#hud, #hint, #card, #choice, #journal, #naming, #since, #ending .card, #home, #bloom, #mute, #zoom {
+#hud, #hint, #card, #choice, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here, #portrait, #average, #guide, #guide-button {
   background-color: #F7F0DF;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -277,6 +277,14 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #hud #others { display: flex; flex-direction: column; gap: 4px; max-width: 340px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #E6DAC0; color: #585A4A; }
 #hud #others[hidden] { display: none; }
 #hud #others span { display: inline-flex; align-items: center; }
+/* "Your family so far": the chosen traits as chips; a faded one greys out, its reason below (scope decision 59). */
+#hud #so-far { max-width: 340px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #E6DAC0; }
+#hud #so-far[hidden] { display: none; }
+#hud #so-far .so-far-title { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #9A8E70; }
+#hud #so-far .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+#hud #so-far .chip { padding: 3px 9px; border-radius: 99px; background: #14657F; color: #EFFAFD; font-size: 12.5px; font-weight: 700; }
+#hud #so-far .chip.faded { background: #E4DCCB; color: #8F866F; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+#hud #so-far .faded-line { margin: 4px 0 0; font-size: 12.5px; font-weight: 600; color: #7D745C; }
 @keyframes ffPulse { from { opacity: .7; } to { opacity: 1; } }
 
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #9A8E70; }
@@ -324,34 +332,34 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
 
 /* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
-#journal, #naming {
+#journal, #naming, #guess {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
   border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
   transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
   max-height: 74%; overflow-y: auto;
 }
-#journal.open, #naming.open { transform: none; }
-#journal[hidden], #naming[hidden] { display: none; }
-#journal .grab, #naming .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
-#journal h2, #naming h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
-#journal-options, #naming-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
-#journal .answer, #naming .answer {
+#journal.open, #naming.open, #guess.open { transform: none; }
+#journal[hidden], #naming[hidden], #guess[hidden] { display: none; }
+#journal .grab, #naming .grab, #guess .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#journal h2, #naming h2, #guess h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
+#journal-options, #naming-options, #guess-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
+#journal .answer, #naming .answer, #guess .answer {
   position: relative; display: flex; align-items: center; border-radius: 20px; background: #FBF7EC;
   box-shadow: 0 0 0 2px #E6DAC0, 0 4px 12px rgba(60, 44, 20, .08);
   transition: box-shadow .3s ease, background .3s ease, opacity .4s ease, transform .2s ease;
 }
-#journal .answer .pick, #naming .answer .pick {
+#journal .answer .pick, #naming .answer .pick, #guess .answer .pick {
   flex: 1; min-height: 64px; padding: 12px 8px 12px 18px; border: 0; background: none; color: #2A2B22; cursor: pointer;
   font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.25; text-align: left; text-wrap: pretty;
 }
-#journal .answer > .say, #naming .answer > .say { margin: 0 8px 0 0; }
-#journal .answer:active, #naming .answer:active { transform: scale(.98); }
-#journal .answer.picked, #naming .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
-#journal .answer.not-picked, #naming .answer.not-picked { opacity: .38; }
-#journal .timer, #naming .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#journal .timer i, #naming .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
-#journal-note, #naming-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
+#journal .answer > .say, #naming .answer > .say, #guess .answer > .say { margin: 0 8px 0 0; }
+#journal .answer:active, #naming .answer:active, #guess .answer:active { transform: scale(.98); }
+#journal .answer.picked, #naming .answer.picked, #guess .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
+#journal .answer.not-picked, #naming .answer.not-picked, #guess .answer.not-picked { opacity: .38; }
+#journal .timer, #naming .timer, #guess .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
+#journal .timer i, #naming .timer i, #guess .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
+#journal-note, #naming-note, #guess-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
 /* The three names: bigger, like name plates. */
 #naming-options { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 #naming .answer .pick { min-height: 72px; font-size: 23px; font-weight: 600; text-align: center; letter-spacing: -.2px; }
@@ -627,7 +635,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 @keyframes dangerIn { 0% { opacity: 0; transform: translateY(8px); } 60% { opacity: 1; transform: translateY(-2px); } 100% { transform: none; } }
 
 /* ---- Touch: two fingers zoom the map (main.js), never the page, so the panels keep their size. ---- */
-#card, #choice, #since, #journal, #naming, #ending .card { touch-action: pan-y; }
+#card, #choice, #since, #journal, #naming, #guess, #average, #guide, #ending .card { touch-action: pan-y; }
 
 /* ---- A short or narrow screen (a phone): the generation panel is a slim bar, and a tap opens it whole. ---- */
 #hud .mini { display: none; }
@@ -647,7 +655,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #hud:not(.open) .bar { flex: 0 0 72px; margin: 0; }
   #hud:not(.open) .mini:not([hidden]) { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; color: #14657F; }
   #hud .mini .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 3px rgba(20, 101, 127, .15); }
-  #hud:not(.open) .line, #hud:not(.open) #others { display: none; }
+  #hud:not(.open) .line, #hud:not(.open) #others, #hud:not(.open) #so-far { display: none; }
   /* a small fold: down on the bar (there is more), up on the open panel */
   #hud::after {
     content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: -4px 0 0 -2px;
@@ -690,3 +698,176 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #logbar { padding: 60px calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left)); }
   #log { font-size: 22px; }
 }
+
+/* ---- See, guess, explain (scope decision 60): the journal's page; after a guess, why, and Next. ---- */
+#guess-note:empty { display: none; }
+#guess-note { font-style: normal; font-size: 22px; line-height: 1.25; color: #2A2B22; }
+#guess-note.right { color: #14657F; }
+#guess .answer.right-answer { box-shadow: 0 0 0 3px #3E8E5B, 0 0 22px rgba(62, 142, 91, .3); opacity: 1; }
+#guess-next { display: block; min-width: 160px; min-height: 48px; margin: 14px 0 0 auto; padding: 10px 26px; border: 0; border-radius: 999px;
+  background: #14657F; color: #EFFAFD; font: 700 17px Karla, system-ui, sans-serif; box-shadow: 0 4px 14px rgba(20, 101, 127, .3); cursor: pointer; }
+#guess-next[hidden] { display: none; }
+
+/* ---- Helping here / Hurting here (scope decision 60): a small note under the generation panel. ---- */
+#why-here {
+  position: absolute; left: calc(16px + env(safe-area-inset-left)); z-index: 3;
+  max-width: 340px; padding: 6px 8px 6px 14px; border-radius: 14px;
+  box-shadow: 0 3px 14px rgba(60, 44, 20, .16), inset 0 0 0 1px rgba(255, 255, 255, .6);
+  font-size: 13.5px; font-weight: 600; color: #4A4C3E; transition: opacity .6s ease;
+}
+#why-here[hidden] { display: none; }
+#stage.arriving #why-here, #stage.panel-up #why-here { opacity: 0; pointer-events: none; }
+#why-here p { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; }
+#why-here .help::before, #why-here .hurt::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin-right: 2px; border-radius: 50%; }
+#why-here .help::before { background: #3E8E5B; }
+#why-here .hurt::before { background: #C8643A; }
+#why-here .text { flex: 1 1 auto; }
+@media (max-height: 599px), (max-width: 599px) { #why-here { max-width: calc(100% - 120px); font-size: 12.5px; padding: 3px 6px 3px 12px; } }
+
+/* ---- Naming: two more ways, typing a name or using your own (scope decision 61). ---- */
+#naming-more { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+#naming-more .more { display: flex; align-items: center; border-radius: 999px; background: #FBF7EC; box-shadow: 0 0 0 2px #E6DAC0; }
+#naming-more .more button { min-height: 48px; padding: 8px 6px 8px 20px; border: 0; background: none; color: #14657F; font: 700 17px Karla, system-ui, sans-serif; cursor: pointer; }
+#naming-more .more > .say { margin-right: 6px; }
+#naming.typing #naming-options, #naming.typing #naming-more { display: none; }
+#naming.typing { top: calc(12px + env(safe-area-inset-top)); bottom: auto; border-radius: 0 0 30px 30px; }
+#naming-typing[hidden] { display: none; }
+#naming-prompt { display: flex; align-items: center; margin: 14px 0 8px; font-family: Petrona, Georgia, serif; font-size: 22px; color: #2A2B22; }
+#naming-typing .typing-row { display: flex; gap: 10px; }
+#naming-input { flex: 1; min-width: 0; min-height: 56px; padding: 8px 18px; border: 0; border-radius: 16px; background: #FBF7EC;
+  box-shadow: 0 0 0 2px #E6DAC0; font: 600 26px Petrona, Georgia, serif; color: #2A2B22; }
+#naming-input:focus { outline: none; box-shadow: 0 0 0 3px #14657F; }
+#naming-ok { min-width: 96px; min-height: 56px; border: 0; border-radius: 16px; background: #14657F; color: #EFFAFD; font: 700 19px Karla, system-ui, sans-serif; cursor: pointer; }
+#naming-back { min-height: 44px; margin-top: 10px; padding: 8px 16px; border: 0; border-radius: 999px; background: none; color: #7D745C; font: 700 16px Karla, system-ui, sans-serif; cursor: pointer; }
+
+/* ---- A living portrait of your animals, on average (scope decision 61): under the zoom buttons. ---- */
+#portrait {
+  position: absolute; right: calc(16px + env(safe-area-inset-right)); top: calc(196px + env(safe-area-inset-top)); z-index: 4;
+  width: 92px; height: 74px; padding: 5px; border: 0; border-radius: 18px; cursor: pointer;
+  box-shadow: 0 4px 18px rgba(60, 44, 20, .2), inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+#portrait[hidden] { display: none; }
+#portrait canvas { display: block; width: 100%; height: 100%; border-radius: 13px; }
+#stage.arriving #portrait, #stage.panel-up #portrait { opacity: 0; pointer-events: none; }
+@media (max-height: 599px) { #portrait { top: auto; bottom: calc(env(safe-area-inset-bottom) + 30%); width: 76px; height: 60px; } }
+
+/* ---- "Your animals, on average": a sheet like the others, with the family tree strip. ---- */
+#average {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 31; max-height: 86%; overflow-y: auto;
+  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
+  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
+  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
+}
+#average.open { transform: none; }
+#average[hidden] { display: none; }
+#average .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#average .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#average h2 { display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 30px; font-weight: 600; color: #2A2B22; }
+#average-close { flex: 0 0 auto; width: 48px; height: 48px; border: 0; border-radius: 50%; background: #EFE6D2; color: #585A4A; font-size: 28px; cursor: pointer; }
+#average .cols { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 18px; align-items: start; margin-top: 12px; }
+#average-animal { width: 100%; aspect-ratio: 10 / 7; border-radius: 18px; box-shadow: 0 0 0 2px #E6DAC0; }
+#average-traits .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid #EDE3CC; font-size: 16px; color: #4A4C3E; }
+#average-traits .row .k { flex: 0 0 96px; font-weight: 700; color: #7D745C; }
+#average-traits .row .v { flex: 1; }
+#average-traits .row.changed .v { color: #14657F; font-weight: 700; }
+#average h3, #ending h3.tree-title { display: flex; align-items: center; margin: 18px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9A8E70; }
+@media (max-height: 599px), (max-width: 599px) { #average .cols { grid-template-columns: 1fr; } #average-animal { max-width: 280px; } }
+
+/* The family tree strip: great-grandmother to this baby, each drawn from its real body. */
+.tree { display: flex; align-items: flex-end; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.tree .who { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; }
+.tree .who canvas { width: 104px; height: 76px; border-radius: 14px; box-shadow: 0 0 0 2px #E6DAC0; }
+.tree .who.first canvas { box-shadow: 0 0 0 3px #D9892B; }
+.tree .who.baby canvas { box-shadow: 0 0 0 3px #14657F; }
+.tree .who span { font-size: 13px; font-weight: 700; line-height: 1.2; text-align: center; color: #585A4A; }
+.tree .step { flex: 0 0 auto; align-self: center; margin-bottom: 22px; font-size: 20px; color: #B7AA8A; }
+
+/* ---- The ending in four short steps (scope decision 62). ---- */
+#ending .card { max-width: 900px; }
+#ending .step[hidden] { display: none; }
+#ending .eyebrow { display: flex; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #9A8E70; }
+#ending .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+#ending .pair figure { margin: 0; }
+#ending .pair canvas { display: block; width: 100%; height: 200px; border-radius: 20px;
+  box-shadow: 0 0 0 1px #E3D6B8, 0 0 0 6px #F7F0DF, 0 0 0 7px #E8DCC0, 0 10px 24px rgba(60, 44, 20, .16); }
+#ending .pair figcaption { display: flex; align-items: center; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #3E4436; }
+#ending-animal { height: 200px; animation: none; }
+#ending-result { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+#ending-result .count { font-family: Petrona, Georgia, serif; font-size: 20px; }
+#ending-result .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#ending-result .chip { padding: 4px 11px; border-radius: 99px; background: #14657F; color: #EFFAFD; font-size: 14px; font-weight: 700; }
+#ending-result .chip.faded { background: #E4DCCB; color: #8F866F; text-decoration: line-through; }
+#ending-result .chips-title { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9A8E70; margin-right: 4px; }
+/* Your idea: a sentence to build, each part a large picker. */
+#idea-builder { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 8px; margin-top: 16px; font-family: Petrona, Georgia, serif; font-size: 24px; line-height: 1.5; color: #2A2B22; }
+#idea-builder select { min-height: 52px; padding: 6px 34px 6px 14px; border: 0; border-radius: 14px; appearance: none; -webkit-appearance: none; cursor: pointer;
+  background: #FBF7EC url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2314657F' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
+  box-shadow: 0 0 0 2px #14657F; font: 600 22px Petrona, Georgia, serif; color: #14657F; }
+#idea-builder select.empty { box-shadow: 0 0 0 2px #D9A441; color: #9A6A1B; }
+#idea-said { display: flex; align-items: center; margin: 14px 0 0; font-size: 15px; color: #7D745C; }
+#idea-said[hidden] { display: none; }
+#idea-or { display: block; margin-top: 18px; font-size: 13px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9A8E70; }
+#idea-or .say { vertical-align: middle; }
+#idea-own { display: block; width: 100%; margin-top: 8px; padding: 12px 16px; border: 0; border-radius: 16px; resize: none; background: #FBF7EC;
+  box-shadow: 0 0 0 2px #E6DAC0; font: 500 20px Petrona, Georgia, serif; color: #2A2B22; }
+#idea-own:focus { outline: none; box-shadow: 0 0 0 3px #14657F; }
+#idea-note:empty { display: none; }
+#idea-note { display: flex; align-items: center; margin: 8px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; font-style: italic; color: #9A6A1B; }
+#idea-done { display: block; min-height: 56px; margin: 16px 0 0 auto; padding: 12px 28px; border: 0; border-radius: 999px; background: #14657F; color: #F4FBFD;
+  font: 700 18px Karla, system-ui, sans-serif; cursor: pointer; box-shadow: 0 8px 20px rgba(20, 80, 100, .25); }
+#idea-done:disabled { background: #D8CFBC; color: #8F866F; box-shadow: none; cursor: default; }
+/* Check my idea. */
+#idea-mine { display: flex; align-items: center; margin: 6px 0 0; padding: 14px 18px; border-radius: 18px; background: #EFE5CE; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #3E4436; }
+#idea-check { margin-top: 14px; }
+#idea-check p { display: flex; align-items: center; margin: 0 0 6px; font-family: Petrona, Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.25; color: #2A2B22; }
+#idea-check.right p:first-child { color: #2F7A4B; }
+#ending .buttons [hidden] { display: none; }
+#ending .buttons #ending-next { flex: 0 1 260px; margin-left: auto; }
+#ending .extras { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+#ending .extras button { min-height: 48px; padding: 10px 20px; border: 0; border-radius: 999px; background: #FBF7EC; color: #14657F; font: 700 16px Karla, system-ui, sans-serif;
+  box-shadow: inset 0 0 0 2px #14657F; cursor: pointer; }
+#ending .extras a { display: inline-flex; align-items: center; min-height: 48px; padding: 0 12px; color: #7D745C; font: 600 15px Karla, system-ui, sans-serif; }
+#ending.show .card, #ending.show .step:not([hidden]) { animation: rise .6s cubic-bezier(.2, .9, .28, 1) both; }
+@media (max-height: 599px), (max-width: 599px) {
+  #ending .pair canvas { height: 130px; }
+  #ending h2 { font-size: 28px; }
+  #idea-builder { font-size: 19px; }
+  #idea-builder select { min-height: 46px; font-size: 18px; }
+}
+
+/* ---- The Field Guide: a book button on the map, and its page of 21 discoveries (scope decision 62). ---- */
+#guide-button {
+  position: absolute; right: calc(16px + env(safe-area-inset-right)); top: calc(282px + env(safe-area-inset-top)); z-index: 4;
+  width: 52px; height: 52px; padding: 0; border: 0; border-radius: 50%; color: #14657F; cursor: pointer;
+  box-shadow: 0 4px 18px rgba(60, 44, 20, .2), inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+#guide-button svg { width: 26px; height: 26px; }
+#guide-button[hidden] { display: none; }
+#stage.arriving #guide-button, #stage.panel-up #guide-button { opacity: 0; pointer-events: none; }
+@media (max-height: 599px) { #guide-button { top: auto; bottom: calc(env(safe-area-inset-bottom) + 30%); right: calc(104px + env(safe-area-inset-right)); } }
+#guide {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 88%; overflow-y: auto;
+  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
+  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
+  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
+}
+#guide.open { transform: none; }
+#guide[hidden] { display: none; }
+#guide .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#guide .head { display: flex; align-items: center; justify-content: space-between; }
+#guide h2 { display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 30px; font-weight: 600; color: #2A2B22; }
+#guide-close { width: 48px; height: 48px; border: 0; border-radius: 50%; background: #EFE6D2; color: #585A4A; font-size: 28px; cursor: pointer; }
+#guide-count { display: flex; align-items: center; margin: 6px 0 12px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #14657F; }
+#guide-grid { display: grid; grid-template-columns: 110px repeat(3, 1fr); gap: 6px; }
+#guide-grid .place { padding: 4px 8px; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #9A8E70; }
+#guide-grid .trait { display: flex; align-items: center; padding: 6px 8px; font-weight: 700; font-size: 14px; color: #585A4A; }
+#guide-grid .entry { display: flex; align-items: center; gap: 6px; min-height: 58px; padding: 6px 8px 6px 10px; border-radius: 14px; background: #FBF7EC; box-shadow: 0 0 0 1px #E6DAC0;
+  font-family: Petrona, Georgia, serif; font-size: 15px; line-height: 1.2; color: #2A2B22; }
+#guide-grid .entry .mark { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: Karla, system-ui, sans-serif; font-weight: 800; }
+#guide-grid .entry.helps .mark { background: #DCEFE2; color: #2F7A4B; }
+#guide-grid .entry.hurts .mark { background: #F6E0D6; color: #B0502C; }
+#guide-grid .entry.little .mark { background: #ECE6D6; color: #7D745C; }
+#guide-grid .entry .text { flex: 1; }
+#guide-grid .entry.unknown { background: #F1EBDD; box-shadow: none; color: #A69D86; font-style: italic; }
+#guide-grid .entry.unknown .mark { background: #E6DECB; color: #A69D86; }
+@media (max-width: 700px) { #guide-grid { grid-template-columns: 1fr; } #guide-grid .place { display: none; } #guide-grid .trait { padding-top: 12px; } }

@@ -277,7 +277,7 @@ export const NO_TIME = {
   name: "No time to change", zone: null, profile: {}, signature: {},
   reveal: "Your animals didn't have time to change.",
   revealPast: "Your animals didn't have time to change.",
-  why: [{ text: "Their story ended before new traits could spread.", credits: {} }],
+  why: [{ text: "Their story ended before new traits could be passed on.", credits: {} }],
   facts: [],
 };
 

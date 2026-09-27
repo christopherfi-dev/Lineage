@@ -2,8 +2,10 @@
  * Families are mother lines, computed here from the engine's birth records.
  *
  * Every baby belongs to exactly one family: its mother's. The engine has no
- * sexes, so the "mother" is always the first parent in the engine's birth
- * record. Each animal has one mother, so lines branch but never merge.
+ * sexes, and every pair has two babies, so each parent's family gets one of
+ * them: the first baby's "mother" is the first parent in the engine's birth
+ * record, the second baby's the second (scope decision 58; before, both went
+ * to the first). Each animal has one mother, so lines branch but never merge.
  *
  * Generation-0 founders have no mothers. Each habitat's founders start as
  * founding families of about a dozen, and a founding family is the top of its
@@ -12,6 +14,12 @@
 
 /** How many generations back through the line a tap reaches (measured; see the scope doc). */
 export const FAMILY_DEPTH = 3;
+/**
+ * A tap follows a family of at least this many living animals, going further
+ * up the line when it must (scope decision 59): later in a world, the line
+ * FAMILY_DEPTH generations up often has only a few left. A founding family's size.
+ */
+export const FAMILY_MIN = 13;
 
 const FOUNDING_SIZE = 13;
 const KEEP_GENERATIONS = 200;
@@ -63,6 +71,34 @@ export class Families {
       a = m;
     }
     return a;
+  }
+
+  /**
+   * How many living animals each line has: for every animal (and founding
+   * family) above or among the living, itself and everyone below it alive now.
+   * @param {number[]} livingIds
+   * @returns {Map<number|string, number>}
+   */
+  lineCounts(livingIds) {
+    const n = new Map();
+    for (const id of livingIds) for (let a = id; a !== undefined; a = this.mother.get(a)) n.set(a, (n.get(a) ?? 0) + 1);
+    return n;
+  }
+
+  /**
+   * The top of the family a tap on `id` follows (scope decision 59): the
+   * ancestor FAMILY_DEPTH generations back, or further up the line until it
+   * has FAMILY_MIN living animals, or the top of the line.
+   * @param {Map<number|string, number>} counts lineCounts of the living
+   */
+  top(id, counts) {
+    let r = this.ancestor(id);
+    while ((counts.get(r) ?? 0) < FAMILY_MIN) {
+      const m = this.mother.get(r);
+      if (m === undefined) break;
+      r = m;
+    }
+    return r;
   }
 
   /** True when `id`'s mother line passes through `root` (an animal is in its own line). */

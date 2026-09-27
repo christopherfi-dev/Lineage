@@ -1,17 +1,21 @@
 /**
- * Fair-test cohorts (scope decisions 32–33 and 36–37). DOM-free.
+ * Fair tests inside the family (scope decisions 32–33, 36–37 and 59). DOM-free.
  *
- * A newborn in the child's group with a new variation glows. Following it
- * makes two groups of the same size in the newborn's habitat: the animals
- * that carry the variation, the newborn first and then the nearest, and a
- * twin for each of them that doesn't carry it, "the others here". The size is
- * the smaller side, at most MAX_SIZE; a test needs at least MIN_SIZE. Both
- * groups then change the same way, by babies whose mother is in the group and
- * by deaths, so plain counts compare fairly. Observer state only: nothing
- * here touches the biology.
+ * A newborn in the child's family with a new variation glows. Following it
+ * starts a fair test in the place where most of the family lives: the
+ * family's animals there with the variation against the family's animals
+ * there without it. Each of yours gets a twin without it of the same age and
+ * about as well suited to the place in every other trait (fitness there from
+ * its other traits, within TWIN_FIT), then the one spending about as much
+ * time there. So the variation is the only real difference between the sides.
+ * Only when the family has too few pairs for MIN_SIZE, animals from nearby
+ * fill in, those sharing the family's earlier chosen traits first. A test has
+ * at most MAX_SIZE pairs. Both groups then change the same way, by babies
+ * whose mother is in the group and by deaths, so plain counts compare fairly.
+ * Observer state only: nothing here touches the biology.
  */
 
-import { TRAIT_INDEX } from "./engine.js";
+import { TRAIT_INDEX, PLACE_EFFECTS, placeFitness } from "./engine.js";
 import { APART, TRAIT_WORDS, carries, isNeutral, variationWords, variationsOf } from "./variations.js";
 
 /** A fair test's two groups start with at most this many animals each. */
@@ -24,6 +28,8 @@ export const GLOW_MAX = 3;
 export const GLOW_GENERATIONS = 2;
 /** At most this many options on the backup choice panel. */
 export const PUSH_OPTIONS = 3;
+/** Twins are this close in fitness from their other traits, in the place of the test (as measured in Part 1). */
+export const TWIN_FIT = 0.05;
 
 /**
  * A variation fixed as a threshold (the replacement rule's, "rule B"): the
@@ -60,83 +66,98 @@ export function newbornVariation(bridge, id, form) {
   return carries(ind.bodyGenome, v) ? v : null;
 }
 
+/** The place where most of these animals live (engine zone index). */
+export function placeOf(animals) {
+  const n = [0, 0, 0];
+  for (const a of animals) n[a.zone]++;
+  return n.indexOf(Math.max(...n));
+}
+
+/** How well suited an animal is to a place in every trait but this one. */
+export const fitnessBut = (genome, t, zone) => placeFitness(genome)[zone] - genome[t] * PLACE_EFFECTS[t][zone];
+
+/** A fixed shuffle of ids, for picking between equals without favouring old or young ones. */
+const hashed = (id) => {
+  let h = Math.imul(id ^ 0x5bd1e995, 0x85ebca6b);
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+};
+
 /**
- * The two sides of a variation in one habitat: every living animal there that
- * carries it, and every one that doesn't.
- * @returns {{carriers:number[], others:number[]}}
+ * The fair test on a variation, as it would start now (scope decision 59).
+ * @param {import("./bridge.js").Bridge} bridge
+ * @param {Variation} v
+ * @param {object} o
+ * @param {number} o.zone where most of the family lives
+ * @param {Set<number>} o.family the family's living animals
+ * @param {number} o.anchor the animal the test starts from (the tapped newborn)
+ * @param {Variation[]} [o.chosen] the family's earlier chosen variations: nearby animals sharing them fill in first
+ * @param {(id:number)=>null|{x:number,y:number}} [o.homeOf] where each animal's spot is (herd.js)
+ * @param {number} [o.min] @param {number} [o.max]
+ * @returns {{mine:number[], theirs:number[], fromFamily:number, fromNearby:number, carriers:number}} twins at the same
+ *   index; how many of yours are the family's and how many came from nearby; the family's carriers in the place
  */
-export function sidesIn(bridge, v, zone) {
-  const carriers = [], others = [];
+export function formFamilyTest(bridge, v, { zone, family, anchor, chosen = [], homeOf = () => null, min = MIN_SIZE, max = MAX_SIZE }) {
+  const here = [];
   for (const ind of bridge.living) {
     if (bridge.zoneOf(ind.id) !== zone) continue;
-    (carries(ind.bodyGenome, v) ? carriers : others).push(ind.id);
+    here.push({ id: ind.id, genome: ind.bodyGenome, age: ind.ageGenerations, time: ind.timeAllocation[zone], fam: family.has(ind.id) });
   }
-  return { carriers, others };
-}
-
-/** A fair test's size: the smaller side, at most MAX_SIZE. Both groups start with exactly this many. */
-export const testSize = (sides, max = MAX_SIZE) => Math.min(sides.carriers.length, sides.others.length, max);
-
-/** A fair test can start when both sides have at least MIN_SIZE animals. */
-export const canStart = (sides, min = MIN_SIZE, max = MAX_SIZE) => testSize(sides, max) >= min;
-
-/**
- * The two groups of a fair test, `size` each. Yours: the anchor, then the
- * carriers nearest it. The others here: for each of yours in turn, the
- * nearest non-carrier not already taken, its twin, so the two groups stand
- * side by side on the map. "Nearest" is measured between the animals' home
- * spots on the map (herd.js), which are placed the same way in the game and
- * in a measurement.
- * @param {{carriers:number[], others:number[]}} sides
- * @param {number} anchor the animal the child tapped (a carrier)
- * @param {(id:number)=>null|{x:number,y:number}} homeOf
- * @param {number} size testSize(sides)
- */
-export function formCohorts(sides, anchor, homeOf, size) {
-  const far = (from, id) => {
-    const a = homeOf(from), b = a && homeOf(id);
-    return b ? Math.hypot(b.x - a.x, b.y - a.y) : Math.abs(id - from);
-  };
-  const nearest = (from, ids) => ids.map((id) => ({ id, d: far(from, id) })).sort((a, b) => a.d - b.d || a.id - b.id).map((x) => x.id);
-  const mine = [anchor, ...nearest(anchor, sides.carriers.filter((id) => id !== anchor))].slice(0, size);
-  const free = new Set(sides.others), theirs = [];
-  for (const m of mine) {
-    let twin = null, best = Infinity;
-    for (const id of free) {
-      const d = far(m, id);
-      if (d < best || (d === best && id < twin)) { best = d; twin = id; }
+  const fit = new Map(here.map((a) => [a.id, fitnessBut(a.genome, v.t, zone)]));
+  const at = homeOf(anchor);
+  const far = (a) => { const h = at && homeOf(a.id); return h ? Math.hypot(h.x - at.x, h.y - at.y) : Math.abs(a.id - anchor); };
+  const shares = (a) => chosen.filter((c) => carries(a.genome, c)).length;
+  const nearest = (list) => list.sort((a, b) => (b.id === anchor) - (a.id === anchor) || far(a) - far(b) || a.id - b.id);
+  const likeFamily = (list) => list.sort((a, b) => shares(b) - shares(a) || far(a) - far(b) || a.id - b.id);
+  const has = (a) => carries(a.genome, v);
+  const famCar = nearest(here.filter((a) => a.fam && has(a))), famNon = here.filter((a) => a.fam && !has(a));
+  const mine = [], theirs = [];
+  // Each of yours gets a twin: the same age, about as well suited here in every other trait, then about as much time here.
+  const pairUp = (carriers, pool, upTo) => {
+    const left = [];
+    for (const c of carriers) {
+      if (mine.length >= upTo) { left.push(c); continue; }
+      let best = null, bd = Infinity;
+      for (const o of pool) {
+        if (o.age !== c.age) continue;
+        const df = Math.abs(fit.get(o.id) - fit.get(c.id));
+        if (df > TWIN_FIT) continue;
+        const d = df + 0.5 * Math.abs(o.time - c.time);
+        if (d < bd || (d === bd && hashed(o.id) < hashed(best.id))) { bd = d; best = o; }
+      }
+      if (!best) { left.push(c); continue; }
+      pool.splice(pool.indexOf(best), 1);
+      mine.push(c.id); theirs.push(best.id);
     }
-    if (twin === null) break;
-    free.delete(twin);
-    theirs.push(twin);
+    return left;
+  };
+  const unpaired = pairUp(famCar, famNon, max);
+  const fromFamily = mine.length;
+  // Too few from the family: nearby animals fill in, up to MIN_SIZE, those sharing the family's earlier choices first.
+  if (mine.length < min) {
+    const nearCar = likeFamily(here.filter((a) => !a.fam && has(a))), nearNon = likeFamily(here.filter((a) => !a.fam && !has(a)));
+    pairUp([...unpaired, ...nearCar], [...famNon, ...nearNon], min);
   }
-  return { mine, theirs };
+  const inFamily = mine.filter((id) => family.has(id)).length;
+  return { mine, theirs, fromFamily: inFamily, fromNearby: mine.length - inFamily, carriers: famCar.length, paired: fromFamily };
 }
 
 /**
- * The variations a group has spread (at least three members carry one), each
- * with the habitat where it could start a fair test and the member who shows
- * it most there. For the backup choice panel.
- * @param {import("./bridge.js").Bridge} bridge
- * @param {Array<{id:number, genome:ArrayLike<number>, zone:number}>} members
- * @returns {Array<{v:Variation, id:number, zone:number, count:number}>}
+ * The variations the family's animals in its place have spread (at least
+ * three carry one), each with the carrier that shows it most. For the backup
+ * choice panel.
+ * @param {Array<{id:number, genome:ArrayLike<number>, zone:number}>} members the family's animals in its place
+ * @param {number} zone
+ * @returns {Array<{v:Variation, id:number, zone:number}>}
  */
-export function spreadVariations(bridge, members, min = MIN_SIZE, max = MAX_SIZE) {
-  const found = [];
-  for (const x of variationsOf(members)) {
+export function familyVariations(members, zone) {
+  return variationsOf(members).map((x) => {
     const v = variationFor(x.trait, x.dir, x.usual, x.usual.median + x.dir * APART);
-    // The habitat where most of the group's carriers live, if a test can start there.
-    const n = [0, 0, 0];
-    for (const m of x.carriers) n[m.zone]++;
-    const zone = n.indexOf(Math.max(...n));
-    const sides = sidesIn(bridge, v, zone);
-    if (!canStart(sides, min, max)) continue;
     const shows = (m) => (m.genome[x.t] - x.usual.median) * x.dir;
-    const best = x.carriers.filter((m) => m.zone === zone).sort((a, b) => shows(b) - shows(a))[0];
+    const best = x.carriers.slice().sort((a, b) => shows(b) - shows(a))[0];
     v.words = variationWords(x.trait, x.dir, best.genome[x.t], x.usual.level);
-    found.push({ v, id: best.id, zone, count: testSize(sides, max) });
-  }
-  return found;
+    return { v, id: best.id, zone };
+  });
 }
 
 /** Same variation: same trait, same way. */

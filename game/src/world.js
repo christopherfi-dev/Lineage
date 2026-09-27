@@ -24,6 +24,13 @@ export function mulberry(s) {
 export const BANDS = ["canopy", "floor", "shore"];
 /** Where the sand starts, just above the water, as a value of the terrain field (the waterline is at 1.12). */
 export const SAND = 0.975;
+/** Where one place meets the next on the map, as values of the terrain field: leaves | ground, ground | water's edge. */
+export const PLACE_EDGES = [0.42, 0.80];
+/** The places' names on the map (scope decision 63), in engine zone order, where along the world they stand and how far down each band. */
+export const PLACE_LABELS = ["High leaves", "Open ground", "Water's edge"];
+const PLACE_LABEL_X = [[0.13, 0.45, 0.8], [0.25, 0.6, 0.9], [0.1, 0.42, 0.74]];
+const PLACE_LABEL_T = [[0.3, 0.24], [0.61], [0.94, 0.9]];
+const PLACE_FONT = "italic 600 40px Petrona, Georgia, serif";
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -152,6 +159,38 @@ export class World {
     this.paintFloor(g); await nextFrame(); if (this.cancelled) return;
     this.paintShore(g); await nextFrame(); if (this.cancelled) return;
     this.paintGlaze(g);
+    // The places' names and borders are painted last, crisp over everything, in the page's own serif once it is ready.
+    try { await document.fonts?.load?.(PLACE_FONT); } catch { /* a fallback serif will do */ }
+    if (this.cancelled) return;
+    this.paintPlaces(g);
+  }
+
+  /**
+   * The three places, readable on the map (scope decision 63): a soft dashed
+   * border where one place meets the next (the terrain field's own zone
+   * edges, the same the animals' homes keep to), and each place's name
+   * several times along it, like a map. Visual only.
+   */
+  paintPlaces(g) {
+    const W = this.W;
+    g.save();
+    g.lineCap = "round"; g.lineJoin = "round";
+    for (const t of PLACE_EDGES) {
+      const path = new Path2D();
+      for (let x = -20; x <= W + 20; x += 16) { const y = this.yAt(clamp(x, 0, W), t); if (x === -20) path.moveTo(x, y); else path.lineTo(x, y); }
+      g.setLineDash([]); g.lineWidth = 9; g.strokeStyle = "rgba(34,30,18,0.16)"; g.stroke(path);
+      g.setLineDash([16, 12]); g.lineWidth = 3; g.strokeStyle = "rgba(255,246,220,0.78)"; g.stroke(path);
+    }
+    g.setLineDash([]);
+    g.font = PLACE_FONT; g.textAlign = "center"; g.textBaseline = "middle";
+    PLACE_LABELS.forEach((name, zone) => {
+      for (const [k, fx] of PLACE_LABEL_X[zone].entries()) {
+        const x = fx * W, y = this.yAt(x, PLACE_LABEL_T[zone][k % PLACE_LABEL_T[zone].length]);
+        g.lineWidth = 8; g.strokeStyle = "rgba(30,34,20,0.5)"; g.strokeText(name, x, y);
+        g.fillStyle = "rgba(255,248,226,0.94)"; g.fillText(name, x, y);
+      }
+    });
+    g.restore();
   }
 
   paintBase(g) {

@@ -9,7 +9,7 @@
  * with webbed feet at the water's edge: 14 then, 22 now."
  */
 
-import { TRAITS, MEANINGFUL_TRAIT_INDICES } from "./engine.js";
+import { TRAITS, MEANINGFUL_TRAIT_INDICES, PLACE_EFFECTS } from "./engine.js";
 import { levelOf } from "./variations.js";
 
 /** A clue whose count changed by fewer animals than this is weak: the next trait is tried. */
@@ -117,7 +117,43 @@ export function comparisonFor(group, living, then) {
   return best;
 }
 
+/** Animals in all three places, at least this many each: when the clue's "then" is counted. */
+export const CLUE_FROM = 10;
+
 /**
+ * The ending's clue, the same trait in different places (scope decision 60):
+ * one meaningful trait's animals at its far end ("webbed feet") in a place
+ * where it helps and in a place where it hurts, then (when all three places
+ * first had CLUE_FROM animals in the story) and now. "Webbed feet at the
+ * water's edge: 3 → 25. Webbed feet in the high leaves: 2 → 0." The pair whose
+ * counts went most differently, where the helping place has more now; a trait
+ * the family chose comes first when its pair changed by MIN_CHANGE or more.
+ * @param {number[][][]} then census(...) then @param {number[][][]} now census(...) now
+ * @param {number[]} [chosen] the traits the family chose
+ * @returns {null|SameTrait}
+ */
+export function sameTraitClue(then, now, chosen = []) {
+  let best = null, bestChosen = null;
+  for (const t of MEANINGFUL_TRAIT_INDICES) {
+    for (const a of [0, 1, 2]) for (const b of [0, 1, 2]) {
+      if (PLACE_EFFECTS[t][a] <= 0 || PLACE_EFFECTS[t][b] >= 0) continue;
+      const helps = { zone: a, then: then[t][2][a], now: now[t][2][a] }, hurts = { zone: b, then: then[t][2][b], now: now[t][2][b] };
+      if (helps.now <= hurts.now) continue;
+      const clue = { trait: TRAITS[t], helps, hurts, differs: (helps.now - helps.then) - (hurts.now - hurts.then) };
+      if (!best || clue.differs > best.differs) best = clue;
+      if (chosen.includes(t) && clue.differs >= MIN_CHANGE && (!bestChosen || clue.differs > bestChosen.differs)) bestChosen = clue;
+    }
+  }
+  return bestChosen ?? (best && best.differs >= MIN_CHANGE ? best : null);
+}
+
+/**
+ * @typedef {Object} SameTrait
+ * @property {string} trait engine trait name
+ * @property {{zone:number, then:number, now:number}} helps the animals at its far end where it helps
+ * @property {{zone:number, then:number, now:number}} hurts and where it hurts
+ * @property {number} differs how differently the two counts changed
+ *
  * @typedef {Object} Comparison
  * @property {string} trait engine trait name
  * @property {number} zone the habitat compared
