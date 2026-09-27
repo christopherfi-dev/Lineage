@@ -22,13 +22,13 @@ import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 import { netEffect, PREDICT_AFTER } from "./journal.js";
-import { formCohorts, testSize } from "./cohorts.js";
+import { movedLine, movingLine } from "./narration.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
   "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
-  "no-test",
+  "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
 ];
 
 /**
@@ -67,6 +67,12 @@ const POLICIES = {
     const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone(x)) > 0 && s.canStartFor(x));
     return g ? { kind: "follow", id: g.id } : null;
   },
+  /** Like "active", but only a variation that hurts in its habitat: its fair test soon shows it. */
+  unwise: (s) => {
+    if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
+    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone(x)) < 0 && s.canStartFor(x));
+    return g ? { kind: "follow", id: g.id } : null;
+  },
   /** Follows nothing by itself. */
   passive: () => null,
   /**
@@ -81,13 +87,18 @@ const POLICIES = {
   },
 };
 
-/** How many of a fair test's animals are yours already, and how many join, if the child followed this glow now. */
-function joinCounts(s, b, g) {
-  const sides = s.sidesFor(g);
-  const { mine } = formCohorts(sides, s.anchorFor(g), s.homeOf, testSize(sides, s.maxSize));
-  const stay = mine.filter((id) => b.isFollowed(id)).length;
-  return { stay, come: mine.length - stay };
+/** How many of a fair test's animals with the variation are the family's, and how many fill in from nearby, if the child followed this glow now. */
+function joinCounts(s, g) {
+  const t = s.testFor(g);
+  return { stay: t.fromFamily, come: t.fromNearby };
 }
+
+/** A glowing baby the card explains instead of offering a follow, for this reason (story.js whyNot), just lit up. */
+const explained = (reason) => (s, ev, b, what) => {
+  if (what !== "day" || !s.followOpen || s.inDanger) return null;
+  const g = s.glowing.find((x) => s.whyNot(x) === reason && x.since === s.watchT);
+  return g ? { id: g.id } : null;
+};
 
 /** Mid-story, with a group big enough to see: the plain generation's test, and the places' too. */
 const midStory = (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.generation >= 20 && ev.group.count >= 10;
@@ -106,8 +117,9 @@ const MOMENT = {
   /** A glowing newborn whose variation can start a fair test: its card is opened. */
   follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x) && s.canStartFor(x)); return g ? { id: g.id } : null; } },
   /**
-   * A follow's gather-in (playtest): some of the new group are yours already and more join, and no prediction
-   * comes first. "3 from your family and 17 others with bigger eyes join you."
+   * A follow's gather-in (playtest, scope decision 59): the family's animals with the trait light up and a few from
+   * nearby walk in, and no prediction comes first. "12 of your family and 2 nearby have bigger eyes." A world with no
+   * such follow falls back to one with the family's animals only.
    */
   joining: {
     families: FROM_OTHERS,
@@ -116,8 +128,13 @@ const MOMENT = {
       if (what !== "day" || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
       const g = followable(s);
       if (!g) return null;
-      const n = joinCounts(s, b, g);
-      return n.stay >= 2 && n.come >= 5 && { id: g.id, ...n };
+      const n = joinCounts(s, g);
+      return n.stay >= 5 && n.come >= 2 && { id: g.id, ...n };
+    },
+    relaxed: (s, ev, b, what) => {
+      if (what !== "day" || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
+      const g = followable(s);
+      return g ? { id: g.id, ...joinCounts(s, g) } : null;
     },
   },
   /** A glowing baby, and the camera turned away from it: an arrow at the screen's edge points to it (playtest). */
@@ -148,7 +165,7 @@ const MOMENT = {
     families: FROM_OTHERS,
     policies: ["tapper"],
     at: (s, ev, b, what) => what === "spread-danger" &&
-      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice(), size: s.mine.now },
+      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice(), size: s.family.now },
   },
   /**
    * The child's group is at DANGER_SIZE or fewer and a baby glows: its card says "Your group needs you. Stay with
@@ -160,23 +177,24 @@ const MOMENT = {
     at: (s, ev, b, what) => {
       if (what !== "day" || !s.followOpen || !s.inDanger) return null;
       const g = s.glowing.find((x) => s.followable(x)) ?? s.glowing[0];
-      return g ? { id: g.id, size: s.mine.now } : null;
+      return g ? { id: g.id, size: s.family.now } : null;
     },
   },
   /** Both groups of a fair test, five generations after the follow (the fast-forward and three more), both still 10 or more. */
   fairtest: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 5 && s.mine.now >= 10 && s.theirs.now >= 10 },
-  /** One of the others here, three generations or more after a follow: its card sums up its group beside yours (playtest). */
+  /** An animal of another family in your family's place, three generations or more after a follow: its card sums up its family beside yours (playtest). */
   "other-card": {
     families: FROM_OTHERS,
     policies: ["active", "passive"],
     at: (s, ev, b, what) => {
-      if (what !== null || s.phase !== "watch" || !s.fair || ev.generation - s.fair.generation < 3 || s.mine.now < 8 || s.theirs.now < 8) return null;
-      return { id: Math.max(...b.otherIds()) };
+      if (what !== null || s.phase !== "watch" || !s.fair || ev.generation - s.fair.generation < 3) return null;
+      const near = b.livingIds().filter((id) => !b.isFollowed(id) && b.zoneOf(id) === s.place);
+      return near.length ? { id: Math.max(...near) } : null;
     },
   },
-  /** The group clearly bigger than last generation, after a follow (so it is not the families' first burst). */
+  /** The family clearly bigger than last generation, after a follow (so it is not the families' first burst). */
   grow: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.group.count - ev.group.before >= 4 && ev.group.count >= 1.2 * ev.group.before },
-  /** The group clearly smaller than last generation, but not gone. */
+  /** The family clearly smaller than last generation, but not gone. */
   shrink: { families: FROM_WEBBED, policies: ["passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
   /** The backup choice panel, with two or three options. */
   choice: { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "choice" && s.options.length >= 2 },
@@ -190,7 +208,12 @@ const MOMENT = {
   ground: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 1 } },
   /** A surviving ending whose reveal names a real animal (not the first mammals). */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
-  /** An ending where the group died out after a follow: it leads with the fair test (scope decision 37). */
+  /**
+   * An ending where the family died out after a follow: it leads with the fair test (scope decision 37). A family's
+   * fate doesn't depend on what the child follows, and no founding family of seed 13 dies out: the moments page
+   * opens this one and "another-family" in seed 6, whose third family dies out at generation 29, and "in-trouble" in
+   * seed 72, where four families have no future when its third family dies out at generation 34.
+   */
   extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
   /**
    * A glowing baby whose new trait doesn't help or hurt where the test would be (scope decision 58): its card
@@ -205,7 +228,42 @@ const MOMENT = {
       return g ? { id: g.id } : null;
     },
   },
-  /** A member of your group with a new trait, for its creature card. */
+  /**
+   * A glowing baby living away from the family's place (scope decision 59): its card says so, "This baby lives in
+   * the high leaves, away from your family.", with only "Keep looking".
+   */
+  away: { families: FROM_OTHERS, policies: ["passive", "active"], at: explained("away") },
+  /** A glowing baby with the way back from a direction the family took (scope decision 59): "Your family already chose sleeker bodies." */
+  back: { families: FROM_OTHERS, policies: ["wise", "active"], at: explained("back") },
+  /**
+   * A fair test showed the way the family went hurting, and a baby with the way back glows: its card offers it with
+   * the reason (scope decision 59), "Chunkier bodies are doing better up here. Go back?"
+   */
+  "go-back": {
+    families: FROM_OTHERS,
+    policies: ["unwise"],
+    at: (s, ev, b, what) => {
+      if (what !== "day" || !s.followOpen || s.inDanger) return null;
+      const g = s.glowing.find((x) => s.followable(x) && s.goesBack(x) && x.since === s.watchT);
+      return g ? { id: g.id } : null;
+    },
+  },
+  /** A real move of the family, told as it happens (scope decision 59): "Some of your animals are moving to the water's edge." */
+  moving: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.moved && { zone: s.moved.zone, main: s.moved.main } },
+  /** "Your family so far" with two or more chosen traits, one of them faded (scope decision 59). */
+  "so-far": {
+    families: FROM_OTHERS,
+    policies: ["active", "unwise"],
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
+  },
+  /**
+   * The family died out before the story's last generation, and the child taps "Try another family": the same
+   * world as it is now, the camera on a family with a future (scope decision 59).
+   */
+  "another-family": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
+  /** Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try another!" */
+  "in-trouble": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
+  /** A member of your family with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
     policies: ["passive"],
@@ -443,8 +501,14 @@ export async function goToMoment(game, moment) {
     // The world fast-forwards, the counter rising; the camera stays where the child tapped the newborn.
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y); else lookAtGroup(G);
-  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "danger" || moment === "fairtest") {
+  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "danger" || moment === "fairtest" ||
+    moment === "moving" || moment === "so-far") {
     lookAtGroup(G);
+    if (moment === "moving") {
+      // The move's line comes first, so it is the one on screen (the family's size follows it).
+      const line = (plan.hit.main ? movedLine : movingLine)(plan.hit.zone, G.story.name);
+      G.logQueue = [line, ...G.logQueue.filter((l) => l !== line)];
+    }
   } else if (moment === "other-card") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
@@ -464,7 +528,19 @@ export async function goToMoment(game, moment) {
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
-  } else if (moment === "card" || moment === "blocked" || moment === "no-test") {
+  } else if (moment === "another-family" || moment === "in-trouble") {
+    // The ending, then "Try another family": the world as it is now, and a family with a future to tap.
+    G.endingAt = null;
+    G.showEnding();
+    await new Promise((resolve) => { G.anotherFamily(); setTimeout(resolve, 120); });
+    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+    if (moment === "in-trouble") {
+      const doomed = G.bridge.livingIds().find((id) => !G.hasFuture(id));
+      const a = doomed === undefined ? null : G.herd.animals.get(doomed);
+      if (a) { lookAt(G, a.x, a.y); G.tapFamily(a); plan.hit = { id: a.id }; }
+      else plan.hit = { none: "every family has a future" };
+    }
+  } else if (moment === "card" || moment === "blocked" || moment === "no-test" || moment === "away" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);

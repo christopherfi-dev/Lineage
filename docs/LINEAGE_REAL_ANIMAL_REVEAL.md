@@ -198,7 +198,7 @@ The first mammals (tree shrew), for a surviving group only
 No time to change, for a group that died out (scope decision 41)
 - Profile: no animal above qualifies. A group that died out never gets the first mammals.
 - Reveal: "Your animals didn't have time to change."
-- Why: "Their story ended before new traits could spread."
+- Why: "Their story ended before new traits could be passed on."
 - No fact: it names no animal.
 
 ## Died-out endings (scope decisions 40 and 41)
@@ -358,7 +358,7 @@ Every animal as a child sees it on the ending: its reveal line, its "why" senten
 
 **No time to change** · any habitat, a group that died out and matches no animal
 - Your animals didn't have time to change.
-- Their story ended before new traits could spread.
+- Their story ended before new traits could be passed on.
 - (No fact: it names no animal.)
 
 ## Check results (Claude Code, 2026-09-24, scope decisions 45 and 46)

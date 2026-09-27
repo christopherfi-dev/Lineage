@@ -61,8 +61,16 @@ const GROW_MS = 900;   // a newborn grows in
 const BABY_MS = 7000;  // and stays a little smaller for a while, beside its mother
 const FADE_MS = 1500;  // a death fades softly, a little light rising from it
 
-/** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then breathes. */
+/** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then pulses gently. */
 const BLOOM_MS = 3400;
+/** A glow's gentle pulse, once every this many ms, with a small sparkle above the baby (scope decision 59). */
+const PULSE_MS = 2400;
+/**
+ * With more of your animals than this in view, they are drawn cheaply (scope
+ * decision 59): one shared outline for all of them, and no glow under each;
+ * glowing babies keep theirs.
+ */
+export const CHEAP_ABOVE = 36;
 
 /** Zoomed out, an animal this small on screen (its body unit, in pixels) skips details too fine to see there. */
 const FINE_PX = 5.5;
@@ -141,6 +149,10 @@ export class Herd {
     this.mood = 0;
     /** how big the map is drawn (main.js): zoomed out, small animals skip details too fine to see */
     this.zoom = 1;
+    /** how many of your animals were in view at the last frame, and whether they were drawn cheaply */
+    this.drawn = { mine: 0, cheap: false };
+    /** more of your animals in view than this are drawn cheaply (CHEAP_ABOVE; a measurement may turn it off) */
+    this.cheapAbove = CHEAP_ABOVE;
   }
 
   /** @param {{lo:number, hi:number, wader:boolean}} hb where it lives (homeBand) */
@@ -474,8 +486,13 @@ export class Herd {
       if (age < baby) return 0.7 + 0.3 * (age - c.growMs) / (baby - c.growMs);
       return 1;
     };
+    // Many of your animals in view: they are drawn cheaply, with one shared outline and no glow under each.
+    let mineInView = 0;
+    for (const c of vis) if (c.diedAt === null && this.followed.has(c.id)) mineInView++;
+    const cheap = mineInView > this.cheapAbove, outline = cheap && minePass ? new Path2D() : null;
+    if (minePass) this.drawn = { mine: mineInView, cheap };
     // Under your animals: a soft warm glow, a little stronger at night and when the group grows.
-    if (minePass && this.following) {
+    if (minePass && this.following && !cheap) {
       const sprite = glowSprite(), r = sprite.width / 2;
       const k = (0.8 + 0.9 * L.night) * (1 + 0.35 * Math.max(0, this.mood) - 0.3 * Math.max(0, -this.mood));
       for (const c of vis) {
@@ -485,9 +502,10 @@ export class Herd {
       }
       x.globalAlpha = 1;
     }
+    // A fair test's rings (your family's animals get theirs as they are drawn, over the light).
     if (worldPass) for (const c of vis) {
       const colors = marksOf(c);
-      if (!colors) continue;
+      if (!colors || style(c) === "mine") continue;
       const life = c.diedAt !== null ? lifeOf(c) : 1, rx = 13;
       colors.forEach((col, k) => {
         x.beginPath(); x.ellipse(c.x, c.y + 1, rx + 5 * k, (rx + 5 * k) * 0.38, 0, 0, TAU);
@@ -510,7 +528,12 @@ export class Herd {
         if (!this.glowSince.has(c.id)) this.glowSince.set(c.id, now);
         glowAt = this.glowSince.get(c.id);
       }
-      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom);
+      drawCreature(x, c, st, dying ? 0.9 + 0.1 * life : life, marksOf(c)?.[0], now, L, dying ? life : 1, glowAt, this.zoom, outline);
+    }
+    if (outline) {
+      x.globalAlpha = 0.5; x.strokeStyle = "#08333F"; x.lineWidth = 0.9;
+      x.stroke(outline);
+      x.globalAlpha = 1;
     }
     // A follow's gather-in: yours light up first, then the newcomers come in with a softer light.
     if (minePass) for (const c of vis) {
@@ -570,41 +593,49 @@ function sparkle(x, cx, cy, s) {
 
 /**
  * A new trait on the map. A bloom: a ring of light opens around the newborn with
- * a few sparkles drifting up, then settles into a slow breathing ring for the
- * rest of the day. A quiet mark: a small speck of light above the back.
+ * a few sparkles drifting up, then settles into a bright ring that pulses
+ * gently, with a small sparkle twinkling above the baby, so a glowing baby is
+ * easy to spot among many (scope decision 59).
  */
 function drawMark(x, c, u, midY, now, night, glowAt) {
-  {
-    const t = (now - glowAt) / BLOOM_MS;
-    const open = 1 - Math.pow(1 - clamp(t, 0, 1), 3);
-    const breathe = (Math.sin(now * 0.0024 + c.id) + 1) / 2;
-    const rad = u * (0.9 + 1.2 * open) + (t >= 1 ? breathe * u * 0.1 : 0);
-    const g = bloomSprite(), R = rad * 2.2;
-    x.globalAlpha = t < 1 ? 0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.2)) * 0.8 + 0.2 * open : 0.32 + 0.14 * breathe;
-    x.drawImage(g, c.x - R, midY - R, 2 * R, 2 * R);
-    x.strokeStyle = night > 0.5 ? "#FFF0C8" : "#FFE2A2";
-    x.lineWidth = 2.2;
-    x.globalAlpha = t < 1 ? 0.95 - 0.4 * open : 0.42 + 0.14 * breathe;
-    x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
-    if (t < 1) {
-      x.lineWidth = 1.2; x.globalAlpha = 0.5 * (1 - open);
-      x.beginPath(); x.ellipse(c.x, midY, rad * 1.3, rad * 1.2, 0, 0, TAU); x.stroke();
+  const t = (now - glowAt) / BLOOM_MS;
+  const open = 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  const pulse = (Math.sin((now / PULSE_MS) * TAU + c.id) + 1) / 2;
+  const settled = t >= 1 ? pulse : 0;
+  const rad = u * (0.9 + 1.4 * open) + settled * u * 0.28;
+  const g = bloomSprite(), R = rad * 2.5;
+  x.globalAlpha = t < 1 ? 0.3 + 0.7 * Math.sin(Math.PI * Math.min(1, t * 1.2)) * 0.8 + 0.25 * open : 0.55 + 0.3 * pulse;
+  x.drawImage(g, c.x - R, midY - R, 2 * R, 2 * R);
+  x.strokeStyle = night > 0.5 ? "#FFF0C8" : "#FFE2A2";
+  x.lineWidth = 2.8;
+  x.globalAlpha = t < 1 ? 0.95 - 0.25 * open : 0.72 + 0.23 * pulse;
+  x.beginPath(); x.ellipse(c.x, midY, rad, rad * 0.92, 0, 0, TAU); x.stroke();
+  // A second, fainter ring: while it opens, and as the pulse swells.
+  x.lineWidth = 1.4; x.globalAlpha = t < 1 ? 0.5 * (1 - open) : 0.35 * pulse;
+  x.beginPath(); x.ellipse(c.x, midY, rad * 1.28, rad * 1.18, 0, 0, TAU); x.stroke();
+  x.fillStyle = "#FFF4D6";
+  // A few sparkles drift up and fade.
+  if (t < 1.9) {
+    for (let k = 0; k < 5; k++) {
+      const tk = t * 0.75 - k * 0.07;
+      if (tk <= 0 || tk >= 1) continue;
+      const a = (k / 5) * TAU + c.id * 0.7, r0 = rad * (0.55 + 0.1 * k);
+      const sx = c.x + Math.cos(a) * r0 + Math.sin(now * 0.002 + k) * u * 0.15;
+      const sy = midY + Math.sin(a) * r0 * 0.6 - tk * u * 2.4;
+      x.globalAlpha = Math.sin(Math.PI * tk) * 0.9;
+      sparkle(x, sx, sy, u * (0.16 + 0.06 * (k % 2)));
     }
-    // A few sparkles drift up and fade.
-    if (t < 1.9) {
-      x.fillStyle = "#FFF4D6";
-      for (let k = 0; k < 5; k++) {
-        const tk = t * 0.75 - k * 0.07;
-        if (tk <= 0 || tk >= 1) continue;
-        const a = (k / 5) * TAU + c.id * 0.7, r0 = rad * (0.55 + 0.1 * k);
-        const sx = c.x + Math.cos(a) * r0 + Math.sin(now * 0.002 + k) * u * 0.15;
-        const sy = midY + Math.sin(a) * r0 * 0.6 - tk * u * 2.4;
-        x.globalAlpha = Math.sin(Math.PI * tk) * 0.9;
-        sparkle(x, sx, sy, u * (0.16 + 0.06 * (k % 2)));
-      }
-    }
-    x.globalAlpha = 1;
   }
+  // A small sparkle above the baby, twinkling with the pulse.
+  const sy = midY - u * (2.5 + 0.18 * pulse), ss = u * (0.3 + 0.12 * pulse) * Math.min(1, open * 1.4);
+  if (ss > 0) {
+    const sp = speckSprite();
+    x.globalAlpha = 0.65 + 0.35 * pulse;
+    x.drawImage(sp, c.x - ss * 2.2, sy - ss * 2.2, ss * 4.4, ss * 4.4);
+    x.globalAlpha = 0.9 + 0.1 * pulse;
+    sparkle(x, c.x, sy, ss);
+  }
+  x.globalAlpha = 1;
 }
 
 /** Mix a #rrggbb colour toward white (k > 0) or black (k < 0). */
@@ -626,8 +657,10 @@ function shade(hex, k) {
  * @param {number} alpha 1, or less while a death fades
  * @param {null|number} [glowAt] when this newborn began to glow (a new variation you can follow), else null
  * @param {number} [zoom] how big the map is drawn: zoomed out, a small animal skips its fur, rim light, eyes and webbing
+ * @param {null|Path2D} [outline] many of your animals in view: each one's outline joins this shared one, stroked once,
+ *   and its rim light and the light on its back are left out
  */
-function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1) {
+function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1, outline = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
   const other = style === "other" && !!color;
@@ -654,11 +687,13 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   x.globalAlpha = A((mine ? 0.28 : 0.15) * (1 - 0.6 * L.night));
   x.fillStyle = "#2E2616";
   x.beginPath(); x.ellipse(c.x + u * (0.1 + 0.75 * lean), c.y + u * 0.06, u * 1.05 * stretch, u * 0.28, 0, 0, TAU); x.fill();
-  /* your animals: a light ring on the ground, the non-colour sign of your group */
+  /* your animals: a light ring on the ground, the non-colour sign of your family; in a fair test, its side's colour */
   if (mine) {
-    x.globalAlpha = A(0.6 * Math.min(1, scale + 0.2));
-    x.strokeStyle = L.night > 0.5 ? "#D6F0F6" : "#FFF3D6"; x.lineWidth = 1.5;
-    x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU); x.stroke();
+    x.beginPath(); x.ellipse(c.x, c.y + 1, u * 1.3, u * 0.42, 0, 0, TAU);
+    if (color) { x.globalAlpha = A(0.3); x.fillStyle = color; x.fill(); }
+    x.globalAlpha = A((color ? 0.95 : 0.6) * Math.min(1, scale + 0.2));
+    x.strokeStyle = color ?? (L.night > 0.5 ? "#D6F0F6" : "#FFF3D6"); x.lineWidth = color ? 2.4 : 1.5;
+    x.stroke();
   }
 
   x.save();
@@ -731,15 +766,17 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   if (fine && shag > 0.05) {
     x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
+    x.beginPath(); // ten tufts, one stroke
     for (let k = 0; k < 10; k++) {
       const a = k / 10 * TAU;
       const px = Math.cos(a) * bRX, py = bodyY + Math.sin(a) * bRY;
-      x.beginPath(); x.moveTo(px * 0.82, bodyY + (py - bodyY) * 0.82); x.lineTo(px * 1.22, bodyY + (py - bodyY) * 1.34); x.stroke();
+      x.moveTo(px * 0.82, bodyY + (py - bodyY) * 0.82); x.lineTo(px * 1.22, bodyY + (py - bodyY) * 1.34);
     }
+    x.stroke();
   }
 
   /* the rim of light is on the sun's side, whichever way the animal faces */
-  if (fine) {
+  if (fine && !(mine && outline)) {
     x.save();
     x.translate(-(L.sun || -0.8) * (mine ? 1.3 : 0.9) * dir, -1.0);
     x.fillStyle = rim; x.globalAlpha = A(mine ? 1 : 0.5);
@@ -748,7 +785,8 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   }
   x.globalAlpha = A(mine || other ? 1 : 0.82);
   x.fillStyle = body; x.fill(P);
-  if (mine) {
+  if (mine && outline) outline.addPath(P, new DOMMatrix([dir, 0, 0, 1, c.x, c.y]));
+  else if (mine) {
     x.strokeStyle = "#08333F"; x.globalAlpha = A(0.5); x.lineWidth = u * 0.07; x.stroke(P);
     /* a soft light on the back */
     x.globalAlpha = A(0.22 * (1 - L.night));

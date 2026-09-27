@@ -57,9 +57,9 @@ export const MAX_DIFFERENCES = 3;
 const BETTER = 1.1;
 
 /**
- * The family an animal belongs to since the latest follow: the mother line of
- * the ancestor FAMILY_DEPTH generations above its forebear who was born by
- * then. So "then" counts the same line when the follow happened.
+ * The family an animal belongs to since the latest follow: the family a tap on
+ * its forebear who was born by then would follow (families.js top). So "then"
+ * counts the same line when the follow happened.
  * @param {import("./bridge.js").Bridge} bridge
  * @param {{generation:number, living:number[]}} mark who was alive at the latest follow (story.js)
  * @param {number} id
@@ -73,7 +73,7 @@ export function familySince(bridge, mark, id) {
     if (born === undefined || born <= mark.generation || m === undefined) break;
     a = m;
   }
-  const root = fam.ancestor(a);
+  const root = fam.top(a, fam.lineCounts(bridge.livingIds()));
   const ids = [...fam.members(root, bridge.livingIds())];
   return { then: fam.members(root, mark.living).size, now: ids.length, ids };
 }

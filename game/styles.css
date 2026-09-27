@@ -277,6 +277,14 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #hud #others { display: flex; flex-direction: column; gap: 4px; max-width: 340px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #E6DAC0; color: #585A4A; }
 #hud #others[hidden] { display: none; }
 #hud #others span { display: inline-flex; align-items: center; }
+/* "Your family so far": the chosen traits as chips; a faded one greys out, its reason below (scope decision 59). */
+#hud #so-far { max-width: 340px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #E6DAC0; }
+#hud #so-far[hidden] { display: none; }
+#hud #so-far .so-far-title { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #9A8E70; }
+#hud #so-far .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+#hud #so-far .chip { padding: 3px 9px; border-radius: 99px; background: #14657F; color: #EFFAFD; font-size: 12.5px; font-weight: 700; }
+#hud #so-far .chip.faded { background: #E4DCCB; color: #8F866F; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+#hud #so-far .faded-line { margin: 4px 0 0; font-size: 12.5px; font-weight: 600; color: #7D745C; }
 @keyframes ffPulse { from { opacity: .7; } to { opacity: 1; } }
 
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #9A8E70; }
@@ -647,7 +655,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #hud:not(.open) .bar { flex: 0 0 72px; margin: 0; }
   #hud:not(.open) .mini:not([hidden]) { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; color: #14657F; }
   #hud .mini .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 3px rgba(20, 101, 127, .15); }
-  #hud:not(.open) .line, #hud:not(.open) #others { display: none; }
+  #hud:not(.open) .line, #hud:not(.open) #others, #hud:not(.open) #so-far { display: none; }
   /* a small fold: down on the bar (there is more), up on the open panel */
   #hud::after {
     content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: -4px 0 0 -2px;
