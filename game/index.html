@@ -28,7 +28,7 @@
     <div class="line small" id="so-far" hidden></div>
   </div>
 
-  <!-- Helping here / Hurting here (scope decision 60): what your family has that helps or hurts where it lives. Always shown under the panel. -->
+  <!-- Helping here / Hurting here (scope decision 60): what your family has that helps or hurts where it lives, under the panel. "Hurting here" only when it names a trait (scope decision 64). -->
   <div id="why-here" hidden></div>
 
   <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
@@ -229,6 +229,12 @@
         <button id="ending-next" type="button">Next</button>
         <button id="again" type="button" hidden>Try another family in this world</button>
         <button id="new-world" type="button" hidden>New world</button>
+        <!-- "Try another family" with fewer than 25 generations of the story left in this world (scope decision 64). -->
+        <div id="nearly-over" hidden>
+          <p id="nearly-over-line"></p>
+          <button id="nearly-new" type="button">New world</button>
+          <button id="nearly-keep" type="button">Keep going anyway</button>
+        </div>
       </div>
     </div>
   </div>

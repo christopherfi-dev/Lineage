@@ -17,12 +17,13 @@ python3 -m http.server 8000      # from the repo root
 
 Plain ES modules, no build step. The world is the common-ancestor world: every founder starts
 on the open ground with the same ancestral body, and the high leaves and the water's edge start
-empty. `?seed=N` picks another trajectory (default 13). `?demo=webbed` is the teacher demo, M1's
+empty. `?seed=N` picks another trajectory (default 13). `?length=76` is the teacher's full-length
+story (a story is 50 generations by default; scope decision 64). `?demo=webbed` is the teacher demo, M1's
 defining experiment: the fixture with its webbing override, so the same webbed feet start in one
 canopy family and one shoreline family.
 
 **Curated worlds** (`src/seeds.js`). The game only shows a seed whose three habitats all still
-have living animals at generation 76, where every story that lasts ends. Before a world is
+have living animals at the story's length (generation 50, or `?length=`), where every story that lasts ends. Before a world is
 shown, the engine runs ahead in a throwaway copy of it (an observer run: the biology is
 unchanged, and the world you see starts again from generation 0 with the same seed). All of
 seeds 1–100 pass in the common-ancestor world (and 30 of 1–30 in the demo). A `?seed=` that fails is swapped for a good one, and "New world" only picks
@@ -38,7 +39,8 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `SKIP_GENERATIONS` | 2 | generations fast-forwarded after each follow |
 | `FAST_SECONDS` | 2 | real seconds per generation in a fast-forward |
 | `MAX_SIZE` | 20 | animals in each group of a fair test, at most |
-| `MIN_SIZE` | 10 | a fair test needs at least this many on each side |
+| `MIN_SIZE` | 10 | a fair test needs at least this many on each side; nearby animals fill in up to it |
+| `HARMFUL_MIN_SIZE` | 5 | a trait that hurts in the family's place may start its fair test with this many (scope decision 64) |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
 | `GLOW_GAP_SECONDS` | 4 | new glows start at least this far apart (seconds of watching) |
@@ -49,9 +51,11 @@ The rules are in `src/story.js` and `src/cohorts.js`, with every number at the t
 | `PUSH_SECONDS` | 120 | story time with no follow before the backup choice panel opens |
 | `CHOICE_SECONDS` | 20 | time to choose on that panel before one option is picked at random |
 | `STORY_CHOICES` | 15 | follows in a story, at most |
-| `STORY_GENERATIONS` | 76 | where every story that lasts ends |
+| `STORY_GENERATIONS` | 50 | where every story that lasts ends (scope decision 64; it was 76) |
+| `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
+| `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story that lasts takes about 19 minutes at most, less for each fast-forward.
+A story that lasts takes a median 12½ minutes (19 at `?length=76`), measured with a simulated child.
 
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
@@ -90,14 +94,15 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    with smaller eyes: 3… 7… 12…". The count changes in place each generation, and its speaker
    reads "3, 7, 12.".
    - At `MAX_SIZE` the fair test starts, with the adaptive size. After `SPREAD_MAX` generations
-     it starts with what there is, if both sides have `MIN_SIZE`.
+     it starts with what there is, if both sides have `MIN_SIZE` (`HARMFUL_MIN_SIZE` for a trait
+     that hurts there).
    - Otherwise: "It disappeared. Most new traits do." (none have it any more) or "It didn't spread
      far enough." The child keeps their group, and the try is not one of their follows.
    - When too few there are without it (most already have it), no spread can help: "Most here
      have it. Too few others for a fair test." With `MAX_SIZE` or more carrying it, this comes at
      once, with no fast-forward.
    - The child's group lives on meanwhile; if it dies out, the story ends as usual. The skipped
-     generations count toward the story's 76.
+     generations count toward the story's length.
    - **Danger** (scope decision 44): if the child's group falls to `DANGER_SIZE` or fewer during
      the spread, it stops at once, "Wait! Your group is getting very small." is said (read-aloud
      as usual), the camera goes to the group, and the world goes back to its usual pace. It is
@@ -119,7 +124,7 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
    a baby or a drag, the camera stays where the child put it until "Back to my group"; a follow
    still takes it to the new group.
 6. **Endings.** The story ends when no living animal fits the group ("Your story lasted N
-   generations.") or at generation 76 ("Your group survived 76 generations."). The
+   generations.") or at the story's length ("Your group survived 50 generations."). The
    reflection screen shows:
    - "Here's what your animals look like now." (or "looked like", if they died out): the group's
      actual average body at the end, drawn in its main habitat, with the reveal right under it;
@@ -146,8 +151,11 @@ A story that lasts takes about 19 minutes at most, less for each fast-forward.
      land animals that started swimming." (scope decision 46);
    - "Your last fair test": both groups of the last follow, from then to the end;
    - the choices made;
-   - "Try another family in this world" (same seed, generation 0) and "New world" (another good
-     seed), which stay pinned to the bottom of the card.
+   - "Try another family in this world" (this world as it is now; at the story's end, the same seed
+     from generation 0) and "New world" (another good seed), which stay pinned to the bottom of the
+     card. With fewer than `NEARLY_OVER` generations of the story left, "Try another family" first
+     asks "This world is nearly over. Start a new world?", with "New world" and a small "Keep going
+     anyway" (scope decision 64).
 7. **Neutral traits.** Coat shade, ear tips and tail tip have no effect on survival in the
    engine. They are offered like any other variation, and the card never says so (scope decision
    8). After the child follows one, the next "Since your last choice…" line and the ending add

@@ -44,7 +44,7 @@
 <body>
 <main>
   <h1>LINEAGE before and after</h1>
-  <p>Each moment of the live game: before Step 5 (<code>design/current/</code>, seed 6 of the old world) and after the next round (<code>design/after/</code>): the look, family names, sound, small screens and touch, the fixes from Marc's first real play, and now the next round (Parts 1–6): Classroom mode's common-ancestor world (seed 13), fair tests inside one family, reasons from the table, the family tree, the stepped ending, the Field Guide, and the places' names on the map. Since the world changed in Part 1, a "before" picture shows the same moment, not the same animals. <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after the next round. Tap a picture to see it full size.</p>
+  <p>Each moment of the live game: before Step 5 (<code>design/current/</code>, seed 6 of the old world) and after the next round (<code>design/after/</code>): the look, family names, sound, small screens and touch, the fixes from Marc's first real play, and now the next round (Parts 1–6): Classroom mode's common-ancestor world (seed 13), fair tests inside one family, reasons from the table, the family tree, the stepped ending, the Field Guide, and the places' names on the map. Since the world changed in Part 1, a "before" picture shows the same moment, not the same animals. The latest pictures also have the PR #26 decisions: a story of 50 generations, “Hurting here” only when it names a trait, and “This world is nearly over” when few generations are left. <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after the next round. Tap a picture to see it full size.</p>
   <div class="switch" role="group" aria-label="Screen">
     <button type="button" data-o="landscape" aria-pressed="true">Landscape</button>
     <button type="button" data-o="portrait" aria-pressed="false">Portrait</button>
@@ -63,7 +63,7 @@
     ["naming", "Naming the family", "Fresh names every story, and two more ways: type your own, or use my name.", false],
     ["type-name", "Type your own name", "New with the next round: letters only, up to 12, the sheet at the top.", false, R],
     ["my-name", "Use my name", "New with the next round: “Mia” makes the Miapaddle family.", false, R],
-    ["generation", "A generation", "Just before the next generation; “Helping here / Hurting here” under the panel."],
+    ["generation", "A generation", "Just before the next generation; “Helping here” under the panel (“Hurting here” only when it names a trait)."],
     ["generation-dawn", "The next generation, at dawn", "New with the look: a generation is one day.", false],
     ["reason", "A reason", "New with the next round: every change of size gets a reason from the table.", false, R],
     ["variation", "A variation", "A newborn glowing: bigger, brighter, pulsing, with a sparkle above."],
@@ -76,8 +76,8 @@
     ["edge-arrow", "An arrow to a baby", "A glowing baby off the screen, and arrows at the edge.", false, "the playtest fixes"],
     ["spreading", "Will it be passed on?", "The fast-forward counter: “… are being passed on. 3… 7… 12 have it now.”"],
     ["fizzled", "It wasn't passed on", "“It wasn't passed on. Most new traits aren't.”"],
-    ["danger", "Wait!", "The fast-forward stops: the family is very small."],
-    ["blocked", "Stay with them?", "A very small family: only “Keep looking”."],
+    ["danger", "Wait!", "The fast-forward stops: the family is very small. In the full-length story (?length=76): no family gets this small within 50 generations."],
+    ["blocked", "Stay with them?", "A very small family: only “Keep looking”. In seed 26."],
     ["fairtest", "A fair test", "With the trait (gold rings) and without (purple), both in your family."],
     ["why", "Why? (a fair test)", "New with the next round: guess why, from the trait's line in each place.", false, R],
     ["why-answer", "Why? (the answer)", "New with the next round: why, from the table; nothing marked wrong.", false, R],
@@ -103,7 +103,8 @@
     ["ending-reveal", "The ending: the reveal", "New with the next round: step 4, the real animal and the story card.", false, R],
     ["story-card", "The story card", "New with the next round: one picture to save or share.", false, R],
     ["extinct", "Died out", "Seed 6: the family died out at generation 29."],
-    ["another-family", "Try another family", "New with the next round, in seed 6: the same world as it is now.", false, R],
+    ["another-family", "Try another family", "New with the next round, now in seed 138 (a family dies out at generation 20): the same world as it is now.", false, R],
+    ["nearly-over", "This world is nearly over", "New with the PR #26 decisions, in seed 6: “Try another family” with fewer than 25 of the story's 50 generations left.", false, "the PR #26 decisions"],
     ["in-trouble", "In trouble already", "New with the next round, in seed 72: a family with no future.", false, R],
     ["card", "A creature card", "An animal with a new trait."],
   ];

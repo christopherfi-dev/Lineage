@@ -1,7 +1,7 @@
 /**
  * Curated worlds (scope decision 6). The game only shows a world whose three
- * habitats all still have living animals at STORY_GENERATIONS, the generation
- * every story that lasts ends at.
+ * habitats all still have living animals at the story's length (STORY_GENERATIONS,
+ * or the teacher's ?length=), the generation every story that lasts ends at.
  *
  * A seed is checked by running the engine ahead, in a copy of the world that
  * is then thrown away. That is an observer run: it only reads the engine, and
@@ -23,10 +23,11 @@ export const MAX_SEED = 999;
  * final generation.
  * @param {(seed:number)=>import("./bridge.js").Bridge} makeWorld
  * @param {number} seed
+ * @param {number} [length] the story's length (story.js storyLength)
  */
-export function isGoodSeed(makeWorld, seed) {
+export function isGoodSeed(makeWorld, seed, length = STORY_GENERATIONS) {
   const ahead = makeWorld(seed);
-  for (let g = 0; g < STORY_GENERATIONS; g++) if (!ahead.step()) return false;
+  for (let g = 0; g < length; g++) if (!ahead.step()) return false;
   return ahead.zoneCounts().every((n) => n > 0);
 }
 
@@ -36,11 +37,12 @@ export function isGoodSeed(makeWorld, seed) {
  * @param {(seed:number)=>import("./bridge.js").Bridge} makeWorld
  * @param {number|null} [not]
  * @param {()=>number} [rnd] never the engine's generator
+ * @param {number} [length] the story's length
  */
-export function goodSeed(makeWorld, not = null, rnd = Math.random) {
+export function goodSeed(makeWorld, not = null, rnd = Math.random, length = STORY_GENERATIONS) {
   for (let tries = 0; tries < 50; tries++) {
     const seed = 1 + Math.floor(rnd() * MAX_SEED);
-    if (seed !== not && isGoodSeed(makeWorld, seed)) return seed;
+    if (seed !== not && isGoodSeed(makeWorld, seed, length)) return seed;
   }
   return null;
 }

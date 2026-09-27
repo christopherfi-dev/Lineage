@@ -33,6 +33,7 @@ export const MOMENTS = [
   "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
   "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
+  "nearly-over",
 ];
 
 /**
@@ -164,7 +165,11 @@ const MOMENT = {
     relaxed: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" &&
       { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
   },
-  /** A spread stopped because the child's group fell to DANGER_SIZE or fewer: "Wait! Your group is getting very small." */
+  /**
+   * A spread stopped because the child's group fell to DANGER_SIZE or fewer: "Wait! Your group is getting very small."
+   * Families rarely get that small now: no founding family of seeds 1–100 does within a 50-generation story, so the
+   * moments page opens this one in seed 13's full-length story (?length=76), at generation 69 (scope decision 64).
+   */
   danger: {
     families: FROM_OTHERS,
     policies: ["tapper"],
@@ -173,7 +178,8 @@ const MOMENT = {
   },
   /**
    * The child's group is at DANGER_SIZE or fewer and a baby glows: its card says "Your group needs you. Stay with
-   * them?" with only "Keep looking", whatever its trait (a meaningful one when there is one).
+   * them?" with only "Keep looking", whatever its trait (a meaningful one when there is one). Not within 50
+   * generations in seed 13: the moments page opens it in seed 26 (generation 33).
    */
   blocked: {
     families: FROM_WEBBED,
@@ -231,8 +237,10 @@ const MOMENT = {
   /**
    * An ending where the family died out after a follow: it leads with the fair test (scope decision 37). A family's
    * fate doesn't depend on what the child follows, and no founding family of seed 13 dies out: the moments page
-   * opens this one and "another-family" in seed 6, whose third family dies out at generation 29, and "in-trouble" in
-   * seed 72, where four families have no future when its third family dies out at generation 34.
+   * opens this one and "nearly-over" in seed 6, whose third family dies out at generation 29, "another-family" in
+   * seed 138, whose first family dies out at generation 20 (the only one of seeds 1–200 to die out with 25 or more
+   * generations of a 50-generation story left), and "in-trouble" in seed 72, where four families have no future when
+   * its third family dies out at generation 34.
    */
   extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
   /**
@@ -277,12 +285,20 @@ const MOMENT = {
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
   },
   /**
-   * The family died out before the story's last generation, and the child taps "Try another family": the same
-   * world as it is now, the camera on a family with a future (scope decision 59).
+   * The family died out with 25 or more generations of the story left, and the child taps "Try another family":
+   * the same world as it is now, the camera on a family with a future (scope decision 59).
    */
   "another-family": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
-  /** Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try another!" */
+  /**
+   * Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try
+   * another!" In seed 72 fewer than 25 generations are left, so the child has tapped "Keep going anyway".
+   */
   "in-trouble": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
+  /**
+   * The family died out with fewer than 25 generations of the story left, and the child, at the reveal, taps
+   * "Try another family": "This world is nearly over. Start a new world?" (scope decision 64).
+   */
+  "nearly-over": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
   /**
    * A change with its reason from the table (scope decision 60): the family grew or shrank, and the log says why,
    * "Webbed feet push through water." then "But long legs drag in the water.", with "Helping here / Hurting here" shown.
@@ -323,7 +339,7 @@ const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve
 function copyOf(game) {
   const bridge = game.makeWorld(game.seed), herd = new Herd(new World(), 7919);
   herd.placeFounders(bridge);
-  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null });
+  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null, length: game.storyLength });
   const step = () => { const ev = bridge.step(); if (ev) herd.applyGeneration(ev, bridge, 0); return ev; };
   return { bridge, story, step };
 }
@@ -590,7 +606,7 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card") {
+  } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();
     if (moment !== "ending" && moment !== "extinct") {
@@ -601,7 +617,9 @@ export async function goToMoment(game, moment) {
       if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
       G.ideaChanged();
       if (moment !== "ending-idea") G.answerIdea();
-      if (moment === "ending-reveal" || moment === "story-card") G.setEndingStep(3);
+      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.setEndingStep(3);
+      // At the reveal, "Try another family" with few generations left asks first.
+      if (moment === "nearly-over") G.anotherFamily();
       if (moment === "story-card") {
         const s = G.story, canvas = await storyCard(doc, {
           name: s.name, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
@@ -631,10 +649,11 @@ export async function goToMoment(game, moment) {
     lookAtGroup(G, 0.3);
     if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);
   } else if (moment === "another-family" || moment === "in-trouble") {
-    // The ending, then "Try another family": the world as it is now, and a family with a future to tap.
+    // The ending, then "Try another family" ("Keep going anyway" when few generations are left): the world as it is
+    // now, and a family with a future to tap.
     G.endingAt = null;
     G.showEnding();
-    await new Promise((resolve) => { G.anotherFamily(); setTimeout(resolve, 120); });
+    await new Promise((resolve) => { G.anotherFamily(moment === "in-trouble"); setTimeout(resolve, 120); });
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
     if (moment === "in-trouble") {
       const doomed = G.bridge.livingIds().find((id) => !G.hasFuture(id));

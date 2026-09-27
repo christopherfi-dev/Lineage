@@ -18,7 +18,7 @@ import { Sky, skyAt } from "./light.js";
 import { Herd, GROUP_COLORS } from "./herd.js";
 import { paintCreature } from "./creature.js";
 import {
-  Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS,
+  Story, GENERATION_SECONDS, FAST_SECONDS, CHOICE_SECONDS, SKIP_GENERATIONS, STORY_CHOICES, STORY_GENERATIONS, storyLength, nearlyOver,
   APPEAR_SPAN, appearFraction,
 } from "./story.js";
 import { familySince, better, differences, placeNow, timeSplit, misfit } from "./groups.js";
@@ -34,7 +34,7 @@ import {
   passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
   startLine, familyLabel, YOU_CHOSE, ZONE_AT, fairLater,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
-  awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, SO_FAR, chipWords, fadedLine,
+  awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { nothingToTest, explainGuess, variationEffect } from "./why.js";
@@ -129,10 +129,10 @@ export class Game {
   /**
    * @param {Document} doc
    * @param {Bridge} bridge the engine world to show, at generation 0
-   * @param {{seed:number, makeWorld:(seed:number)=>Bridge, demo?:boolean}} world how to make this world again, or
-   *   another; the teacher demo (?demo=webbed) lets any family be picked
+   * @param {{seed:number, makeWorld:(seed:number)=>Bridge, demo?:boolean, length?:number}} world how to make this world
+   *   again, or another; the teacher demo (?demo=webbed) lets any family be picked; the story's length (?length=)
    */
-  constructor(doc, bridge, { seed, makeWorld, demo = false }) {
+  constructor(doc, bridge, { seed, makeWorld, demo = false, length = STORY_GENERATIONS }) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.doc = doc;
     this.stage = $("stage");
@@ -286,6 +286,11 @@ export class Game {
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
+    // "This world is nearly over. Start a new world?" (scope decision 64)
+    this.nearlyEl = $("nearly-over");
+    this.nearlyNewEl = /** @type {HTMLButtonElement} */ ($("nearly-new"));
+    this.nearlyKeepEl = /** @type {HTMLButtonElement} */ ($("nearly-keep"));
+    this.speakable($("nearly-over-line")).set(NEARLY_OVER_LINE);
 
     this.world = new World();
     this.sky = new Sky(this.world, $("air"));
@@ -296,6 +301,8 @@ export class Game {
     this.seed = seed;
     this.makeWorld = makeWorld;
     this.demo = demo;
+    /** the generation every story in this page ends at, if its family lasts (?length=, scope decision 64) */
+    this.storyLength = length;
     this.cam = { x: 0, y: 0 };
     this.camTween = null;
     this.logQueue = [];
@@ -347,7 +354,7 @@ export class Game {
     const future = this.demo ? null : familiesWithAFuture(this.makeWorld, this.seed, bridge);
     this.future = future && future.size ? future : null;
     // Fair tests measure "nearest" between the animals' spots (herd.js), which never move.
-    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null });
+    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null, length: this.storyLength });
     this.clock = 0;
     this.choice = null;
     this.endingAt = null;
@@ -1288,6 +1295,7 @@ export class Game {
    */
   showEnding() {
     const s = this.story, doc = this.doc;
+    this.nearlyEl.hidden = true;
     this.closeCard(true);
     this.closeAverage();
     this.ideaAnswered = false;
@@ -1406,6 +1414,7 @@ export class Game {
     this.stepCountEl.textContent = `${k + 1} of 4`;
     this.endingNextEl.hidden = k === 1 || k === 3;
     this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
+    this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
     if (k === 3 && this.story.reveal) this.sound.revealChord(0.4);
   }
@@ -1572,19 +1581,36 @@ export class Game {
   /**
    * "Try another family" (scope decision 59): this world as it is now, and the
    * child taps a living family with a future. Only a story that reached the
-   * last generation starts the world again from generation 0.
+   * last generation starts the world again from generation 0. With fewer than
+   * NEARLY_OVER generations of the story left, it asks first (scope decision
+   * 64); "Keep going anyway" comes back here with `anyway`.
+   * @param {boolean} [anyway] @param {HTMLButtonElement} [btn] the button tapped, which says what is happening
    */
-  anotherFamily() {
-    if (this.bridge.generation >= STORY_GENERATIONS || this.bridge.extinct) { this.restart(this.seed); return; }
-    const label = this.againEl.textContent;
-    this.againEl.textContent = "Finding a family…";
-    this.newWorldEl.disabled = this.againEl.disabled = true;
+  anotherFamily(anyway = false, btn = this.againEl) {
+    if (this.bridge.generation >= this.storyLength || this.bridge.extinct) { this.restart(this.seed); return; }
+    if (!anyway && nearlyOver(this.bridge.generation, this.storyLength)) { this.askNearlyOver(); return; }
     // Let the button repaint before the observer run looks ahead.
-    setTimeout(() => {
-      this.againEl.textContent = label;
-      this.newWorldEl.disabled = this.againEl.disabled = false;
+    this.busy(btn, "Finding a family…", () => {
       this.endingEl.hidden = true;
       this.start(this.bridge, this.herd);
+    });
+  }
+
+  /** "This world is nearly over. Start a new world?", with "New world" and a small "Keep going anyway", in place of the ending's buttons. */
+  askNearlyOver() {
+    this.againEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
+    this.nearlyEl.hidden = false;
+  }
+
+  /** The tapped button says what is happening, and the ending's buttons wait, while the page repaints; then it happens. */
+  busy(btn, text, then) {
+    const label = btn.textContent, all = [this.againEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
+    btn.textContent = text;
+    for (const b of all) b.disabled = true;
+    setTimeout(() => {
+      btn.textContent = label;
+      for (const b of all) b.disabled = false;
+      then();
     }, 40);
   }
 
@@ -1600,17 +1626,9 @@ export class Game {
   }
 
   /** A new world: only a seed whose three habitats all last the whole story (seeds.js). */
-  newWorld() {
-    const label = this.newWorldEl.textContent;
-    this.newWorldEl.textContent = "Finding a new world…";
-    this.newWorldEl.disabled = this.againEl.disabled = true;
+  newWorld(btn = this.newWorldEl) {
     // Let the button repaint before the engine runs ahead.
-    setTimeout(() => {
-      const seed = goodSeed(this.makeWorld, this.seed) ?? this.seed;
-      this.newWorldEl.textContent = label;
-      this.newWorldEl.disabled = this.againEl.disabled = false;
-      this.restart(seed);
-    }, 40);
+    this.busy(btn, "Finding a new world…", () => this.restart(goodSeed(this.makeWorld, this.seed, Math.random, this.storyLength) ?? this.seed));
   }
 
   updateHud() {
@@ -1635,23 +1653,27 @@ export class Game {
 
   /**
    * "Helping here" and "Hurting here" (scope decision 60): what the family has
-   * that helps or hurts where it lives, under the generation panel, always shown
-   * while a family is followed. Each line with its speaker.
+   * that helps or hurts where it lives, under the generation panel while a
+   * family is followed. "Hurting here" shows only when it names a trait (scope
+   * decision 64). Each line with its speaker.
    * @param {null|{helping:import("./why.js").Reason[], hurting:import("./why.js").Reason[]}} r
    */
   showWhyHere(r) {
-    const lines = r ? [helpingLine(r.helping.slice(0, 3).map((x) => x.words)), hurtingLine(r.hurting.slice(0, 3).map((x) => x.words))] : [];
-    const key = lines.join("|");
+    const rows = !r ? [] : [
+      { kind: "help", text: helpingLine(r.helping.slice(0, 3).map((x) => x.words)) },
+      ...(r.hurting.length ? [{ kind: "hurt", text: hurtingLine(r.hurting.slice(0, 3).map((x) => x.words)) }] : []),
+    ];
+    const key = rows.map((x) => x.text).join("|");
     if (key !== this.whyKey) {
       this.whyKey = key;
-      this.whyHereEl.hidden = !lines.length;
-      this.whyHereEl.replaceChildren(...lines.map((text, i) => {
-        const p = Object.assign(this.doc.createElement("p"), { className: i ? "hurt" : "help" });
+      this.whyHereEl.hidden = !rows.length;
+      this.whyHereEl.replaceChildren(...rows.map(({ kind, text }) => {
+        const p = Object.assign(this.doc.createElement("p"), { className: kind });
         p.append(Object.assign(this.doc.createElement("span"), { className: "text", textContent: text }), speakerButton(this.doc, () => text));
         return p;
       }));
     }
-    if (lines.length) this.placeWhyHere();
+    if (rows.length) this.placeWhyHere();
   }
 
   /** The note sits just under the generation panel, whatever its size (a slim bar on a phone, or open). */
@@ -2534,6 +2556,8 @@ export class Game {
     this.muteEl.addEventListener("click", () => this.toggleSound());
     this.doc.addEventListener("visibilitychange", () => this.sound.setHidden(this.doc.hidden));
     this.newWorldEl.addEventListener("click", () => this.newWorld());
+    this.nearlyNewEl.addEventListener("click", () => this.newWorld(this.nearlyNewEl));
+    this.nearlyKeepEl.addEventListener("click", () => this.anotherFamily(true, this.nearlyKeepEl));
   }
   showHint() {
     this.hintGone = false;
@@ -2684,15 +2708,17 @@ if (typeof document !== "undefined") {
   const asked = Number.parseInt(q.get("seed") ?? "", 10);
   (q.get("demo") === "webbed" ? loadFixture() : Promise.resolve()).then(() => {
     let seed = Number.isFinite(asked) && asked > 0 ? asked : DEFAULT_SEED;
+    // The story's length: 50 generations, or the teacher's full-length story, ?length=76 (scope decision 64).
+    const length = storyLength(q.get("length"));
     // Only curated worlds: a seed that loses a habitat before the story's end is swapped for one that doesn't.
-    if (!isGoodSeed(makeWorld, seed)) {
-      const good = goodSeed(makeWorld, seed) ?? seed;
-      console.info(`[lineage] seed ${seed} loses a habitat by generation ${STORY_GENERATIONS}; showing seed ${good} instead`);
+    if (!isGoodSeed(makeWorld, seed, length)) {
+      const good = goodSeed(makeWorld, seed, Math.random, length) ?? seed;
+      console.info(`[lineage] seed ${seed} loses a habitat by generation ${length}; showing seed ${good} instead`);
       seed = good;
       q.set("seed", String(seed));
       history.replaceState(null, "", `?${q}`);
     }
-    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture }); // for poking at the live engine from the console
+    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture, length }); // for poking at the live engine from the console
     // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.
     const moment = q.get("moment");
     if (moment) import("./moments.js").then((m) => m.goToMoment(globalThis.lineageGame, moment));

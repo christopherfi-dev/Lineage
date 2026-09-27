@@ -174,6 +174,8 @@ export const movingLine = (zone, name = null) => `Some of ${your("animals", name
 export const movedLine = (zone, name = null) => `Most of ${your("animals", name)} live ${ZONE_AT[zone]} now.`;
 /** At the start, a tap on a family an observer run shows dying out within a few generations. */
 export const IN_TROUBLE = "This family is in trouble already. Try another!";
+/** "Try another family" with fewer than 25 generations of the story left in this world (scope decision 64). */
+export const NEARLY_OVER_LINE = "This world is nearly over. Start a new world?";
 
 /** "Helping here" and "Hurting here" (scope decision 60): what the family has that helps or hurts where it lives. */
 export function helpingLine(words) { return `Helping here: ${words.length ? words.join(", ") : "nothing yet"}.`; }

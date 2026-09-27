@@ -101,7 +101,7 @@ Everywhere the child's animals are named, once the family has its name. Before t
 | A prediction's answers | "Yours. They'll grow webbed feet because they need them." | "Your Mossfoot animals. They'll grow webbed feet because they need them." |
 | A prediction's answers | "Yours. A darker coat will help them." | "Your Mossfoot animals. A darker coat will help them." |
 | A prediction's result | "You thought yours would do better. Yours did." | "You thought your Mossfoot animals would do better. Your Mossfoot animals did." |
-| The ending title | "Your group survived 76 generations." | "Your Mossfoot group survived 76 generations." |
+| The ending title | "Your group survived 50 generations." | "Your Mossfoot group survived 50 generations." |
 | The ending title, died out | "Their story lasted 60 generations." | "Your Mossfoot story lasted 60 generations." (without a name: "Your story lasted 60 generations.") |
 | The ending | "Here's what your animals look like now." | "Here's what your Mossfoot animals look like now." |
 | The ending | "Here's what your animals looked like." | "Here's what your Mossfoot animals looked like." |

@@ -10,7 +10,8 @@
  * time there. So the variation is the only real difference between the sides.
  * Only when the family has too few pairs for MIN_SIZE, animals from nearby
  * fill in, those sharing the family's earlier chosen traits first. A test has
- * at most MAX_SIZE pairs. Both groups then change the same way, by babies
+ * at most MAX_SIZE pairs, and starts with at least MIN_SIZE (HARMFUL_MIN_SIZE
+ * for a trait that hurts there). Both groups then change the same way, by babies
  * whose mother is in the group and by deaths, so plain counts compare fairly.
  * Observer state only: nothing here touches the biology.
  */
@@ -20,8 +21,14 @@ import { APART, TRAIT_WORDS, carries, isNeutral, variationWords, variationsOf } 
 
 /** A fair test's two groups start with at most this many animals each. */
 export const MAX_SIZE = 20;
-/** A fair test needs at least this many animals on each side. */
+/** A fair test needs at least this many animals on each side; nearby animals fill in up to it. */
 export const MIN_SIZE = 10;
+/**
+ * A fair test on a trait that hurts in the family's place (✗ there) may start
+ * with this many (scope decision 64): a harmful trait is seldom passed on to
+ * MIN_SIZE carriers. Nearby animals still fill in up to MIN_SIZE when they can.
+ */
+export const HARMFUL_MIN_SIZE = 5;
 /** At most this many newborns glow at a time (the calm rule). */
 export const GLOW_MAX = 3;
 /** A newborn glows for the generation it is born in and the next one. */

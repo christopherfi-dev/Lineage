@@ -26,7 +26,8 @@
  * A variation too rare to start a test is fast-forwarded to see if it is
  * passed on (scope decision 42): once a full test can start, it does; after
  * SPREAD_MAX generations it starts with what there is, if that is at least
- * MIN_SIZE; otherwise the family goes on as it was, and the try is not one of
+ * MIN_SIZE (HARMFUL_MIN_SIZE for a trait that hurts there, scope decision 64);
+ * otherwise the family goes on as it was, and the try is not one of
  * the child's follows. If the family falls to DANGER_SIZE or fewer, that
  * fast-forward stops at once (scope decision 44), and nothing can be followed
  * until it is bigger again.
@@ -39,7 +40,9 @@
  *
  * If the child follows nothing for PUSH_SECONDS, a choice panel offers
  * variations that can start a test, as a backup. At most STORY_CHOICES
- * follows. The story ends at STORY_GENERATIONS, or when the family dies out.
+ * follows. The story ends at its length, STORY_GENERATIONS unless the
+ * teacher's ?length= asks for more (scope decision 64), or when the family
+ * dies out.
  *
  * Nothing here touches the biology. Following is observer state only.
  */
@@ -51,7 +54,7 @@ import { shortGroup, your } from "./narration.js";
 import { revealFor } from "./reveal.js";
 import { better } from "./groups.js";
 import {
-  GLOW_GENERATIONS, GLOW_MAX, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS,
+  GLOW_GENERATIONS, GLOW_MAX, HARMFUL_MIN_SIZE, MAX_SIZE, MIN_SIZE, PUSH_OPTIONS,
   familyVariations, formFamilyTest, newbornVariation, placeOf, sameVariation,
 } from "./cohorts.js";
 
@@ -65,8 +68,29 @@ export const SKIP_GENERATIONS = 2;
 export const CHOICE_SECONDS = 20;
 /** At most this many follows in a story. */
 export const STORY_CHOICES = 15;
-/** Every story that lasts ends at this generation. */
-export const STORY_GENERATIONS = 76;
+/** Every story that lasts ends at this generation of its world, by default (scope decision 64; it was 76). */
+export const STORY_GENERATIONS = 50;
+/** The full-length story, for the teacher: ?length=76 (scope decision 64). The longest a story can be. */
+export const FULL_STORY_GENERATIONS = 76;
+/**
+ * With fewer generations of the story's length than this left in the world,
+ * "Try another family" first asks "This world is nearly over. Start a new
+ * world?" (scope decision 64). Also the shortest a story can be asked to be.
+ */
+export const NEARLY_OVER = 25;
+
+/**
+ * The story's length from the page's ?length=: a whole number of generations
+ * from NEARLY_OVER to FULL_STORY_GENERATIONS, else STORY_GENERATIONS.
+ * @param {null|string|undefined} text
+ */
+export function storyLength(text) {
+  const n = /^\d+$/.test(String(text ?? "").trim()) ? Number(text) : NaN;
+  return n >= NEARLY_OVER && n <= FULL_STORY_GENERATIONS ? n : STORY_GENERATIONS;
+}
+
+/** Few generations of the story's length are left in the world now (scope decision 64). */
+export const nearlyOver = (generation, length) => length - generation < NEARLY_OVER;
 /** With no follow for this many seconds of story, the backup choice panel opens. */
 export const PUSH_SECONDS = 120;
 /** A variation too rare to start a fair test is fast-forwarded at most this many generations to see if it is passed on. */
@@ -115,16 +139,21 @@ export function appearFraction(id) {
 export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
-   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, minSize?:number, maxSize?:number, spreadMax?:number,
-   *   generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean}} [opts]
-   *   where each animal's home spot is (herd.js); the others only for measuring other values of MIN_SIZE,
-   *   MAX_SIZE, SPREAD_MAX, GENERATION_SECONDS and GLOW_GENERATIONS
+   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, length?:number, minSize?:number, harmfulMin?:number,
+   *   maxSize?:number, spreadMax?:number, generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean}} [opts]
+   *   where each animal's home spot is (herd.js); the generation the story ends at (storyLength); the others only
+   *   for measuring other values of MIN_SIZE, HARMFUL_MIN_SIZE, MAX_SIZE, SPREAD_MAX, GENERATION_SECONDS and
+   *   GLOW_GENERATIONS
    */
-  constructor(bridge, { homeOf = () => null, minSize = MIN_SIZE, maxSize = MAX_SIZE, spreadMax = SPREAD_MAX,
-    generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS, onePerVariation = true } = {}) {
+  constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, minSize = MIN_SIZE, harmfulMin = HARMFUL_MIN_SIZE,
+    maxSize = MAX_SIZE, spreadMax = SPREAD_MAX, generationSeconds = GENERATION_SECONDS, glowGenerations = GLOW_GENERATIONS,
+    onePerVariation = true } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
+    /** the generation of the world the story ends at, if the family lasts */
+    this.length = length;
     this.minSize = minSize;
+    this.harmfulMin = harmfulMin;
     this.maxSize = maxSize;
     this.spreadMax = spreadMax;
     this.generationSeconds = generationSeconds;
@@ -327,7 +356,7 @@ export class Story {
     this.noticeMoves(mainBefore);
     this.checkTest();
     this.updateChips();
-    if (ev.generation >= STORY_GENERATIONS) return this.end("survived", ev.generation);
+    if (ev.generation >= this.length) return this.end("survived", ev.generation);
     this.updateGlow(ev);
     if (this.phase === "spread") return this.spreadGeneration();
     if (this.phase === "skip") {
@@ -600,8 +629,14 @@ export class Story {
     return this.tests.get(key);
   }
 
-  /** A fair test can start now: MIN_SIZE pairs, the family's first and then from nearby. */
-  canStartFor(x) { return this.testFor(x).mine.length >= this.minSize; }
+  /**
+   * The pairs a fair test on this variation needs to start: MIN_SIZE, or
+   * HARMFUL_MIN_SIZE when its trait hurts in the family's place (scope decision 64).
+   */
+  minFor(x) { return variationEffect(x.v.t, x.v.dir, this.testZone()) < 0 ? this.harmfulMin : this.minSize; }
+
+  /** A fair test can start now: enough pairs (minFor), the family's first and then from nearby. */
+  canStartFor(x) { return this.testFor(x).mine.length >= this.minFor(x); }
 
   /** How big a fair test on this variation would be now: its pairs, at most MAX_SIZE. */
   sizeFor(x) { return this.testFor(x).mine.length; }
@@ -648,7 +683,7 @@ export class Story {
     const size = this.sizeFor(sp), generations = sp.counts.length - 1;
     if (size >= this.maxSize) return this.stopSpread("reached");
     if (n === 0) return this.stopSpread("gone");
-    if (generations >= this.spreadMax) return this.stopSpread(size >= this.minSize ? "enough" : n >= this.maxSize ? "common" : "short");
+    if (generations >= this.spreadMax) return this.stopSpread(size >= this.minFor(sp) ? "enough" : n >= this.maxSize ? "common" : "short");
     return "spreading";
   }
 
@@ -771,7 +806,7 @@ export class Story {
  * @property {number} generation when it started
  * @property {number[]} counts the family's carriers in its place at the start and after each generation
  * @property {null|"reached"|"enough"|"gone"|"short"|"common"|"moved"|"danger"|"ended"} outcome why it stopped: a full
- *   test can start, MIN_SIZE or more at SPREAD_MAX, none left, still too few at SPREAD_MAX, too few twins without it,
+ *   test can start, enough for a test (minFor) at SPREAD_MAX, none left, still too few at SPREAD_MAX, too few twins without it,
  *   the family's place changed, the family at DANGER_SIZE or fewer, or the story ended meanwhile
  *
  * @typedef {Object} Offer an option on the backup choice panel

@@ -464,7 +464,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   position: sticky; bottom: -28px; display: flex; flex-wrap: wrap; gap: 14px; margin: 22px -34px -28px; padding: 16px 34px 28px;
   background: linear-gradient(to bottom, rgba(247, 240, 223, 0), #F7F0DF 16px);
 }
-#ending .buttons button {
+#ending .buttons button:not(.say) {
   flex: 1 1 240px; min-height: 62px; padding: 16px 22px; border: 0; border-radius: 999px; cursor: pointer;
   background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700;
   box-shadow: 0 8px 20px rgba(20, 80, 100, .25);
@@ -823,6 +823,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #idea-check.right p:first-child { color: #2F7A4B; }
 #ending .buttons [hidden] { display: none; }
 #ending .buttons #ending-next { flex: 0 1 260px; margin-left: auto; }
+/* "This world is nearly over. Start a new world?" (scope decision 64): New world, and a small "Keep going anyway". */
+#nearly-over { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; animation: rise .5s ease both; }
+#nearly-over-line { flex: 1 1 100%; display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1.25; color: #2A2B22; }
+#ending .buttons #nearly-keep { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; background: none; box-shadow: none; color: #14657F;
+  font-size: 15px; text-decoration: underline; text-underline-offset: 3px; }
 #ending .extras { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
 #ending .extras button { min-height: 48px; padding: 10px 20px; border: 0; border-radius: 999px; background: #FBF7EC; color: #14657F; font: 700 16px Karla, system-ui, sans-serif;
   box-shadow: inset 0 0 0 2px #14657F; cursor: pointer; }
