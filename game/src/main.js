@@ -28,14 +28,15 @@ import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, chosenLines,
   skipDoneLines, lastPassed, madeIt, endingTitle, question, choicesHeading, choiceRecap, noChoices, neutralLines,
-  evidenceLine, countLine, SINCE_TITLE, comparisonLines, withLabel, WITHOUT, NEARBY_IN_TEST, fairHeading,
+  evidenceLine, countLine, SINCE_TITLE, withLabel, WITHOUT, NEARBY_IN_TEST, fairHeading,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
+  passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
-import { nothingToTest } from "./why.js";
+import { nothingToTest, explainGuess, variationEffect } from "./why.js";
 import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
@@ -61,6 +62,10 @@ const LOG_ROOM = 120;
 const PICKED_MS = 1200;
 /** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
 const ANSWERED_MS = 2000;
+/** Seconds to tap a guess (scope decision 60); like the other panels, the countdown waits while a line is read aloud. */
+const GUESS_SECONDS = 20;
+/** After a guess, why stays up this long (or until Next); it waits while a line is read aloud. */
+const EXPLAIN_SECONDS = 9;
 /** How long "Since your last choice" stays up, at most, before the new follow goes ahead. */
 const SINCE_SECONDS = 15;
 /** How long "Time's up!" shows before the fast-forward. */
@@ -160,6 +165,12 @@ export class Game {
     this.journalOptionsEl = $("journal-options");
     this.journalBarEl = $("journal-bar");
     this.journalNoteEl = $("journal-note");
+    this.guessEl = $("guess");
+    this.guessOptionsEl = $("guess-options");
+    this.guessNoteEl = $("guess-note");
+    this.guessNextEl = /** @type {HTMLButtonElement} */ ($("guess-next"));
+    this.guessBarEl = $("guess-bar");
+    this.whyHereEl = $("why-here");
     this.namingEl = $("naming");
     this.namingOptionsEl = $("naming-options");
     this.namingBarEl = $("naming-bar");
@@ -198,6 +209,7 @@ export class Game {
     this.cardNew = this.speakable(this.cardNewEl);
     this.journalQuestion = this.speakable($("journal-question"));
     this.namingQuestion = this.speakable($("naming-question"));
+    this.guessQuestion = this.speakable($("guess-question"));
     this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
     this.bloomEl = $("bloom");
@@ -251,6 +263,8 @@ export class Game {
     this.journal = null;
     /** @type {null|SinceState} "Since your last choice", on screen before a new follow */
     this.since = null;
+    /** @type {null|GuessState} a tap-to-guess question on screen (scope decision 60) */
+    this.guess = null;
     this.last = performance.now();
 
     this.setupCanvas();
@@ -320,6 +334,10 @@ export class Game {
     this.predictions = [];
     this.journalEl.classList.remove("open");
     this.journalEl.hidden = true;
+    this.guess = null;
+    this.guessEl.classList.remove("open");
+    this.guessEl.hidden = true;
+    this.whyKey = "";
     /** @type {null|NamingState} naming the family, right after the first tap */
     this.naming = null;
     this.namingEl.classList.remove("open");
@@ -398,7 +416,13 @@ export class Game {
     else if (!fast) {
       // During a fast-forward, only its end is narrated. The babies are named as each one lights up
       // (glowLines), never more than glow; the line just shown stays a moment first.
-      this.say([...groupLines(ev.group, s.noun, [], s.name), ...this.moveLines(), ...this.glowLines()], true);
+      // Every change gets a reason from the table (scope decision 60).
+      this.say([...groupLines(ev.group, s.noun, [], s.name), ...s.changeReasons(ev), ...this.moveLines(), ...this.glowLines()], true);
+    }
+    // See, guess, explain: at a fair test's result or a sudden drop, the world waits for a guess (scope decision 60).
+    if (s.phase === "watch" && !this.since && !this.journal && !this.naming && !this.guess) {
+      const q = s.guessNow(ev);
+      if (q) this.openGuess(q);
     }
     if (s.phase !== "watch") this.revealAll(now); // a panel, a fast-forward or the end: the day's babies show at once
     const g = ev.group, sp = s.spread ?? (what?.startsWith("spread-") ? s.lastSpread : null);
@@ -698,7 +722,7 @@ export class Game {
    */
   followFromMap(x) {
     const s = this.story;
-    if (!s.followOpen || this.since || this.journal || this.choice || this.naming) return;
+    if (!s.followOpen || this.since || this.journal || this.choice || this.naming || this.guess) return;
     if (s.inDanger || !s.followable(x)) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
@@ -803,6 +827,74 @@ export class Game {
     this.doFollow(w.x, false);
   }
 
+  /* ================= see, guess, explain (scope decision 60) ================= */
+  /**
+   * A question with three answers from the table, the same trait in each
+   * place: the world waits for a guess, then says why. With no guess within
+   * GUESS_SECONDS it says why anyway. Nothing is ever marked wrong.
+   * @param {import("./why.js").Guess} q
+   */
+  openGuess(q) {
+    const doc = this.doc;
+    this.guessQuestion.set(q.text);
+    this.guessNoteEl.replaceChildren();
+    this.guessNoteEl.className = "";
+    this.guessNextEl.hidden = true;
+    this.guessBarEl.style.width = "100%";
+    this.guessAnswerEls = q.options.map((o) => {
+      const el = Object.assign(doc.createElement("div"), { className: "answer" });
+      const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: o.text });
+      button.addEventListener("click", () => this.answerGuess(o));
+      el.append(button, speakerButton(doc, () => o.text));
+      return Object.assign(el, { option: o, button });
+    });
+    this.guessOptionsEl.replaceChildren(...this.guessAnswerEls);
+    clearTimeout(this.guessHideT);
+    this.guessEl.hidden = false;
+    requestAnimationFrame(() => this.guessEl.classList.add("open"));
+    this.guess = { question: q, left: GUESS_SECONDS * 1000, paused: 0, answered: false };
+    this.updateCard(); // no follow buttons while it is up
+    this.placeCard();
+    this.centerOnGroup(0.3);
+  }
+
+  /** A guess, or none (time ran out): then why, with its speaker, and Next. */
+  answerGuess(option) {
+    const g = this.guess;
+    if (!g || g.answered) return;
+    const line = explainGuess(g.question, option);
+    Object.assign(g, { answered: true, option, left: EXPLAIN_SECONDS * 1000, paused: 0 });
+    for (const el of this.guessAnswerEls) {
+      el.button.disabled = true;
+      el.classList.add(el.option === option ? "picked" : el.option.right ? "right-answer" : "not-picked");
+    }
+    this.guessNoteEl.className = option?.right ? "right" : "";
+    const said = [line, ...(g.question.extra ? [g.question.extra] : [])].join(" ");
+    this.guessNoteEl.replaceChildren(Object.assign(this.doc.createElement("span"), { className: "text", textContent: said }), speakerButton(this.doc, () => said));
+    this.guessNextEl.hidden = false;
+    this.guessBarEl.style.width = "100%";
+  }
+
+  /** Like the other panels' countdowns: it waits while a line is read aloud or a card is open. */
+  tickGuess(now, dt) {
+    const g = this.guess;
+    if (!this.card) {
+      if (isSpeaking() && g.paused < MAX_READING_PAUSE_MS) g.paused += dt;
+      else g.left = Math.max(0, g.left - dt);
+    }
+    this.guessBarEl.style.width = `${(100 * g.left / ((g.answered ? EXPLAIN_SECONDS : GUESS_SECONDS) * 1000)).toFixed(1)}%`;
+    if (g.left === 0) { if (g.answered) this.closeGuess(); else this.answerGuess(null); }
+  }
+
+  closeGuess() {
+    if (!this.guess) return;
+    this.guess = null;
+    this.guessEl.classList.remove("open");
+    this.guessHideT = setTimeout(() => { if (!this.guess) this.guessEl.hidden = true; }, 450);
+    this.updateCard();
+    this.placeCard();
+  }
+
   /* ================= will it be passed on? (scope decisions 42 and 59) ================= */
   /**
    * Too few in the family have the variation to start a fair test right away,
@@ -811,13 +903,16 @@ export class Game {
    * @param {import("./story.js").Glow} x
    */
   startSpread(x) {
-    const what = this.story.trySpread(x);
+    const s = this.story, what = s.trySpread(x);
     if (!what) return; // the child's family is very small: no fast-forward starts
     this.syncGroups(); // the tapped newborn stops glowing
     this.updateHud();
     this.preRoll();
-    this.spreadShown = false;
-    this.spreadCounter();
+    // First the table's reason there (scope decision 60), then the counter, which changes in place each generation.
+    const first = passingOnLine(x.v.group, s.whyHere(x.v));
+    this.logMoods.set(first, "spread");
+    this.spreadShown = true;
+    this.say([first]);
   }
 
   /**
@@ -861,11 +956,14 @@ export class Game {
 
   /** It wasn't passed on far enough: the last count stays a moment, then why. The family goes on as it was; this was not a follow. */
   spreadFailed() {
-    const outcome = this.story.lastSpread.outcome;
+    const s = this.story, sp = s.lastSpread, outcome = sp.outcome;
     this.spreadCounter();
-    this.logQueue = [outcome === "gone" ? PASSED_GONE : outcome === "common" ? PASSED_COMMON : outcome === "moved" ? PASSED_MOVED : PASSED_SHORT,
+    // Gone: a trait that hurts there gets the table's reason; one that helps was lost by chance, as most new traits are.
+    const gone = variationEffect(sp.v.t, sp.v.dir, sp.zone) < 0 ? passedGoneLine(s.whyHere(sp.v)) : PASSED_GONE;
+    this.logQueue = [outcome === "gone" ? gone : outcome === "common" ? PASSED_COMMON : outcome === "moved" ? PASSED_MOVED : PASSED_SHORT,
       ...this.moveLines()];
-    for (const l of [PASSED_GONE, PASSED_COMMON, PASSED_SHORT, PASSED_MOVED]) this.logMoods.set(l, "gentle");
+    for (const l of [gone, PASSED_COMMON, PASSED_SHORT, PASSED_MOVED]) this.logMoods.set(l, "gentle");
+    this.logCues.set(gone, () => this.sound.goneTone());
     this.updateCard(); // follow buttons again
   }
 
@@ -1020,17 +1118,17 @@ export class Game {
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
     // One line of real evidence from the world, not the answer (evidence.js).
     // The clue shows both sides when it can (scope decision 14), else one line.
-    this.endingEvidenceEl.hidden = !s.comparison && !s.evidence;
-    this.endingEvidenceLineEl.hidden = !!s.comparison;
-    this.endingCompareEl.hidden = !s.comparison;
-    if (s.comparison) {
-      const c = comparisonLines(s.comparison);
+    // The clue is the same trait in different places (scope decision 60), else one line.
+    this.endingEvidenceEl.hidden = !s.clue && !s.evidence;
+    this.endingEvidenceLineEl.hidden = !!s.clue;
+    this.endingCompareEl.hidden = !s.clue;
+    if (s.clue) {
       const rows = [
-        { label: c.withLabel, ...s.comparison.with, color: CLUE_WITH_COLOR },
-        { label: c.withoutLabel, ...s.comparison.without, color: CLUE_WITHOUT_COLOR },
+        { label: sameTraitLabel(s.clue.trait, s.clue.helps.zone), ...s.clue.helps, color: CLUE_WITH_COLOR },
+        { label: sameTraitLabel(s.clue.trait, s.clue.hurts.zone), ...s.clue.hurts, color: CLUE_WITHOUT_COLOR },
       ];
-      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: c.heading });
-      heading.append(speakerButton(doc, () => [c.heading, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: SAME_TRAIT });
+      heading.append(speakerButton(doc, () => [SAME_TRAIT, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
       this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
     } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
     this.endingQuestion.set(question(s.outcome, s.noun, s.name));
@@ -1148,7 +1246,34 @@ export class Game {
     this.othersEl.replaceChildren(...this.countRows(rows));
     this.othersEl.hidden = !rows.length;
     this.showSoFar(following ? s.chips : []);
+    this.showWhyHere(following ? s.reasons : null);
     if (!s.running) this.barEl.style.width = "0%";
+  }
+
+  /**
+   * "Helping here" and "Hurting here" (scope decision 60): what the family has
+   * that helps or hurts where it lives, under the generation panel, always shown
+   * while a family is followed. Each line with its speaker.
+   * @param {null|{helping:import("./why.js").Reason[], hurting:import("./why.js").Reason[]}} r
+   */
+  showWhyHere(r) {
+    const lines = r ? [helpingLine(r.helping.slice(0, 3).map((x) => x.words)), hurtingLine(r.hurting.slice(0, 3).map((x) => x.words))] : [];
+    const key = lines.join("|");
+    if (key !== this.whyKey) {
+      this.whyKey = key;
+      this.whyHereEl.hidden = !lines.length;
+      this.whyHereEl.replaceChildren(...lines.map((text, i) => {
+        const p = Object.assign(this.doc.createElement("p"), { className: i ? "hurt" : "help" });
+        p.append(Object.assign(this.doc.createElement("span"), { className: "text", textContent: text }), speakerButton(this.doc, () => text));
+        return p;
+      }));
+    }
+    if (lines.length) this.placeWhyHere();
+  }
+
+  /** The note sits just under the generation panel, whatever its size (a slim bar on a phone, or open). */
+  placeWhyHere() {
+    if (!this.whyHereEl.hidden) this.whyHereEl.style.top = `${this.hudEl.offsetTop + this.hudEl.offsetHeight + 8}px`;
   }
 
   /**
@@ -1227,10 +1352,10 @@ export class Game {
   placeCard() {
     const c = this.card;
     if (!c) return;
-    const above = !!this.choice || !!this.journal || !!this.since || !!this.naming;
+    const above = !!this.choice || !!this.journal || !!this.since || !!this.naming || !!this.guess;
     this.cardEl.classList.toggle("above", above);
     if (above) {
-      const panel = this.journal ? this.journalEl : this.since ? this.sinceEl : this.naming ? this.namingEl : this.choiceEl;
+      const panel = this.journal ? this.journalEl : this.guess ? this.guessEl : this.since ? this.sinceEl : this.naming ? this.namingEl : this.choiceEl;
       const panelTop = this.stage.clientHeight - panel.offsetHeight;
       const room = Math.max(160, panelTop - parseFloat(getComputedStyle(this.cardEl).top) - CARD_GAP);
       this.cardEl.style.setProperty("--room", `${Math.round(room)}px`);
@@ -1319,13 +1444,13 @@ export class Game {
   renderFollow() {
     const c = this.card, s = this.story;
     const g = c && !c.gone ? s.glowFor(c.id) : null;
-    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice && !this.naming;
+    const open = !!g && s.followOpen && !this.since && !this.journal && !this.choice && !this.naming && !this.guess;
     this.cardFollowEl.hidden = !open;
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
     const why = s.inDanger ? "danger" : s.whyNot(g), went = s.went.get(g.v.t);
     const note = why === "danger" ? needsYou(s.noun, s.name) : why === "away" ? awayLine(this.bridge.zoneOf(g.id), s.name) :
-      why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) :
+      why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) : why === "common" ? PASSED_COMMON :
       why ? nothingToTest(g.v, s.testZone()) : s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
     const text = why ? null : s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : PASS_ON_BUTTON;
     const key = `${g.id}:${note}:${text}`;
@@ -1722,7 +1847,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running && !this.journal && !this.since && !this.naming) { // a panel on screen holds the world
+    if (s.running && !this.journal && !this.since && !this.naming && !this.guess) { // a panel on screen holds the world
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000, step = Math.min(250, raw);
       this.clock += step;
       if (s.phase === "watch" && this.clock >= 0) this.dayGoesOn(step / 1000, now); // (a moment being reached holds the clock below 0)
@@ -1747,6 +1872,7 @@ export class Game {
     this.stage.classList.toggle("spreading", !!(s.spread && fastNow));
     // On the backup choice panel, and while a prediction or "Since your last choice" is up, the world pauses.
     if (this.journal) this.tickJournal(now, Math.min(250, raw));
+    else if (this.guess) this.tickGuess(now, Math.min(250, raw));
     else if (this.since) this.tickSince(now, Math.min(250, raw));
     else if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
     else {
@@ -1791,7 +1917,7 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.since || this.journal || this.naming) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -1894,7 +2020,7 @@ export class Game {
    */
   placeBloom(now, view) {
     const named = (id) => this.namedBirths.has(id);
-    const b = !this.choice && !this.journal && !this.since && !this.naming && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
+    const b = !this.choice && !this.journal && !this.since && !this.naming && !this.guess && !this.card && !this.arrival && this.endingEl.hidden ? this.herd.bloomNow(now, named) : null;
     if (!b) {
       if (this.bloomId !== null && this.bloomId !== undefined) { this.bloomId = null; this.bloomEl.hidden = true; }
       return;
@@ -1924,7 +2050,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #ending, #bloom, #log.link")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -1964,7 +2090,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #ending")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -1996,6 +2122,7 @@ export class Game {
     for (const b of this.placesEl.querySelectorAll("button")) b.addEventListener("click", () => this.visitPlace(Number(b.dataset.zone)));
     this.doc.getElementById("card-close").addEventListener("click", () => this.closeCard());
     this.doc.getElementById("since-next").addEventListener("click", () => this.closeSince());
+    this.guessNextEl.addEventListener("click", () => this.closeGuess());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeCard(); });
     this.againEl.addEventListener("click", () => this.anotherFamily());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
@@ -2052,6 +2179,7 @@ export class Game {
   setHud(open) {
     const el = this.hudEl, compact = this.compact.matches;
     el.classList.toggle("open", open);
+    this.placeWhyHere();
     if (compact) {
       el.setAttribute("role", "button");
       el.tabIndex = 0;
@@ -2103,6 +2231,13 @@ export class Game {
  * @property {number} paused ms stood still for read-aloud
  * @property {null|import("./journal.js").Answer} answer the child's answer, once given
  * @property {number} goAt when an answered question closes
+ *
+ * @typedef {Object} GuessState
+ * @property {import("./why.js").Guess} question
+ * @property {number} left ms left to guess, or to read why
+ * @property {number} paused ms stood still for read-aloud
+ * @property {boolean} answered a guess was tapped, or time ran out: why is on screen
+ * @property {null|{text:string, right:boolean}} [option] the guess
  *
  * @typedef {Object} NamingState
  * @property {string[]} names the three names offered

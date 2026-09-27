@@ -11,6 +11,7 @@
 import { TRAITS, PLACE_EFFECTS } from "./engine.js";
 import { TRAIT_WORDS, isNeutral } from "./variations.js";
 import { ZONE_AT, WITHOUT, shortGroup, withLabel } from "./narration.js";
+import { whyLine } from "./why.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
 export const PREDICT_AFTER = [1, 4, 7, 10, 13];
@@ -72,8 +73,9 @@ export const NEED_LINE = "Animals can't grow a trait because they need it. Babie
 /** The line added when the child thought choosing changes the animals. */
 export const CHOSE_LINE = "Your choice doesn't change the animals. It picks who you follow.";
 
-const helpLine = (words, trait, zone) => `Grow. ${cap(words)} ${PLURAL.has(trait) ? "help" : "helps"} ${ZONE_AT[zone]}.`;
-const hurtLine = (words, trait, zone) => `Shrink. ${cap(words)} ${PLURAL.has(trait) ? "don't" : "doesn't"} help ${ZONE_AT[zone]}.`;
+/** The reasonable answer gives the table's reason there (docs/LINEAGE_WHY.md, scope decision 60). */
+const helpLine = (t, zone) => `Grow. ${whyLine(t, zone)}`;
+const hurtLine = (t, zone) => `Shrink. ${whyLine(t, zone)}`;
 /**
  * The "need" misconception, always about the trait the child just chose:
  * "They'll grow even bigger eyes because they need them." ("get" for less of a trait).
@@ -94,7 +96,7 @@ function growOptions(trait, dir, zone) {
     options.push({ text: `Grow. ${cap(words)} will help them.`, outcome: "grow", tag: "matters" });
   } else {
     const helps = dir * netEffect(t, zone) > 0;
-    options.push({ text: helps ? helpLine(words, trait, zone) : hurtLine(words, trait, zone), outcome: helps ? "grow" : "shrink", reasonable: true });
+    options.push({ text: helps ? helpLine(t, zone) : hurtLine(t, zone), outcome: helps ? "grow" : "shrink", reasonable: true });
   }
   options.push({ text: "Grow, because I picked them.", outcome: "grow", tag: "chose" });
   options.push({ text: `Grow. ${needLine(trait, dir)}`, outcome: "grow", tag: "need" });
@@ -117,8 +119,8 @@ function fairOptions(v, zone) {
   } else {
     const helps = v.dir * netEffect(v.t, zone) > 0;
     options.push(helps ?
-      { text: `With ${them}. ${cap(words)} ${PLURAL.has(v.trait) ? "help" : "helps"} ${ZONE_AT[zone]}.`, outcome: "mine", reasonable: true } :
-      { text: `Without ${them}. ${cap(words)} ${PLURAL.has(v.trait) ? "don't" : "doesn't"} help ${ZONE_AT[zone]}.`, outcome: "theirs", reasonable: true });
+      { text: `With ${them}. ${whyLine(v.t, zone)}`, outcome: "mine", reasonable: true } :
+      { text: `Without ${them}. ${whyLine(v.t, zone)}`, outcome: "theirs", reasonable: true });
   }
   options.push({ text: `With ${them}, because I picked them.`, outcome: "mine", tag: "chose" });
   options.push({ text: `With ${them}. ${needLine(v.trait, v.dir)}`, outcome: "mine", tag: "need" });
@@ -141,15 +143,18 @@ export function questionFor(story, bridge, chosen, slot) {
   const fits = { mine: true, fair: bridge.otherIds().length > 0 };
   const start = CYCLE[slot % CYCLE.length];
   const type = [start, ...CYCLE.filter((x) => x !== start)].find((x) => fits[x]);
+  // The question names the trait and the place (scope decision 60): "Some of your animals now have longer back
+  // legs. They live in the high leaves. What will happen?"
+  const has = `Some of your animals now have ${words}. They live ${ZONE_AT[zone]}.`;
   if (type === "mine") {
     return {
-      type, text: `Will your animals with ${words} grow or shrink?`,
+      type, text: `${has} What will happen?`,
       options: growOptions(v.trait, v.dir, zone),
       subject: { v, then: story.mine.then },
     };
   }
   return {
-    type, text: `Which will do better: the ones with ${words}, or without?`,
+    type, text: `${has} Which will do better?`,
     options: fairOptions(v, zone),
     subject: { v, mine: story.mine.then, theirs: story.theirs.then },
   };

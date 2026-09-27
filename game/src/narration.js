@@ -122,8 +122,18 @@ export function passedOnLine(group, counts) {
   const words = shortGroup(group), shown = counts.slice(-PASSED_COUNTS), n = shown[shown.length - 1];
   return `${capital(words)} ${isAre(words)} being passed on. ${shown.map((k, i) => (i < shown.length - 1 ? `${k}…` : k)).join(" ")} ${n === 1 ? "has" : "have"} it now.`;
 }
+/**
+ * The fast-forward's first line, with the table's reason there (scope decision 60):
+ * "More webbing is being passed on. Webbed feet push through water."
+ */
+export function passingOnLine(group, reason) {
+  const words = shortGroup(group);
+  return `${capital(words)} ${isAre(words)} being passed on. ${reason}`;
+}
 /** None of the family's animals have it any more. */
 export const PASSED_GONE = "It wasn't passed on. Most new traits aren't.";
+/** None have it any more, and it hurts in the family's place: the table's reason. "It wasn't passed on. Long legs drag in the water." */
+export const passedGoneLine = (reason) => `It wasn't passed on. ${reason}`;
 /** Its last generation came with too few having it to start a fair test. */
 export const PASSED_SHORT = "Only a few have it so far. Too few to test.";
 /** Many have it, but too few without it are twins for them. */
@@ -164,6 +174,14 @@ export const movingLine = (zone, name = null) => `Some of ${your("animals", name
 export const movedLine = (zone, name = null) => `Most of ${your("animals", name)} live ${ZONE_AT[zone]} now.`;
 /** At the start, a tap on a family an observer run shows dying out within a few generations. */
 export const IN_TROUBLE = "This family is in trouble already. Try another!";
+
+/** "Helping here" and "Hurting here" (scope decision 60): what the family has that helps or hurts where it lives. */
+export function helpingLine(words) { return `Helping here: ${words.length ? words.join(", ") : "nothing yet"}.`; }
+export function hurtingLine(words) { return `Hurting here: ${words.length ? words.join(", ") : "nothing"}.`; }
+
+/** The ending's clue, the same trait in two places (scope decision 60): "Webbed feet at the water's edge: 3 → 25". */
+export const SAME_TRAIT = "Same trait, different place:";
+export const sameTraitLabel = (trait, zone) => `${capital(hasWords(trait, 2))} ${ZONE_AT[zone]}`;
 
 /** "Your family so far" (scope decision 59): each chosen trait, and why one faded. */
 export const SO_FAR = "Your family so far";

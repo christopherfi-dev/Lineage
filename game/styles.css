@@ -25,7 +25,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
-#hud, #hint, #card, #choice, #journal, #naming, #since, #ending .card, #home, #bloom, #mute, #zoom {
+#hud, #hint, #card, #choice, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here {
   background-color: #F7F0DF;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -332,34 +332,34 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
 
 /* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
-#journal, #naming {
+#journal, #naming, #guess {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
   border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
   transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
   max-height: 74%; overflow-y: auto;
 }
-#journal.open, #naming.open { transform: none; }
-#journal[hidden], #naming[hidden] { display: none; }
-#journal .grab, #naming .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
-#journal h2, #naming h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
-#journal-options, #naming-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
-#journal .answer, #naming .answer {
+#journal.open, #naming.open, #guess.open { transform: none; }
+#journal[hidden], #naming[hidden], #guess[hidden] { display: none; }
+#journal .grab, #naming .grab, #guess .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#journal h2, #naming h2, #guess h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -.4px; line-height: 1.12; color: #2A2B22; text-wrap: balance; }
+#journal-options, #naming-options, #guess-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
+#journal .answer, #naming .answer, #guess .answer {
   position: relative; display: flex; align-items: center; border-radius: 20px; background: #FBF7EC;
   box-shadow: 0 0 0 2px #E6DAC0, 0 4px 12px rgba(60, 44, 20, .08);
   transition: box-shadow .3s ease, background .3s ease, opacity .4s ease, transform .2s ease;
 }
-#journal .answer .pick, #naming .answer .pick {
+#journal .answer .pick, #naming .answer .pick, #guess .answer .pick {
   flex: 1; min-height: 64px; padding: 12px 8px 12px 18px; border: 0; background: none; color: #2A2B22; cursor: pointer;
   font-family: Petrona, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.25; text-align: left; text-wrap: pretty;
 }
-#journal .answer > .say, #naming .answer > .say { margin: 0 8px 0 0; }
-#journal .answer:active, #naming .answer:active { transform: scale(.98); }
-#journal .answer.picked, #naming .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
-#journal .answer.not-picked, #naming .answer.not-picked { opacity: .38; }
-#journal .timer, #naming .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#journal .timer i, #naming .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
-#journal-note, #naming-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
+#journal .answer > .say, #naming .answer > .say, #guess .answer > .say { margin: 0 8px 0 0; }
+#journal .answer:active, #naming .answer:active, #guess .answer:active { transform: scale(.98); }
+#journal .answer.picked, #naming .answer.picked, #guess .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
+#journal .answer.not-picked, #naming .answer.not-picked, #guess .answer.not-picked { opacity: .38; }
+#journal .timer, #naming .timer, #guess .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
+#journal .timer i, #naming .timer i, #guess .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
+#journal-note, #naming-note, #guess-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
 /* The three names: bigger, like name plates. */
 #naming-options { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 #naming .answer .pick { min-height: 72px; font-size: 23px; font-weight: 600; text-align: center; letter-spacing: -.2px; }
@@ -635,7 +635,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 @keyframes dangerIn { 0% { opacity: 0; transform: translateY(8px); } 60% { opacity: 1; transform: translateY(-2px); } 100% { transform: none; } }
 
 /* ---- Touch: two fingers zoom the map (main.js), never the page, so the panels keep their size. ---- */
-#card, #choice, #since, #journal, #naming, #ending .card { touch-action: pan-y; }
+#card, #choice, #since, #journal, #naming, #guess, #ending .card { touch-action: pan-y; }
 
 /* ---- A short or narrow screen (a phone): the generation panel is a slim bar, and a tap opens it whole. ---- */
 #hud .mini { display: none; }
@@ -698,3 +698,28 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #logbar { padding: 60px calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left)); }
   #log { font-size: 22px; }
 }
+
+/* ---- See, guess, explain (scope decision 60): the journal's page; after a guess, why, and Next. ---- */
+#guess-note:empty { display: none; }
+#guess-note { font-style: normal; font-size: 22px; line-height: 1.25; color: #2A2B22; }
+#guess-note.right { color: #14657F; }
+#guess .answer.right-answer { box-shadow: 0 0 0 3px #3E8E5B, 0 0 22px rgba(62, 142, 91, .3); opacity: 1; }
+#guess-next { display: block; min-width: 160px; min-height: 48px; margin: 14px 0 0 auto; padding: 10px 26px; border: 0; border-radius: 999px;
+  background: #14657F; color: #EFFAFD; font: 700 17px Karla, system-ui, sans-serif; box-shadow: 0 4px 14px rgba(20, 101, 127, .3); cursor: pointer; }
+#guess-next[hidden] { display: none; }
+
+/* ---- Helping here / Hurting here (scope decision 60): a small note under the generation panel. ---- */
+#why-here {
+  position: absolute; left: calc(16px + env(safe-area-inset-left)); z-index: 3;
+  max-width: 340px; padding: 6px 8px 6px 14px; border-radius: 14px;
+  box-shadow: 0 3px 14px rgba(60, 44, 20, .16), inset 0 0 0 1px rgba(255, 255, 255, .6);
+  font-size: 13.5px; font-weight: 600; color: #4A4C3E; transition: opacity .6s ease;
+}
+#why-here[hidden] { display: none; }
+#stage.arriving #why-here, #stage.panel-up #why-here { opacity: 0; pointer-events: none; }
+#why-here p { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; }
+#why-here .help::before, #why-here .hurt::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin-right: 2px; border-radius: 50%; }
+#why-here .help::before { background: #3E8E5B; }
+#why-here .hurt::before { background: #C8643A; }
+#why-here .text { flex: 1 1 auto; }
+@media (max-height: 599px), (max-width: 599px) { #why-here { max-width: calc(100% - 120px); font-size: 12.5px; padding: 3px 6px 3px 12px; } }

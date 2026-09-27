@@ -29,6 +29,7 @@ export const MOMENTS = [
   "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
+  "reason", "why", "why-answer", "why-drop",
 ];
 
 /**
@@ -263,6 +264,25 @@ const MOMENT = {
   "another-family": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
   /** Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try another!" */
   "in-trouble": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
+  /**
+   * A change with its reason from the table (scope decision 60): the family grew or shrank, and the log says why,
+   * "Webbed feet push through water." then "But long legs drag in the water.", with "Helping here / Hurting here" shown.
+   */
+  reason: {
+    families: FROM_OTHERS,
+    policies: ["active", "passive"],
+    at: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8) return null; const r = s.changeReasons(ev); return r.length >= 2 && { lines: r }; },
+    relaxed: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8) return null; const r = s.changeReasons(ev); return r.length >= 1 && s.reasons.helping.length + s.reasons.hurting.length > 0 && { lines: r }; },
+  },
+  /** A fair test's result, and the world waits for a guess (scope decision 60): "Why are the ones with bigger eyes doing better?" */
+  why: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  /** The same, after the child's guess: why, from the table. */
+  "why-answer": { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  /**
+   * A sudden drop of the family, mostly crowded out, that one trait explains: "Why is your family shrinking?" Most
+   * sudden drops have no such trait, so the moments page opens this one in seed 1 (its first family, generation 3).
+   */
+  "why-drop": { families: FROM_OTHERS, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why is/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
   /** A member of your family with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
@@ -316,6 +336,13 @@ async function findStory(game, moment, relaxed = false) {
         if (what === "choice") continue;
         // A spread that reached a fair test's size starts the test by itself, as in the game.
         if (what === "spread-ready") { story.follow(story.lastSpread, false); continue; }
+        // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes).
+        const q = story.phase === "watch" ? story.guessNow(ev) : null;
+        if (q) {
+          story.lastGuess = q;
+          const guess = at(story, ev, bridge, "guess");
+          if (guess) return found(guess, null);
+        }
         // The watched day: babies light up as it goes on, and the child may act.
         for (let k = 1; k <= DAY_STEPS && story.phase === "watch"; k++) {
           story.advance(DAY_STEP);
@@ -389,6 +416,7 @@ async function playTo(game, plan) {
     G.generation(last ? t0 - (plan.day ?? 0) * 1000 : t0 - 60000);
     G.clock = hold;
     if (last && plan.day === null) break;
+    if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); } // the child guesses, and reads why
     if (G.since || G.journal) {
       // A spread reached a fair test's size and the test starts by itself: the panels go on as the child would.
       await frame();
@@ -474,6 +502,8 @@ export async function goToMoment(game, moment) {
   if (plan.day === null) G.logTimer = 0; // at a generation, its line shows now (playing forward took only a moment)
   if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
+  // A guess the last generation asked belongs to its own moments; the others show what they are about.
+  if (G.guess && !moment.startsWith("why")) G.closeGuess();
   if (moment === "generation") {
     G.clock = genMs - 3000; // the next generation passes three seconds from now, at the night's end
     lookAtGroup(G);
@@ -502,8 +532,10 @@ export async function goToMoment(game, moment) {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y); else lookAtGroup(G);
   } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "danger" || moment === "fairtest" ||
-    moment === "moving" || moment === "so-far") {
+    moment === "moving" || moment === "so-far" || moment === "reason") {
     lookAtGroup(G);
+    // The reason's line comes first, so it is the one on screen.
+    if (moment === "reason") G.logQueue = [plan.hit.lines[0], ...G.logQueue.filter((l) => l !== plan.hit.lines[0])];
     if (moment === "moving") {
       // The move's line comes first, so it is the one on screen (the family's size follows it).
       const line = (plan.hit.main ? movedLine : movingLine)(plan.hit.zone, G.story.name);
@@ -528,6 +560,9 @@ export async function goToMoment(game, moment) {
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
+  } else if (moment === "why" || moment === "why-answer" || moment === "why-drop") {
+    lookAtGroup(G, 0.3);
+    if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);
   } else if (moment === "another-family" || moment === "in-trouble") {
     // The ending, then "Try another family": the world as it is now, and a family with a future to tap.
     G.endingAt = null;

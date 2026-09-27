@@ -45,8 +45,9 @@
  */
 
 import { averageOf, carries, formOf } from "./variations.js";
-import { matters, variationEffect } from "./why.js";
-import { census, comparisonFor, evidenceFor } from "./evidence.js";
+import { matters, variationEffect, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
+import { CLUE_FROM, census, evidenceFor, sameTraitClue } from "./evidence.js";
+import { shortGroup, your } from "./narration.js";
 import { revealFor } from "./reveal.js";
 import { better } from "./groups.js";
 import {
@@ -91,6 +92,12 @@ export const MOVING_AT = 5;
  * don't flip between two places the family shares about evenly.
  */
 export const PLACE_MARGIN = 3;
+/** A sudden drop: the family loses this share of itself in one watched generation (and at least 3), mostly as the least suited. */
+export const DROP_SHARE = 0.25;
+/** A tap-to-guess question comes at most once in this many generations (scope decision 60). */
+export const GUESS_GAP = 4;
+/** A fair test's result is asked about from the end of its fast-forward until this many generations after the follow. */
+export const RESULT_BY = 5;
 
 /**
  * When in its day a baby appears on the map, 0..1 of APPEAR_SPAN: fixed by its
@@ -159,9 +166,7 @@ export class Story {
     this.formAtPoint = null;
     /** how many animals had each trait word in each habitat when the story began (evidence.js) */
     this.startCensus = null;
-    /** @type {null|import("./evidence.js").Comparison} the ending's clue, both sides */
-    this.comparison = null;
-    /** @type {null|import("./evidence.js").Evidence} the ending's one-line clue, when no comparison qualifies */
+    /** @type {null|import("./evidence.js").Evidence} the ending's one-line clue, when no same-trait clue qualifies */
     this.evidence = null;
     /** the place most of the family lived in at the end */
     this.mainZone = null;
@@ -195,6 +200,16 @@ export class Story {
     this.place = 0;
     /** @type {Map<string, ReturnType<typeof formFamilyTest>>} fair tests as they would start now, this generation */
     this.tests = new Map();
+    /** @type {{helping:import("./why.js").Reason[], hurting:import("./why.js").Reason[]}} what helps and hurts the family in its place now */
+    this.reasons = { helping: [], hurting: [] };
+    /** @type {null|number[][][]} how many had each trait word in each place when all three places first had CLUE_FROM animals */
+    this.clueCensus = null;
+    /** @type {null|import("./evidence.js").SameTrait} the ending's clue: the same trait in different places */
+    this.clue = null;
+    /** when the latest tap-to-guess question came */
+    this.guessedAt = -Infinity;
+    /** @type {Map<number, {id:number, genome:ArrayLike<number>, zone:number}>} the family a generation ago */
+    this.before = new Map();
   }
 
   get running() { return this.phase === "watch" || this.phase === "skip" || this.phase === "spread"; }
@@ -218,9 +233,11 @@ export class Story {
    * "away", the baby lives away from the family's place, where the test would
    * be (scope decision 59); "neutral" or "little" (a "~" there, scope decision
    * 58); or "back", the way back from a direction the family already took
-   * (scope decision 59), unless a fair test clearly showed that direction hurting.
+   * (scope decision 59), unless a fair test clearly showed that direction
+   * hurting; or "common": MAX_SIZE or more of the family there have it already,
+   * yet too few without it are twins for a fair test, so no fast-forward could help.
    * @param {{id:number, v:import("./cohorts.js").Variation}} x
-   * @returns {null|"away"|"neutral"|"little"|"back"}
+   * @returns {null|"away"|"neutral"|"little"|"back"|"common"}
    */
   whyNot(x) {
     if (this.bridge.zoneOf(x.id) !== this.testZone()) return "away";
@@ -228,6 +245,7 @@ export class Story {
     if (!matters(x.v.t, this.testZone())) return "little";
     const w = this.went.get(x.v.t);
     if (w && w.dir !== x.v.dir && !w.hurt) return "back";
+    if (this.carriersOf(x.v) >= this.maxSize && !this.canStartFor(x)) return "common";
     return null;
   }
 
@@ -276,6 +294,8 @@ export class Story {
     }
     for (const a of this.lastAnimals) this.segment.set(a.id, a);
     this.tests.clear();
+    this.reasons = reasonsIn(this.lastAnimals.filter((a) => a.zone === this.place), this.place);
+    if (!this.clueCensus && this.bridge.zoneCounts().every((n) => n >= CLUE_FROM)) this.clueCensus = census(this.bridge.livingAnimals());
   }
 
   /** How many of the family live in each place now. */
@@ -298,6 +318,7 @@ export class Story {
     if (!this.fast) this.quiet += seconds;
     if (g.count === 0) return this.end("died", ev.generation);
     const mainBefore = this.place;
+    this.before = new Map(this.lastAnimals.map((a) => [a.id, a])); // the family a generation ago, for why some died
     this.remember();
     this.noticeMoves(mainBefore);
     this.checkTest();
@@ -432,6 +453,94 @@ export class Story {
     this.started.push(...started);
     return started;
   }
+
+  /**
+   * Why the family changed size this generation, from the table (scope
+   * decision 60). Growing: its biggest helper there, and "But …" its biggest
+   * hurter. Shrinking, most of it crowded out: the helper, then "But …" the
+   * hurter; with no hurter, the trait that most sets the ones that died apart
+   * from the survivors where they lived ("Long back legs help them run fast."
+   * "Others here have longer back legs."), and with none, that the place is
+   * full. A family that shrank because its oldest died says so; one that grew
+   * with no helper had many babies.
+   * @param {import("./bridge.js").GenerationEvents} ev
+   */
+  changeReasons(ev) {
+    const g = ev.group;
+    if (!g || g.count === g.before) return [];
+    const { helping, hurting } = this.reasons, help = helping[0]?.line, hurt = hurting[0]?.line;
+    if (g.count > g.before) return help ? [help, ...(hurt ? [but(hurt)] : [])] : hurt ? [] : ["Lots of babies were born."];
+    if (this.oldAgeMostly(g, ev.deaths)) return ["Some were old and died."];
+    if (hurt) return [...(help ? [help] : []), but(hurt)];
+    const sf = this.deathShortfall(ev);
+    return sf ? [sf.line, sf.who] : ["The place is full, so some made room."];
+  }
+
+  /** Most of the family's deaths this generation were of old age. */
+  oldAgeMostly(g, deaths) {
+    const gone = new Set(g.gone), old = deaths.filter((d) => gone.has(d.id) && d.cause === "maximum_age").length;
+    return old * 2 >= g.gone.length;
+  }
+
+  /**
+   * What most set the family's animals that died this generation apart from
+   * the survivors in the place where most of them lived (why.js shortfall):
+   * the trait, its place, its line, and who had more of it. Null when no one
+   * trait did, by SHORT_BY or more: then they were a little less suited in
+   * many small ways.
+   * @param {import("./bridge.js").GenerationEvents} ev
+   */
+  deathShortfall(ev) {
+    const dead = ev.group.gone.map((id) => this.before.get(id)).filter(Boolean);
+    if (!dead.length) return null;
+    const n = [0, 0, 0];
+    for (const a of dead) n[a.zone]++;
+    const zone = n.indexOf(Math.max(...n)), born = new Set(ev.births.map((b) => b.childId));
+    const survivors = this.bridge.livingAnimals().filter((a) => a.zone === zone && !born.has(a.id));
+    const sf = shortfall(dead.filter((a) => a.zone === zone), survivors, zone);
+    return sf && { ...sf, zone, who: sf.theirs ? `Others here have ${sf.more}.` : `The ones that died had ${sf.more}.` };
+  }
+
+
+
+  /**
+   * A tap-to-guess question now, or null (scope decision 60). After a fair
+   * test's fast-forward, once its result is clear and goes the table's way:
+   * "Why are the ones with bigger eyes doing better?". After a sudden drop of
+   * the family, mostly crowded out: "Why is your family shrinking?", about its
+   * biggest hurter there, or the trait that most set the ones that died apart.
+   * The three options are the trait's lines for the three places. At most one
+   * every GUESS_GAP generations.
+   * @param {import("./bridge.js").GenerationEvents} ev
+   * @returns {null|import("./why.js").Guess}
+   */
+  guessNow(ev) {
+    if (this.phase !== "watch" || ev.generation - this.guessedAt < GUESS_GAP) return null;
+    const f = this.fair, g = ev.group;
+    if (f && !f.asked) {
+      const since = ev.generation - f.generation;
+      if (since >= 2) {
+        const b = better(this.mine, this.theirs), expected = variationEffect(f.v.t, f.v.dir, f.zone);
+        if (b !== 0 || since >= RESULT_BY) f.asked = true;
+        if (b !== 0 && b === expected) {
+          this.guessedAt = ev.generation;
+          return guessFor(`Why are the ones with ${shortGroup(f.v.group)} doing ${b > 0 ? "better" : "worse"}?`, f.v.t, f.zone);
+        }
+      }
+    }
+    if (g && g.before - g.count >= 3 && g.count <= (1 - DROP_SHARE) * g.before && !this.oldAgeMostly(g, ev.deaths)) {
+      // Crowded out: its biggest hurter there, or else the trait that most set the ones that died apart.
+      const hurt = this.reasons.hurting[0], sf = hurt ? null : this.deathShortfall(ev);
+      if (hurt || sf) {
+        this.guessedAt = ev.generation;
+        return guessFor(`Why is ${your("family", this.name)} shrinking?`, hurt ? hurt.t : sf.t, hurt ? this.place : sf.zone, sf ? sf.who : null);
+      }
+    }
+    return null;
+  }
+
+  /** The table's reason for a variation in the family's place, for the passed-on lines (scope decision 60). */
+  whyHere(v) { return whyLine(v.t, this.testZone()); }
 
   /** The glows started since the last call, oldest first. */
   takeStarted() {
@@ -601,8 +710,9 @@ export class Story {
     if (this.spread) { this.spread.outcome = "ended"; this.lastSpread = this.spread; this.spread = null; }
     this.mainZone = placeOf(this.lastAnimals);
     const segment = [...this.segment.values()], living = this.bridge.livingAnimals();
-    this.comparison = comparisonFor(segment, living, this.startCensus);
-    this.evidence = evidenceFor(segment, living, this.startCensus);
+    // The clue: the same trait in different places (scope decision 60), a trait the family chose first; else one line.
+    this.clue = sameTraitClue(this.clueCensus ?? this.startCensus, census(living), this.choices.map((c) => c.v.t));
+    this.evidence = this.clue ? null : evidenceFor(segment, living, this.startCensus);
     // Scope decisions 10, 40 and 41: on every ending, from the family's actual average traits and main place
     // when the story ended (its last living animals), never its choices. A family that died out and matches no
     // animal is told it didn't have time to change, never the first mammals.
@@ -635,6 +745,7 @@ export class Story {
  * @typedef {Object} FairTest the latest follow's two groups
  * @property {import("./cohorts.js").Variation} v @property {number} zone the family's place
  * @property {number} anchor the newborn it started from
+ * @property {boolean} [asked] its result was asked about (tap-to-guess), or it passed without a clear one
  * @property {number} generation @property {number} mineThen @property {number} theirsThen
  * @property {number} fromFamily of yours, how many are the family's @property {number} fromNearby and how many filled in from nearby
  *

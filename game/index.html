@@ -28,6 +28,9 @@
     <div class="line small" id="so-far" hidden></div>
   </div>
 
+  <!-- Helping here / Hurting here (scope decision 60): what your family has that helps or hurts where it lives. Always shown under the panel. -->
+  <div id="why-here" hidden></div>
+
   <div id="hint"><span class="dot"></span>Drag to look around · tap an animal to follow its family</div>
 
   <!-- The creature card (Step 3): tap any animal to see it up close. The world keeps running behind it. -->
@@ -102,6 +105,17 @@
     <div id="journal-options"></div>
     <div class="timer"><i id="journal-bar"></i></div>
     <div id="journal-note"></div>
+  </div>
+
+  <!-- See, guess, explain (scope decision 60): at a fair test's result or a sudden drop, the child taps a guess, then reads why. -->
+  <div id="guess" hidden>
+    <div class="grab"></div>
+    <div class="eyebrow">Why?</div>
+    <h2 id="guess-question"></h2>
+    <div id="guess-options"></div>
+    <div id="guess-note"></div>
+    <button id="guess-next" type="button" hidden>Next</button>
+    <div class="timer"><i id="guess-bar"></i></div>
   </div>
 
   <!-- Naming the family (Step 5): right after the first tap, before generation 1. Time waits. -->
