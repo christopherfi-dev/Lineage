@@ -222,14 +222,14 @@ export class Herd {
       a.wasMarked = this.marks.get(a.id) ?? null;
       this.fading.push(a);
     }
-    // Real births: each newborn appears beside its mother (the first parent in its birth record),
+    // Real births: each newborn appears beside its mother (the parent whose family it joins, bridge.js),
     // and makes its home near hers, as near as its own habitat use lets it. Its spot is placed
     // exactly as before, for the fair tests.
     for (const b of ev.births) {
       const child = bridge.get(b.childId);
       if (!child) continue;
       const zone = bridge.zoneOf(b.childId);
-      const mother = this.animals.get(b.parentAId) ?? null;
+      const mother = this.animals.get(b.motherId ?? b.parentAId) ?? null;
       const near = mother ? mother.spot : this.world.pointIn(zone, this.placeRnd);
       const spot = this.world.pointIn(zone, this.placeRnd, { x: near.x, y: near.y, radius: 46 });
       const hb = homeBand(child.timeAllocation, zone), by = mother ? mother.home : spot;
@@ -238,7 +238,7 @@ export class Herd {
       const a = this.make(b.childId, zone, child.bodyGenome, at.x + this.rr(-4, 4), at.y + this.rr(-3, 3), home, now, spot, hb);
       if (mother) a.face = mother.face;
       const t = appearAt(b.childId);
-      if (t > now) { a.hidden = true; a.appearAt = t; a.mother = b.parentAId; }
+      if (t > now) { a.hidden = true; a.appearAt = t; a.mother = b.motherId ?? b.parentAId; }
       this.animals.set(b.childId, a);
     }
     // Which newborns glow is the story's calm rule (story.js); the page sets `glowing`.

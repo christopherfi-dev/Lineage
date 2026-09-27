@@ -9,7 +9,10 @@
  * Time waits for the child: no generation runs until an animal is tapped, and
  * the story starts by following its family. Between follows the child is
  * active: a newborn in the group with a new variation glows (a few at a time,
- * meaningful traits first), and tapping it offers to follow that variation.
+ * the ones that can be followed first), and tapping it offers to follow that
+ * variation. Only a trait that helps or hurts where the test would be can be
+ * followed (scope decision 58); a neutral one, or a "~" there, still glows,
+ * and its card explains instead.
  *
  * Following is a fair test. The group becomes animals in the newborn's
  * habitat that carry the variation, the newborn and the ones nearest it, and
@@ -42,6 +45,7 @@
  */
 
 import { averageOf, formOf } from "./variations.js";
+import { matters } from "./why.js";
 import { census, comparisonFor, evidenceFor, mainZoneOf } from "./evidence.js";
 import { revealFor } from "./reveal.js";
 import {
@@ -178,6 +182,16 @@ export class Story {
   /** The child's own group is very small: no follow starts, no spread goes on, and the backup panel waits (scope decision 44, playtest). */
   get inDanger() { return this.bridge.followedIds().length <= DANGER_SIZE; }
 
+  /** Where a fair test on this glowing baby's variation would be. */
+  testZone(x) { return x.zone; }
+
+  /**
+   * Only a trait that helps or hurts where the test would be can be followed
+   * (scope decision 58), so every fair test gives a clear result. A neutral
+   * trait, or a "~" there, still glows; its card explains instead.
+   */
+  followable(x) { return !x.v.neutral && matters(x.v.t, this.testZone(x)); }
+
   /** Your group's size now against when it last formed. */
   get mine() { return { now: this.bridge.followedIds().length, then: this.sizeAtChoice }; }
   /** The others here, the same way. */
@@ -243,8 +257,8 @@ export class Story {
 
   /**
    * The calm rule: of the newborns in the group with a new variation this
-   * generation or the one before, at most GLOW_MAX glow, meaningful traits
-   * first, then the newest, one per variation. A watched generation's babies
+   * generation or the one before, at most GLOW_MAX glow, the ones that can be
+   * followed first, then the newest, one per variation. A watched generation's babies
    * appear across its day (appearFraction), and each can glow once it has
    * appeared; glows start as the day goes on (advance).
    */
@@ -289,7 +303,7 @@ export class Story {
   startGlows() {
     const t = this.watchT, current = this.glowing, started = [];
     const ready = this.fresh.filter((x) => x.showAt <= t + 1e-9)
-      .sort((a, b) => Number(a.v.neutral) - Number(b.v.neutral) || b.generation - a.generation || b.showAt - a.showAt || a.id - b.id);
+      .sort((a, b) => Number(!this.followable(a)) - Number(!this.followable(b)) || b.generation - a.generation || b.showAt - a.showAt || a.id - b.id);
     const next = current.filter((x) => t - x.since < GLOW_MIN_SECONDS);
     for (const x of ready) {
       if (next.length >= GLOW_MAX) break;
@@ -338,7 +352,7 @@ export class Story {
    * @returns {null|"spreading"|"spread-failed"}
    */
   trySpread(x) {
-    if (this.inDanger) return null;
+    if (this.inDanger || !this.followable(x)) return null;
     this.dismissed.add(x.id);
     this.refreshGlow();
     const n = this.sidesFor(x).carriers.length;
@@ -392,8 +406,9 @@ export class Story {
     const add = (x) => {
       if (out.length < PUSH_OPTIONS && !out.some((o) => o.v.trait === x.v.trait)) out.push({ v: x.v, id: this.anchorFor(x), zone: x.zone });
     };
-    for (const g of this.glowing) if (this.canStartFor(g)) add(g);
-    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.minSize, this.maxSize)) add(s);
+    // Only traits that help or hurt there (scope decision 58).
+    for (const g of this.glowing) if (this.followable(g) && this.canStartFor(g)) add(g);
+    for (const s of spreadVariations(this.bridge, this.lastAnimals, this.minSize, this.maxSize)) if (this.followable(s)) add(s);
     return out;
   }
 

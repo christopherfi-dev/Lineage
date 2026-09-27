@@ -24,6 +24,7 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
 4. **"Done" is judged by a child, not an auditor.** No step is closed by a test report alone.
 5. **A followed group is a family, and a family is a mother line** (2026-09-23). Every baby belongs to exactly one family, its mother's, and is placed beside her. The engine has no sexes, so the "mother" is always the first parent in the engine's birth record. Tapping an animal follows the family of its ancestor **K = 3** generations back through that same line, so lines branch but never merge. Tapping a member of your current family offers "Follow just her branch," which narrows to her own line. Generation-0 founders have no mothers, so each habitat's founders start as founding families of about a dozen (the defining fixture's two webbing groups are two of them). All of this is computed in the game layer from the engine's birth records; `lineage-m1/src` is untouched. This replaces Step 1's tracer-channel group.
    *In the common-ancestor world (decision 56) every founder is on the open ground, so its 40 founders make three founding families of 13 or 14.*
+   *Changed by decision 58 (2026-09-27): each parent's family gets one of a pair's two babies. The first baby's "mother" is the first parent in the birth record, the second baby's the second.*
    *K was measured on 2,520 followed families per value (30 seeds, taps at generations 0–110). At K = 3 a new family starts at a median of 12 animals (middle half 7–15) and lasts a median of 23 generations (middle half 8–72); 30% last more than 60 generations. K = 4 started at 14 but lasted a median of 31.*
    *Now only the starting group (2026-09-23): a story follows the tapped animal's K = 3 family until the first choice, then follows adaptations (decision 6). "Follow just her branch" was removed with the story loop.*
 6. **The story loop** (2026-09-23, replaces the first version). A story follows the child's animals through a series of adaptations.
@@ -423,6 +424,18 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - *in the moments: a first follow 43 against 51 ms (231 against 248), mid-story 46 against 104 (247 against 513), a fair test 48 against 94 (249 against 447);*
      - *a family at generation 7, the camera on it: 93 against 80 ms (116 against 87 of the child's animals) and 96 against 99 (81 against 30);*
      - *a family followed 24 generations with no follow, which the backup panel prevents: 132 against 37 ms, with 138 of the child's animals in view. Each of the child's animals draws a glow and a lit outline, so a much bigger group costs more.*
+
+58. **Decisions on Part 1** (2026-09-27, the architect; `docs/LINEAGE_NEXT_ROUND.md`).
+   - **Confirmed:** the inferred Big eyes and Sleek body rows; "~" is exactly 0; the tie order (the older makes room first); Classroom mode living beside M1 in `lineage-classroom/`; default seed 13.
+   - **Families (changes decision 5):** each parent's family gets one of a pair's two babies, the first baby parent A's and the second parent B's. Each animal still has one mother, so lines branch but never merge. *Measured in Part 1: with fair tests matched on age and fitness, helpful ahead at generation 5 in 95% and harmful behind in 96% (both babies to parent A: 90% and 91%).*
+   - **Only traits that matter there can be followed.** A variation can be followed only where its trait helps or hurts (✓ or ✗) in the place the test would be, so every fair test has a clear result. This replaces the neutral and "~" fair-test promise.
+     - A neutral trait, or a "~" there, still glows and can be tapped. Its card explains instead of offering a follow, with only "Keep looking": "Pointier ear tips don't help or hurt. Nothing to test here." or the table's "~" line, "Webbed feet don't matter much on open ground." (`game/src/why.js`, from the table in Part 3).
+     - While the child's group is very small, "Your group needs you. Stay with them?" still comes first (decision 48).
+     - Glows that can be followed light up first (the calm rule of decisions 32 and 50).
+     - The backup panel offers only ✓ and ✗ traits.
+     - Moment: `no-test`, a glowing baby whose trait can't be tested, its card open.
+   - **Promise wording:** helpful and harmful are measured "at generation 5"; the "at some point within 5" figure is reported beside it.
+   - **Glows** are measured again after Part 2.
 
 ## What the engine already gives you (do not rebuild these)
 

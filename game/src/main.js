@@ -34,6 +34,7 @@ import {
   joinLine, placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
+import { nothingToTest } from "./why.js";
 import { familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS } from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
@@ -647,7 +648,7 @@ export class Game {
   followFromMap(x) {
     const s = this.story;
     if (!s.followOpen || this.since || this.journal || this.choice || this.naming) return;
-    if (s.inDanger) return; // the card offers only "Keep looking"
+    if (s.inDanger || !s.followable(x)) return; // the card offers only "Keep looking"
     this.closeCard();
     if (!s.canStartFor(x)) this.startSpread(x);
     else if (s.choices.length) this.openSince(x);
@@ -1225,8 +1226,10 @@ export class Game {
    * animals with smaller eyes", and the world first fast-forwards to see if it
    * spreads. While the child's group is at DANGER_SIZE or fewer, no follow can
    * start at all: the card says "Your group needs you. Stay with them?", with
-   * only "Keep looking" (decision 44 and the playtest). Only while the world is
-   * watched and follows are left.
+   * only "Keep looking" (decision 44 and the playtest). A trait that doesn't
+   * help or hurt where the test would be can't be followed: the card says why,
+   * with only "Keep looking" (decision 58). Only while the world is watched and
+   * follows are left.
    */
   renderFollow() {
     const c = this.card, s = this.story;
@@ -1235,8 +1238,10 @@ export class Game {
     this.cardFollowEl.hidden = !open;
     this.cardEl.classList.toggle("glowing", open);
     if (!open) { this.followKey = ""; return; }
-    const stay = s.inDanger, now = !stay && s.canStartFor(g);
-    const text = stay ? needsYou(s.noun, s.name) : now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
+    // A trait that doesn't help or hurt where the test would be can't be followed: the card says why (scope decision 58).
+    const stay = s.inDanger, idle = !stay && !s.followable(g), now = !idle && !stay && s.canStartFor(g);
+    const text = idle ? nothingToTest(g.v, s.testZone(g)) : stay ? needsYou(s.noun, s.name) :
+      now ? followButton(s.sizeFor(g), g.v.group) : followSpread(g.v.group);
     const key = `${g.id}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
@@ -1249,7 +1254,7 @@ export class Game {
       return row;
     };
     const keep = button(KEEP_LOOKING, "keep", () => this.keepLooking());
-    if (!stay) { this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), keep); return; }
+    if (!stay && !idle) { this.cardFollowEl.replaceChildren(button(text, "go", () => this.followFromMap(g)), keep); return; }
     const note = Object.assign(doc.createElement("p"), { className: "follow-note" });
     note.append(Object.assign(doc.createElement("span"), { className: "text", textContent: text }), speakerButton(doc, () => text));
     this.cardFollowEl.replaceChildren(note, keep);

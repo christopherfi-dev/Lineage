@@ -28,6 +28,7 @@ import { formCohorts, testSize } from "./cohorts.js";
 export const MOMENTS = [
   "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
+  "no-test",
 ];
 
 /**
@@ -43,12 +44,12 @@ const DAY_STEP = 0.5;
 const DAY_STEPS = Math.round(GENERATION_SECONDS / DAY_STEP);
 
 /**
- * The child can follow now: watched at least 40 s, the group not very small, and a meaningful glowing
- * variation can start a fair test.
+ * The child can follow now: watched at least 40 s, the group not very small, and a glowing variation that
+ * helps or hurts there (scope decision 58) can start a fair test.
  */
 function followable(s) {
   if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-  return s.glowing.find((x) => !x.v.neutral && s.canStartFor(x)) ?? null;
+  return s.glowing.find((x) => s.followable(x) && s.canStartFor(x)) ?? null;
 }
 
 /**
@@ -58,24 +59,24 @@ function followable(s) {
  * (scope decision 44 and the playtest's "no jumping ship").
  */
 const POLICIES = {
-  /** Follows the first meaningful glowing variation that can start a fair test, after at least 40 s of watching. */
+  /** Follows the first glowing variation that can be followed and can start a fair test, after at least 40 s of watching. */
   active: (s) => { const g = followable(s); return g ? { kind: "follow", id: g.id } : null; },
   /** Like "active", but only a variation that helps in its habitat (the engine's own trait effects). */
   wise: (s) => {
     if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-    const g = s.glowing.find((x) => !x.v.neutral && x.v.dir * netEffect(x.v.t, x.zone) > 0 && s.canStartFor(x));
+    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone(x)) > 0 && s.canStartFor(x));
     return g ? { kind: "follow", id: g.id } : null;
   },
   /** Follows nothing by itself. */
   passive: () => null,
   /**
-   * The measurement's simulated child (scope decision 42): taps the first meaningful glowing variation after at
+   * The measurement's simulated child (scope decision 42): taps the first glowing variation that can be followed after at
    * least 40 s of watching, whether or not it can start a fair test right away. If not, the world fast-forwards to
    * see if it spreads.
    */
   tapper: (s) => {
     if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-    const g = s.glowing.find((x) => !x.v.neutral);
+    const g = s.glowing.find((x) => s.followable(x));
     return g ? { kind: s.canStartFor(g) ? "follow" : "spread", id: g.id } : null;
   },
 };
@@ -103,7 +104,7 @@ const MOMENT = {
   /** A newborn with a new variation lights up: the only one glowing. */
   variation: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === "day" && s.phase === "watch" && s.glowing.length === 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
   /** A glowing newborn whose variation can start a fair test: its card is opened. */
-  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => !x.v.neutral && s.canStartFor(x)); return g ? { id: g.id } : null; } },
+  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x) && s.canStartFor(x)); return g ? { id: g.id } : null; } },
   /**
    * A follow's gather-in (playtest): some of the new group are yours already and more join, and no prediction
    * comes first. "3 from your family and 17 others with bigger eyes join you."
@@ -158,7 +159,7 @@ const MOMENT = {
     policies: ["passive", "tapper"],
     at: (s, ev, b, what) => {
       if (what !== "day" || !s.followOpen || !s.inDanger) return null;
-      const g = s.glowing.find((x) => !x.v.neutral) ?? s.glowing[0];
+      const g = s.glowing.find((x) => s.followable(x)) ?? s.glowing[0];
       return g ? { id: g.id, size: s.mine.now } : null;
     },
   },
@@ -191,6 +192,19 @@ const MOMENT = {
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** An ending where the group died out after a follow: it leads with the fair test (scope decision 37). */
   extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
+  /**
+   * A glowing baby whose new trait doesn't help or hurt where the test would be (scope decision 58): its card
+   * explains, "Pointier ear tips don't help or hurt. Nothing to test here.", with only "Keep looking".
+   */
+  "no-test": {
+    families: FROM_OTHERS,
+    policies: ["passive", "active"],
+    at: (s, ev, b, what) => {
+      if (what !== "day" || !s.followOpen || s.inDanger) return null;
+      const g = s.glowing.find((x) => !s.followable(x) && x.since === s.watchT);
+      return g ? { id: g.id } : null;
+    },
+  },
   /** A member of your group with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
@@ -450,7 +464,7 @@ export async function goToMoment(game, moment) {
   } else if (moment === "ending" || moment === "extinct") {
     G.endingAt = null;
     G.showEnding();
-  } else if (moment === "card" || moment === "blocked") {
+  } else if (moment === "card" || moment === "blocked" || moment === "no-test") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);

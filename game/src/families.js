@@ -2,8 +2,10 @@
  * Families are mother lines, computed here from the engine's birth records.
  *
  * Every baby belongs to exactly one family: its mother's. The engine has no
- * sexes, so the "mother" is always the first parent in the engine's birth
- * record. Each animal has one mother, so lines branch but never merge.
+ * sexes, and every pair has two babies, so each parent's family gets one of
+ * them: the first baby's "mother" is the first parent in the engine's birth
+ * record, the second baby's the second (scope decision 58; before, both went
+ * to the first). Each animal has one mother, so lines branch but never merge.
  *
  * Generation-0 founders have no mothers. Each habitat's founders start as
  * founding families of about a dozen, and a founding family is the top of its

@@ -8,12 +8,13 @@
  * death events, mating events, body-mutation events) and hands them to the
  * canvas as plain events.
  *
- * "Your group" starts as a family, a mother line (families.js). After a
- * follow it is a cohort: the fair test's animals with the chosen variation, and a
- * second cohort, "the others here", is tracked beside it (scope decisions
- * 32–33). A family and both cohorts grow by babies whose mother is in them and
- * shrink by deaths. Following is observer state only and cannot change the
- * biology.
+ * "Your group" starts as a family (families.js). After a follow it is a
+ * cohort: the fair test's animals with the chosen variation, and a second
+ * cohort, "the others here", is tracked beside it (scope decisions 32–33). A
+ * family and both cohorts grow by babies whose mother is in them and shrink by
+ * deaths. A pair's two babies have one mother each: the first joins parent A's
+ * family, the second parent B's (scope decision 58). Following is observer
+ * state only and cannot change the biology.
  */
 
 import {
@@ -148,7 +149,13 @@ export class Bridge {
 
     const result = this.state.lastGenerationResult;
     const g = result.generation;
-    const births = result.births.map((b) => ({ childId: b.childId, parentAId: b.parentAId, parentBId: b.parentBId }));
+    // A pair's babies come one after another; the first joins parent A's family, the second parent B's.
+    const nth = new Map();
+    const births = result.births.map((b) => {
+      const pair = `${b.parentAId}:${b.parentBId}`, k = nth.get(pair) ?? 0;
+      nth.set(pair, k + 1);
+      return { childId: b.childId, parentAId: b.parentAId, parentBId: b.parentBId, motherId: k % 2 ? b.parentBId : b.parentAId };
+    });
     const deaths = this.state.deathEvents
       .filter((e) => e.generation === g)
       .map((e) => ({ id: e.individualId, cause: e.cause }));
@@ -162,8 +169,8 @@ export class Bridge {
         delta: e.requestedDelta,
       }));
 
-    // Every baby joins its mother's family: the first parent in its birth record.
-    for (const b of births) this.families.addBirth(b.childId, b.parentAId, g);
+    // Every baby joins its mother's family.
+    for (const b of births) this.families.addBirth(b.childId, b.motherId, g);
     if (g % 50 === 0) this.families.prune(result.livingIds, g);
     // What a baby did not get from its parents: a body mutation at birth, when it
     // changed the trait by at least APART (the smallest difference the game shows).
@@ -176,7 +183,7 @@ export class Bridge {
     let others = null;
     if (this.others) {
       const o = this.others.members, before = o.size;
-      for (const b of births) if (o.has(b.parentAId)) o.add(b.childId);
+      for (const b of births) if (o.has(b.motherId)) o.add(b.childId);
       for (const d of deaths) o.delete(d.id);
       others = { count: o.size, before };
     }
@@ -197,7 +204,7 @@ export class Bridge {
     const before = f.members.size;
     // A family or a cohort grows through its mothers: a mother is always a
     // survivor of this generation, so she is still a member here.
-    const born = births.filter((b) => f.members.has(b.parentAId)).map((b) => b.childId);
+    const born = births.filter((b) => f.members.has(b.motherId)).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
     for (const id of born) f.members.add(id);
     for (const id of gone) f.members.delete(id);
@@ -226,7 +233,8 @@ export class Bridge {
 /**
  * @typedef {Object} GenerationEvents
  * @property {number} generation
- * @property {Array<{childId:number, parentAId:number, parentBId:number}>} births engine birth records
+ * @property {Array<{childId:number, parentAId:number, parentBId:number, motherId:number}>} births engine birth
+ *   records, with the parent whose family each baby joins
  * @property {Array<{id:number, cause:string}>} deaths engine death events
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
  * @property {null|GroupEvents} group what happened to your group (null when you have none)
