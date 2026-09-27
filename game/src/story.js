@@ -525,10 +525,16 @@ export class Story {
       const since = ev.generation - f.generation;
       if (since >= 2) {
         const b = better(this.mine, this.theirs), expected = variationEffect(f.v.t, f.v.dir, f.zone);
-        if (b !== 0 || since >= RESULT_BY) f.asked = true;
+        if (b !== 0 || since >= RESULT_BY) {
+          f.asked = true;
+          // Its result, for the ending (scope decision 62): both sides when it was clear, or when it had to be.
+          const c = this.choices[this.choices.length - 1];
+          if (c) c.result = { mine: this.mine.now, theirs: this.theirs.now, after: since };
+        }
         if (b !== 0 && b === expected) {
           this.guessedAt = ev.generation;
-          return guessFor(`Why are the ones with ${shortGroup(f.v.group)} doing ${b > 0 ? "better" : "worse"}?`, f.v.t, f.zone);
+          // A fair test that showed what the table says is a Field Guide discovery (scope decision 62).
+          return { ...guessFor(`Why are the ones with ${shortGroup(f.v.group)} doing ${b > 0 ? "better" : "worse"}?`, f.v.t, f.zone), discovery: { t: f.v.t, zone: f.zone } };
         }
       }
     }
@@ -793,6 +799,8 @@ export class Story {
  * @property {number} othersAtChoice @property {null|number} othersAtEnd the twins without it, the same way
  * @property {number} fromFamily @property {number} fromNearby
  * @property {number} anchor the baby (or animal) the follow started from
+ * @property {{mine:number, theirs:number, after:number}} [result] both sides when the result was clear (or RESULT_BY
+ *   generations on), for the ending
  *
  * @typedef {Object} TreeAnimal an animal on the family tree strip
  * @property {number} id @property {ArrayLike<number>} genome its real body @property {number} zone

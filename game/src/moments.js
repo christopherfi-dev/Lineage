@@ -22,7 +22,9 @@ import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 import { netEffect, PREDICT_AFTER } from "./journal.js";
-import { movedLine, movingLine } from "./narration.js";
+import { chipWords, movedLine, movingLine } from "./narration.js";
+import { storyCard } from "./storycard.js";
+import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
@@ -30,6 +32,7 @@ export const MOMENTS = [
   "fairtest", "other-card", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "no-test", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
   "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
+  "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide",
 ];
 
 /**
@@ -207,8 +210,20 @@ const MOMENT = {
   habitat: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 2 } },
   /** A visit to the open ground, the same way. */
   ground: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 1 } },
-  /** A surviving ending whose reveal names a real animal (not the first mammals). */
+  /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /** The same ending's second step (scope decision 62): "Your idea", the sentence half built. */
+  "ending-idea": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /** Its third step: the idea checked against the table, with the clue and the last fair test. */
+  "ending-check": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /** Its last step: the reveal, the traits, the story's history, the Field Guide and the story card. */
+  "ending-reveal": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /** The story card made from that ending (scope decision 62), shown over the page to look at. */
+  "story-card": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /** A fair test showed what the table says: "You discovered: …" in the narration (scope decision 62). */
+  discovery: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && { text: s.lastGuess.text } },
+  /** The Field Guide, open mid-story after a few discoveries (scope decision 62). */
+  guide: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length >= 4 },
   /**
    * An ending where the family died out after a follow: it leads with the fair test (scope decision 37). A family's
    * fate doesn't depend on what the child follows, and no founding family of seed 13 dies out: the moments page
@@ -565,9 +580,40 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "ending" || moment === "extinct") {
+  } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card") {
     G.endingAt = null;
     G.showEnding();
+    if (moment !== "ending" && moment !== "extinct") {
+      // The child builds the idea the table would give: the family's biggest helper (or hurter) where it lived.
+      const t = truthOf(G.story), trait = G.story.outcome === "survived" ? t.helper ?? t.hurter : t.hurter ?? t.helper;
+      G.setEndingStep(1);
+      G.ideaPicks.t.value = String(trait ?? 5);
+      if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
+      G.ideaChanged();
+      if (moment !== "ending-idea") G.answerIdea();
+      if (moment === "ending-reveal" || moment === "story-card") G.setEndingStep(3);
+      if (moment === "story-card") {
+        const s = G.story, canvas = await storyCard(doc, {
+          name: s.name, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
+          reveal: G.revealEl.querySelector("#reveal-line .text")?.textContent ?? null, idea: G.idea?.sentence ?? null, died: s.outcome === "died",
+        });
+        G.cardCanvas = canvas;
+        const img = Object.assign(doc.createElement("img"), { src: canvas.toDataURL("image/png") });
+        img.style.cssText = "position:fixed;inset:0;margin:auto;max-width:94vw;max-height:94vh;z-index:200;box-shadow:0 20px 60px rgba(0,0,0,.45);border-radius:10px;";
+        doc.body.append(img);
+      }
+    }
+  } else if (moment === "discovery") {
+    // The child guesses; when the panel closes, the discovery is said.
+    lookAtGroup(G);
+    if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); }
+    const line = G.logQueue.find((l) => l.startsWith("You discovered"));
+    if (line) G.logQueue = [line, ...G.logQueue.filter((l) => l !== line)];
+    G.logTimer = 0;
+    G.pumpLog(0);
+  } else if (moment === "guide") {
+    lookAtGroup(G);
+    G.openGuide();
   } else if (moment === "average") {
     lookAtGroup(G);
     G.openAverage();

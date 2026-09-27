@@ -183,6 +183,13 @@ export function hurtingLine(words) { return `Hurting here: ${words.length ? word
 export const SAME_TRAIT = "Same trait, different place:";
 export const sameTraitLabel = (trait, zone) => `${capital(hasWords(trait, 2))} ${ZONE_AT[zone]}`;
 
+/** The ending's first step (scope decision 62): the family's average body when the story began, beside the end. */
+export const startLine = (name = null) => `Here's how ${your("animals", name)} began.`;
+/** The ending's result row: the family's size when the story began and at the end. */
+export const familyLabel = (name = null) => capital(your("family", name));
+/** Above the chosen traits on the ending: "You chose:". */
+export const YOU_CHOSE = "You chose:";
+
 /** The living portrait's sheet (scope decision 61): "Your Mossfoot animals, on average". */
 export const averageTitle = (name = null) => `${capital(your("animals", name))}, on average`;
 /** Above the family tree strip. */
@@ -265,6 +272,8 @@ export const WITHOUT = "Without";
 export const NEARBY_IN_TEST = "From nearby, in your fair test";
 /** The ending's last fair test: "On the open ground:" */
 export const fairHeading = (zone) => `${capital(ZONE_AT[zone])}:`;
+/** Its result, when it was clear: "On the open ground, 3 generations later:" */
+export const fairLater = (zone, n) => `${capital(ZONE_AT[zone])}, ${plural(n, "generation", "generations")} later:`;
 export const SINCE_TITLE = "Since your last choice:";
 
 /** "grew", "shrank": which way a group's size went, without the number. */

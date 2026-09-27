@@ -133,6 +133,12 @@ export function typedName(text) {
   return low.charAt(0).toUpperCase() + low.slice(1);
 }
 
+/** True when a typed sentence has a word the filter catches ("My idea", scope decision 62). */
+export function hasBlockedWord(text) {
+  const low = String(text ?? "").toLowerCase();
+  return BLOCKED_INSIDE.some((w) => low.includes(w)) || low.split(/[^\p{L}]+/u).some((w) => BLOCKED_WHOLE.includes(w));
+}
+
 /** "Use my name": the child's name joined to the family's standout trait word, "Mia" and "paddle" make "Miapaddle". Null when the name can't be used. */
 export function myNameFamily(text, word) {
   const name = typedName(text);

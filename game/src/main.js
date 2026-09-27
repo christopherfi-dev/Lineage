@@ -32,14 +32,21 @@ import {
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
   GLOW_HINT, followButton, PASS_ON_BUTTON, KEEP_LOOKING, passedOnLine, PASSED_GONE, PASSED_SHORT, PASSED_COMMON, PASSED_MOVED, dangerLine, needsYou,
   passingOnLine, passedGoneLine, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, treeSpoken,
+  startLine, familyLabel, YOU_CHOSE, ZONE_AT, fairLater,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, SO_FAR, chipWords, fadedLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { nothingToTest, explainGuess, variationEffect } from "./why.js";
 import {
+  IDEA_TRAITS, IDEA_OR, IDEA_DONE, CHECK_TITLE, REVEAL_TITLE, HAPPENED_TITLE, IDEA_TITLE, MY_IDEA, ideaSentence, cleanIdea, truthOf, checkIdea,
+  FIELD_GUIDE, FIELD_GUIDE_TITLE, NOT_YET, discoveryLine, discoveredLine, guideEntry, discoveries, discover, keepInJournal,
+} from "./reflection.js";
+import { storyCard, shareCard } from "./storycard.js";
+import { placeOf } from "./cohorts.js";
+import {
   familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS, TYPE_OWN, USE_MY_NAME, TYPE_PROMPT, MY_NAME_PROMPT,
-  TRY_ANOTHER_NAME, NAME_MAX, typedName, myNameFamily, standoutWord,
+  TRY_ANOTHER_NAME, NAME_MAX, typedName, myNameFamily, standoutWord, hasBlockedWord,
 } from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
 import {
@@ -162,8 +169,22 @@ export class Game {
     this.sinceBarEl = $("since-bar");
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
-    this.endingFairLineEl = $("ending-fair-line");
-    this.endingLeadEl = $("ending-lead");
+    // The ending's four steps (scope decision 62).
+    this.stepEls = ["step-happened", "step-idea", "step-check", "step-reveal"].map($);
+    this.stepNameEl = $("ending-step-name");
+    this.stepCountEl = $("ending-step-count");
+    this.endingNextEl = /** @type {HTMLButtonElement} */ ($("ending-next"));
+    this.endingStartEl = /** @type {HTMLCanvasElement} */ ($("ending-start"));
+    this.endingTreeEl = $("ending-tree");
+    this.endingResultEl = $("ending-result");
+    this.ideaBuilderEl = $("idea-builder");
+    this.ideaOwnEl = /** @type {HTMLTextAreaElement} */ ($("idea-own"));
+    this.ideaNoteEl = $("idea-note");
+    this.ideaDoneEl = /** @type {HTMLButtonElement} */ ($("idea-done"));
+    this.ideaCheckEl = $("idea-check");
+    this.guideButtonEl = /** @type {HTMLButtonElement} */ ($("guide-button"));
+    this.guideEl = $("guide");
+    this.guideGridEl = $("guide-grid");
     this.journalEl = $("journal");
     this.journalOptionsEl = $("journal-options");
     this.journalBarEl = $("journal-bar");
@@ -225,8 +246,15 @@ export class Game {
     this.namingPrompt = this.speakable($("naming-prompt"));
     this.averageTitle = this.speakable($("average-title"));
     this.treeTitle = this.speakable($("tree-title"), () => this.treeSaid ?? TREE_TITLE);
-    this.endingFairLine = this.speakable(this.endingFairLineEl);
     this.endingPredictionsLabel = this.speakable($("ending-predictions-label"));
+    this.endingStart = this.speakable($("ending-start-line"));
+    this.endingTreeTitle = this.speakable($("ending-tree-title"), () => this.endingTreeSaid ?? TREE_TITLE);
+    this.ideaSaidEl = $("idea-said");
+    this.ideaSaid = this.speakable(this.ideaSaidEl);
+    this.ideaOr = this.speakable($("idea-or"));
+    this.ideaMine = this.speakable($("idea-mine"));
+    this.guideTitle = this.speakable($("guide-title"));
+    this.guideCount = this.speakable($("guide-count"));
     this.bloomEl = $("bloom");
     // Sound (Step 5, sound.js): off until the first tap, and muted by ?sound=off or as it was last left here.
     let stored = null;
@@ -357,6 +385,13 @@ export class Game {
     this.averageEl.classList.remove("open");
     this.averageEl.hidden = true;
     this.portraitEl.hidden = true;
+    this.guideOpen = false;
+    this.guideEl.classList.remove("open");
+    this.guideEl.hidden = true;
+    this.guideButtonEl.hidden = false;
+    /** @type {Array<{question:string, answer:null|string, right:boolean}>} this story's tap-to-guess answers, for the journal */
+    this.guesses = [];
+    this.storyId = null;
     /** @type {null|NamingState} naming the family, right after the first tap */
     this.naming = null;
     this.namingEl.classList.remove("open");
@@ -1025,6 +1060,7 @@ export class Game {
     if (!g || g.answered) return;
     const line = explainGuess(g.question, option);
     Object.assign(g, { answered: true, option, left: EXPLAIN_SECONDS * 1000, paused: 0 });
+    this.guesses.push({ question: g.question.text, answer: option?.text ?? null, right: !!option?.right });
     for (const el of this.guessAnswerEls) {
       el.button.disabled = true;
       el.classList.add(el.option === option ? "picked" : el.option.right ? "right-answer" : "not-picked");
@@ -1049,7 +1085,10 @@ export class Game {
 
   closeGuess() {
     if (!this.guess) return;
+    const found = this.guess.question.discovery;
     this.guess = null;
+    // A fair test showed what the table says: a Field Guide discovery (scope decision 62).
+    if (found) this.discovered(guideEntry(found.t, found.zone));
     this.guessEl.classList.remove("open");
     this.guessHideT = setTimeout(() => { if (!this.guess) this.guessEl.hidden = true; }, 450);
     this.updateCard();
@@ -1238,15 +1277,72 @@ export class Game {
     this.updateHud();
   }
 
-  /** Every ending is a reflection screen, not a game-over screen. */
+  /**
+   * Every ending is a reflection, not a game-over screen, in four short steps
+   * with Next (scope decision 62): what happened (the family at the start and
+   * at the end, its family tree, the result); your idea (a sentence to build,
+   * or the child's own words, which must be given before the story can be
+   * played again); check my idea (against the table, with the clue and the
+   * last fair test); and the reveal (the real animal, the traits, the story's
+   * predictions and choices, the Field Guide and the story card).
+   */
   showEnding() {
     const s = this.story, doc = this.doc;
     this.closeCard(true);
+    this.closeAverage();
+    this.ideaAnswered = false;
+    this.idea = null;
+    // 1. What happened. The family's actual average body at the start and at the end (the last members alive),
+    // drawn, never a list of choices (scope decision 20).
     this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun, s.name));
-    // The group's actual average body at the end (the last members alive), drawn and in words, not a
-    // list of the choices. Each meaningful trait is compared with the whole world at the start (scope decision 20).
     const average = averageOf(s.lastAnimals.map((a) => a.genome)).map((a) => a.mean);
+    const began = averageOf(s.startAnimals.map((a) => a.genome)).map((a) => a.mean);
+    this.endingStart.set(startLine(s.name));
     this.endingLook.set(lookLine(s.outcome, s.name));
+    const tree = s.familyTree();
+    this.endingTreeTitle.set(TREE_TITLE);
+    const size = { label: familyLabel(s.name), then: s.sizeAtStart, now: s.outcome === "died" ? 0 : s.lastAnimals.length, color: MINE_COLOR };
+    const result = Object.assign(doc.createElement("div"), { className: "group-rows" });
+    result.append(...this.countRows([size]), speakerButton(doc, () => `${countLine(size.label, size)}.`));
+    const chips = s.chips.map((c) => chipWords(c.v.group));
+    const chosen = Object.assign(doc.createElement("div"), { className: "chips" });
+    if (chips.length) {
+      chosen.append(Object.assign(doc.createElement("span"), { className: "chips-title", textContent: YOU_CHOSE }),
+        ...s.chips.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: chipWords(c.v.group) })),
+        speakerButton(doc, () => `${YOU_CHOSE} ${chips.join(", ")}.`));
+    }
+    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []));
+    // 2. Your idea.
+    this.endingQuestion.set(question(s.outcome, s.noun, s.name));
+    this.buildIdea(s);
+    // 3. Check my idea: filled in when the idea is given. The clue is the same trait in different places (scope decision 60), else one line.
+    this.endingEvidenceEl.hidden = !s.clue && !s.evidence;
+    this.endingEvidenceLineEl.hidden = !!s.clue;
+    this.endingCompareEl.hidden = !s.clue;
+    if (s.clue) {
+      const rows = [
+        { label: sameTraitLabel(s.clue.trait, s.clue.helps.zone), ...s.clue.helps, color: CLUE_WITH_COLOR },
+        { label: sameTraitLabel(s.clue.trait, s.clue.hurts.zone), ...s.clue.hurts, color: CLUE_WITHOUT_COLOR },
+      ];
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: SAME_TRAIT });
+      heading.append(speakerButton(doc, () => [SAME_TRAIT, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
+      this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
+    } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
+    // The last fair test: the family's animals with the variation beside those without (scope decisions 33 and 59),
+    // when its result was clear (story.js), or else at the end.
+    const last = s.choices[s.choices.length - 1];
+    this.endingFairEl.hidden = !last;
+    if (last) {
+      const r = last.result, rows = [
+        { label: withLabel(last.group), then: last.sizeAtChoice, now: r ? r.mine : last.sizeAtEnd, color: WITH_COLOR },
+        { label: WITHOUT, then: last.othersAtChoice, now: r ? r.theirs : last.othersAtEnd, color: WITHOUT_COLOR },
+      ];
+      const head = r ? fairLater(last.zone, r.after) : fairHeading(last.zone);
+      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: head });
+      heading.append(speakerButton(doc, () => [head, ...rows.map((x) => `${countLine(x.label, x)}.`)].join(" ")));
+      this.endingFairRowsEl.replaceChildren(heading, ...this.countRows(rows));
+    }
+    // 4. The reveal. Each meaningful trait is compared with the whole world at the start (scope decision 20).
     this.endingTraitsTitle.set(traitsTitle(s.noun, s.name));
     const rows = comparedRows(average, s.startWorld, GAP);
     this.traitsSpoken = rows.map((r) => `${r.label}: ${r.value}.`).join(" ");
@@ -1260,60 +1356,13 @@ export class Game {
     this.endingChoicesTitleEl.textContent = choicesHeading(s.choices.length);
     const items = s.choices.length ? s.choices.map((c) => {
       const li = Object.assign(doc.createElement("li"), { textContent: choiceRecap(c) });
-      let spoken = choiceRecap(c);
-      li.append(speakerButton(doc, () => spoken));
-      // A neutral trait the child followed made no difference to who survived (scope
-      // decision 8): said in words, with the group's size as counts and bars.
-      if (c.neutral) {
-        const size = { then: c.sizeAtChoice, now: c.sizeAtEnd };
-        const note = neutralLines(c.group, size, s.name).join(" ");
-        const row = { label: yoursLabel(s.name), ...size, color: MINE_COLOR };
-        li.append(Object.assign(doc.createElement("span"), { className: "note", textContent: note }), ...this.countRows([row]));
-        spoken = `${spoken}. ${note} ${countLine(row.label, row)}.`;
-      }
+      li.append(speakerButton(doc, () => choiceRecap(c)));
       return li;
     }) : [Object.assign(doc.createElement("li"), { textContent: noChoices(s.outcome, s.name) })];
     if (!s.choices.length) items[0].append(speakerButton(doc, () => noChoices(s.outcome, s.name)));
     this.endingChoicesEl.replaceChildren(...items);
     this.endingChoicesEl.classList.toggle("none", !s.choices.length);
     this.endingChoicesEl.classList.toggle("many", s.choices.length > 5);
-    // One line of real evidence from the world, not the answer (evidence.js).
-    // The clue shows both sides when it can (scope decision 14), else one line.
-    // The clue is the same trait in different places (scope decision 60), else one line.
-    this.endingEvidenceEl.hidden = !s.clue && !s.evidence;
-    this.endingEvidenceLineEl.hidden = !!s.clue;
-    this.endingCompareEl.hidden = !s.clue;
-    if (s.clue) {
-      const rows = [
-        { label: sameTraitLabel(s.clue.trait, s.clue.helps.zone), ...s.clue.helps, color: CLUE_WITH_COLOR },
-        { label: sameTraitLabel(s.clue.trait, s.clue.hurts.zone), ...s.clue.hurts, color: CLUE_WITHOUT_COLOR },
-      ];
-      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: SAME_TRAIT });
-      heading.append(speakerButton(doc, () => [SAME_TRAIT, ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
-      this.endingCompareEl.replaceChildren(heading, ...this.countRows(rows));
-    } else if (s.evidence) this.endingEvidence.set(evidenceLine(s.evidence));
-    this.endingQuestion.set(question(s.outcome, s.noun, s.name));
-    // The last fair test: the family's animals with the variation beside those without, from the follow to the end
-    // (scope decisions 33 and 59). When the family died out, the ending leads with it, then the question (scope decision 37).
-    const last = s.choices[s.choices.length - 1];
-    const lead = s.outcome === "died" && !!last;
-    if (lead) this.endingLeadEl.append(this.endingFairEl, this.endingQuestionEl);
-    else {
-      this.endingEvidenceEl.parentElement.prepend(this.endingQuestionEl);
-      this.endingPredictionsEl.before(this.endingFairEl);
-    }
-    this.endingLeadEl.hidden = !lead;
-    this.endingFairEl.hidden = !last;
-    this.endingFairLineEl.hidden = true;
-    if (last) {
-      const rows = [
-        { label: withLabel(last.group), then: last.sizeAtChoice, now: last.sizeAtEnd, color: WITH_COLOR },
-        { label: WITHOUT, then: last.othersAtChoice, now: last.othersAtEnd, color: WITHOUT_COLOR },
-      ];
-      const heading = Object.assign(doc.createElement("div"), { className: "heading", textContent: fairHeading(last.zone) });
-      heading.append(speakerButton(doc, () => [fairHeading(last.zone), ...rows.map((r) => `${countLine(r.label, r)}.`)].join(" ")));
-      this.endingFairRowsEl.replaceChildren(heading, ...this.countRows(rows));
-    }
     // The story's predictions beside what happened, labelled as a story from the simulation (Step 6).
     for (const p of this.predictions) if (!p.result) p.result = resultOf(p, s);
     this.endingPredictionsEl.hidden = !this.predictions.length;
@@ -1324,27 +1373,200 @@ export class Game {
       return li;
     }));
     // The real-animal reveal on every ending (scope decisions 10 and 40, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
-    // the group's actual average traits and main habitat when the story ended, never its choices.
-    // A group that died out gets it in the past tense. Text for now; art comes later.
+    // the family's actual average traits and main habitat when the story ended, never its choices.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       const died = s.outcome === "died";
       this.revealLine.set(namedReveal(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name));
-      this.sound.revealChord(1.3); // as the reveal comes in (styles.css)
-      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" ")); // only the sentences whose traits the group has
-      // Then "Did you know?": true facts about the real animal, each with its own speaker (scope decision 46).
+      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" "));
       this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
         const p = Object.assign(doc.createElement("p"), { className: "fact" });
         p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: fact }), speakerButton(doc, () => fact));
         return p;
       }));
     }
+    for (const [id, text] of [["guide-open", FIELD_GUIDE_TITLE], ["card-save", "Save my story card"], ["journal-link", "My journal"]]) doc.getElementById(id).textContent = text;
     this.endingEl.classList.toggle("died", s.outcome === "died");
     this.endingEl.classList.remove("show");
     this.endingEl.hidden = false;
-    void this.endingEl.offsetWidth; // the parts come in one after another (styles.css)
+    this.setEndingStep(0);
+    void this.endingEl.offsetWidth;
     this.endingEl.classList.add("show");
+    paintCreature(this.endingStartEl, began, { seed: s.startGeneration + 1, habitat: placeOf(s.startAnimals) });
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
+    this.renderTree(this.endingTreeEl, tree);
+    this.endingTreeSaid = this.treeSaid;
+  }
+
+  /** Show one step of the ending: Next goes on, but "Your idea" goes on only once it is given (its own button). */
+  setEndingStep(k) {
+    this.endingStep = k;
+    this.stepEls.forEach((el, i) => { el.hidden = i !== k; });
+    this.stepNameEl.textContent = [HAPPENED_TITLE, IDEA_TITLE, CHECK_TITLE, REVEAL_TITLE][k];
+    this.stepCountEl.textContent = `${k + 1} of 4`;
+    this.endingNextEl.hidden = k === 1 || k === 3;
+    this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
+    this.endingEl.querySelector(".card").scrollTop = 0;
+    if (k === 3 && this.story.reveal) this.sound.revealChord(0.4);
+  }
+
+  /**
+   * "Your idea": "My animals [did / didn't] survive because their [trait]
+   * [helped / didn't help] [in the place]." Each part a large picker; the trait
+   * and the place start empty, so the child chooses them. Or the child types
+   * their own words. The sentence as built is read aloud by its speaker.
+   * @param {import("./story.js").Story} s
+   */
+  buildIdea(s) {
+    const doc = this.doc, survived = s.outcome === "survived";
+    const pick = (name, options, value) => {
+      const sel = Object.assign(doc.createElement("select"), { name });
+      sel.setAttribute("aria-label", name);
+      for (const [v, text] of options) sel.append(Object.assign(doc.createElement("option"), { value: String(v), textContent: text }));
+      sel.value = String(value);
+      sel.addEventListener("change", () => this.ideaChanged());
+      return sel;
+    };
+    this.ideaPicks = {
+      did: pick("did", [[1, "did"], [0, "didn't"]], survived ? 1 : 0),
+      t: pick("trait", [["", "choose…"], ...IDEA_TRAITS.map((x) => [x.t, x.words])], ""),
+      helped: pick("helped", [[1, "helped"], [0, "didn't help"]], survived ? 1 : 0),
+      zone: pick("place", [["", "choose…"], ...ZONE_AT.map((z, i) => [i, z])], ""),
+    };
+    const word = (text) => Object.assign(doc.createElement("span"), { textContent: text });
+    const p = this.ideaPicks;
+    this.ideaBuilderEl.replaceChildren(word("My animals"), p.did, word("survive because their"), p.t, p.helped, p.zone, word("."));
+    this.ideaOr.set(IDEA_OR);
+    this.ideaOwnEl.value = "";
+    this.ideaNoteEl.replaceChildren();
+    this.ideaDoneEl.textContent = IDEA_DONE;
+    this.ideaChanged();
+  }
+
+  /** The idea as it stands: the built sentence, or null until its trait and place are chosen. */
+  builtIdea() {
+    const p = this.ideaPicks;
+    if (p.t.value === "" || p.zone.value === "") return null;
+    return { did: p.did.value === "1", t: Number(p.t.value), helped: p.helped.value === "1", zone: Number(p.zone.value) };
+  }
+
+  /** The sentence and the button follow what the child picks or types. */
+  ideaChanged() {
+    const idea = this.builtIdea(), own = cleanIdea(this.ideaOwnEl.value).trim();
+    for (const sel of Object.values(this.ideaPicks)) sel.classList.toggle("empty", sel.value === "");
+    this.ideaSaid.set(idea ? ideaSentence(idea) : "");
+    this.ideaSaidEl.hidden = !idea;
+    this.ideaDoneEl.disabled = !idea && own.replace(/[^\p{L}]/gu, "").length < 3;
+  }
+
+  /**
+   * The idea is given: check it (reflection.js), keep the story in this iPad's
+   * journal for the teacher, and go on to "Check my idea". The play-again
+   * buttons come now. A typed idea the filter catches is not taken.
+   */
+  answerIdea() {
+    const s = this.story, own = cleanIdea(this.ideaOwnEl.value).trim(), built = this.builtIdea();
+    const typed = own.replace(/[^\p{L}]/gu, "").length >= 3;
+    if (!built && !typed) return;
+    if (typed && hasBlockedWord(own)) {
+      const line = "Let's try different words.";
+      this.ideaNoteEl.replaceChildren(line, speakerButton(this.doc, () => line));
+      return;
+    }
+    const idea = typed ? null : built, sentence = typed ? own : ideaSentence(built);
+    const check = checkIdea(idea, truthOf(s));
+    this.idea = { sentence, typed, check };
+    this.ideaAnswered = true;
+    this.ideaMine.set(`${MY_IDEA} ${sentence}`);
+    this.ideaCheckEl.classList.toggle("right", check.right);
+    this.ideaCheckEl.replaceChildren(...check.lines.map((line) => {
+      const p = this.doc.createElement("p");
+      p.append(Object.assign(this.doc.createElement("span"), { className: "text", textContent: line }), speakerButton(this.doc, () => line));
+      return p;
+    }));
+    this.keepStory(check);
+    this.setEndingStep(2);
+  }
+
+  /** The story, kept in this iPad's own journal for the teacher (reflection.js; nothing leaves the iPad). */
+  keepStory(check) {
+    const s = this.story;
+    this.storyId = this.storyId ?? Date.now();
+    keepInJournal({
+      id: this.storyId, when: new Date().toISOString(), name: s.name, seed: this.seed,
+      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, lasted: s.lasted,
+      choices: s.choices.map((c) => `${c.group}${c.byChance ? " (picked at random)" : ""}`),
+      idea: this.idea.sentence, typed: this.idea.typed, check: check.lines, right: check.right,
+      reveal: s.reveal?.animal.name ?? null,
+      predictions: this.predictions.map((p) => ({ question: p.question.text, answer: p.answer.text, lines: p.result?.lines ?? [], came: !!p.result?.came })),
+      guesses: this.guesses ?? [],
+    });
+  }
+
+  /**
+   * The story card (scope decision 62): one picture of the story, made here
+   * (storycard.js), to save or share from the iPad's own share sheet, or to
+   * download. Nothing is uploaded.
+   */
+  async saveCard() {
+    const s = this.story, button = /** @type {HTMLButtonElement} */ (this.doc.getElementById("card-save"));
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Making your card…";
+    try {
+      const canvas = await storyCard(this.doc, {
+        name: s.name, title: endingTitle(s.outcome, s.lasted, s.noun, s.name), tree: s.familyTree(),
+        chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
+        reveal: s.reveal ? namedReveal(s.outcome === "died" ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name) : null,
+        idea: this.idea?.sentence ?? null, died: s.outcome === "died",
+      });
+      this.cardCanvas = canvas; // for checking from the console and the moments
+      await shareCard(canvas, s.name);
+    } catch (err) {
+      console.warn("[lineage] story card", err);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  /* ================= the Field Guide (scope decision 62) ================= */
+  /** Open the Field Guide: the 21 discoveries, each trait in each place, found on this iPad. The world waits. */
+  openGuide() {
+    const doc = this.doc, found = discoveries(), n = FIELD_GUIDE.filter((e) => found.has(e.key)).length;
+    this.guideTitle.set(FIELD_GUIDE_TITLE);
+    this.guideCount.set(discoveredLine(n));
+    const cells = [doc.createElement("span"), ...["High leaves", "Open ground", "Water's edge"].map((t) => Object.assign(doc.createElement("span"), { className: "place", textContent: t }))];
+    for (const x of IDEA_TRAITS.slice(0, 7)) {
+      cells.push(Object.assign(doc.createElement("span"), { className: "trait", textContent: x.words.charAt(0).toUpperCase() + x.words.slice(1) }));
+      for (const e of FIELD_GUIDE.filter((y) => y.t === x.t)) {
+        const known = found.has(e.key), el = Object.assign(doc.createElement("div"), { className: `entry ${known ? { "✓": "helps", "✗": "hurts", "~": "little" }[e.mark] : "unknown"}` });
+        el.append(Object.assign(doc.createElement("span"), { className: "mark", textContent: known ? e.mark : "?" }),
+          Object.assign(doc.createElement("span"), { className: "text", textContent: known ? e.line : NOT_YET }));
+        if (known) el.append(speakerButton(doc, () => e.line));
+        cells.push(el);
+      }
+    }
+    this.guideGridEl.replaceChildren(...cells);
+    this.guideOpen = true;
+    this.guideEl.hidden = false;
+    requestAnimationFrame(() => this.guideEl.classList.add("open"));
+  }
+
+  closeGuide() {
+    if (!this.guideOpen) return;
+    this.guideOpen = false;
+    this.guideEl.classList.remove("open");
+    this.guideHideT = setTimeout(() => { if (!this.guideOpen) this.guideEl.hidden = true; }, 450);
+  }
+
+  /** A new discovery: said in the narration, with a chime ("You discovered: webbed feet help at the water's edge."). */
+  discovered(entry) {
+    if (!entry || !discover(entry)) return;
+    const line = discoveryLine(entry);
+    this.logLinks.delete(line);
+    this.sayNext([line]);
+    this.sound.chime();
   }
 
   /**
@@ -1614,6 +1836,8 @@ export class Game {
       why === "back" ? backLine(TRAIT_WORDS[g.v.trait][went.dir > 0 ? 1 : 0], s.name) : why === "common" ? PASSED_COMMON :
       why ? nothingToTest(g.v, s.testZone()) : s.goesBack(g) ? goBackLine(g.v.group, s.testZone()) : null;
     const text = why ? null : s.canStartFor(g) ? followButton(s.sizeFor(g), g.v.group) : PASS_ON_BUTTON;
+    // A card that says a trait doesn't matter much here is a Field Guide discovery (scope decision 62).
+    if (why === "little") this.discovered(guideEntry(g.v.t, s.testZone()));
     const key = `${g.id}:${note}:${text}`;
     if (key === this.followKey) return;
     this.followKey = key;
@@ -2008,7 +2232,7 @@ export class Game {
 
     // The generation clock runs only while a story is watched or fast-forwarded,
     // and a hidden tab or a long stall never releases a burst of generations.
-    if (s.running && !this.journal && !this.since && !this.naming && !this.guess && !this.averageOpen) { // a panel on screen holds the world
+    if (s.running && !this.journal && !this.since && !this.naming && !this.guess && !this.averageOpen && !this.guideOpen) { // a panel on screen holds the world
       const genMs = (s.fast ? FAST_SECONDS : GENERATION_SECONDS) * 1000, step = Math.min(250, raw);
       this.clock += step;
       if (s.phase === "watch" && this.clock >= 0) this.dayGoesOn(step / 1000, now); // (a moment being reached holds the clock below 0)
@@ -2078,7 +2302,7 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess || this.averageOpen) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -2211,7 +2435,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #average, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -2251,7 +2475,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #average, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #since, #journal, #naming, #guess, #average, #guide, #ending")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -2293,8 +2517,16 @@ export class Game {
     this.doc.getElementById("naming-ok").addEventListener("click", () => this.submitTyping());
     this.doc.getElementById("naming-back").addEventListener("click", () => this.stopTyping());
     this.portraitEl.addEventListener("click", () => this.openAverage());
+    // The ending's steps, the idea, the Field Guide and the story card (scope decision 62).
+    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(3, this.endingStep + 1)));
+    this.ideaDoneEl.addEventListener("click", () => this.answerIdea());
+    this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
+    this.guideButtonEl.addEventListener("click", () => this.openGuide());
+    this.doc.getElementById("guide-open").addEventListener("click", () => this.openGuide());
+    this.doc.getElementById("guide-close").addEventListener("click", () => this.closeGuide());
+    this.doc.getElementById("card-save").addEventListener("click", () => this.saveCard());
     this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
-    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); } });
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
