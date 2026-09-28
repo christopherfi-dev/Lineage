@@ -1,5 +1,5 @@
 /**
- * The story loop (scope decisions 6, 32–34, 42, 44, 58–60, 64–68). DOM-free:
+ * The story loop (scope decisions 6, 32–34, 42, 44, 58–60, 64–69). DOM-free:
  * the page, the moment shortcuts and the measurement scripts drive the same rules.
  *
  * waiting ─tap─▶ watch ─follow─▶ rise ─▶ watch ─▶ … ─▶ ended
@@ -19,20 +19,30 @@
  * or falls, or after RISE_MAX generations; the page holds the whole line in
  * view meanwhile, so no one dies off screen (scope decision 68: stopping it
  * before anyone of the line would be crowded out, the look-ahead, stopped
- * nearly every fast-forward at once). Then the child watches in real time,
- * with the table's reason: the line growing on a trait that helps there,
- * dying off on one that hurts, about as well as the relatives on one that
- * doesn't matter.
+ * nearly every fast-forward at once). A follow of fewer than FAST_FROM has no
+ * fast-forward: its line is watched in real time from the start, so every
+ * harmful decline is seen (scope decision 69). Then the child watches in real
+ * time, with the table's reason: the line growing on a trait that helps
+ * there, dying off on one that hurts, about as well as the relatives on one
+ * that doesn't matter.
  *
  * A line that dies out goes back to the line before it (scope decision 68):
- * the child gets a "Why?" right there, then "They didn't make it. Back to your
- * line.", and the follow doesn't count. If the line before is gone too, back
- * again. The story ends only when the child's whole line is gone, or at its
- * last generation.
+ * its "Why?" right there, then "They didn't make it. Back to your line.", and
+ * the follow doesn't count. If the line before is gone too, back again. The
+ * story ends only when the child's whole line is gone, or at its last
+ * generation.
+ *
+ * A "Why?" is a tap-to-guess question only the first time a trait's result
+ * appears in a place, when it becomes a Field Guide discovery on this iPad;
+ * after that, and for a "Why?" that is no discovery, the table's reason is
+ * told as a line, with no guess (scope decision 69).
  *
  * Between follows the child is active: a newborn in the line with a new
- * variation glows (a few at a time, the ones that can be followed first), and
- * tapping it offers to follow that variation. Any trait in the line's place
+ * variation glows (a few at a time, the ones that can be followed first, and
+ * of those, traits that help or hurt in the line's place; while one of those
+ * glows or can, at most one glowing baby has a trait that doesn't matter
+ * there, scope decision 69), and tapping it offers to follow that variation.
+ * Any trait in the line's place
  * can be followed, a neutral trait or a "~" there too, with no hint that it
  * doesn't matter (scope decision 65); never the way back from a direction the
  * line already took, unless the line clearly dying off showed that direction
@@ -56,8 +66,9 @@
 import { averageOf, carries, formOf } from "./variations.js";
 import { variationEffect, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
 import { CLUE_FROM, census, evidenceFor, sameTraitClue } from "./evidence.js";
-import { babyLabel, your, diedQuestion, growingQuestion, dyingQuestion, sameQuestion, OTHER_TRAITS } from "./narration.js";
+import { babyLabel, diedQuestion, growingQuestion, dyingQuestion, sameQuestion, OTHER_TRAITS, growingLine, dyingOffLine, sameLine } from "./narration.js";
 import { revealFor } from "./reveal.js";
+import { guideEntry } from "./reflection.js";
 import { GLOW_GENERATIONS, GLOW_MAX, PUSH_OPTIONS, familyVariations, newbornVariation, placeOf, sameVariation } from "./cohorts.js";
 
 /** Real seconds per generation while watching. */
@@ -101,6 +112,8 @@ export const PUSH_SECONDS = 120;
  */
 export const RISE_TO = 20;
 export const RISE_MAX = 15;
+/** A follow whose line has fewer than this many with the trait has no fast-forward: it is watched in real time from the start (scope decision 69). */
+export const FAST_FROM = 3;
 /** The child's line this small or smaller keeps any follow from starting (scope decision 44). */
 export const DANGER_SIZE = 5;
 /** A glowing baby is never replaced by a newer one before it has glowed this long (seconds of watching). */
@@ -129,9 +142,10 @@ export const MOVING_AT = 5;
  * this many more animals, and a quarter more (scope decision 59).
  */
 export const PLACE_MARGIN = 3;
-/** A sudden drop: the line loses this share of itself in one watched generation (and at least 3), mostly as the least suited. */
-export const DROP_SHARE = 0.25;
-/** A tap-to-guess question comes at most once in this many generations (scope decision 60), except when a line dies out. */
+/**
+ * A tap-to-guess question comes at most once in this many generations (scope decision 60), except when a line dies
+ * out. A sudden drop no longer asks one (scope decision 69): it is no Field Guide discovery.
+ */
 export const GUESS_GAP = 4;
 /**
  * A line on a trait that doesn't matter in its place (a "~" or a neutral
@@ -157,18 +171,30 @@ export function appearFraction(id) {
 export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
-   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, length?:number, generationSeconds?:number,
-   *   glowGenerations?:number, onePerVariation?:boolean, lookahead?:false|"crowded"}} [opts]
-   *   where each animal's home spot is (herd.js); the generation the story ends at (storyLength); "crowded" only
-   *   for measuring the look-ahead of scope decision 68, which the game doesn't use; the others only for measuring
-   *   other values of GENERATION_SECONDS and GLOW_GENERATIONS
+   * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, length?:number, known?:(key:string)=>boolean,
+   *   generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean, lookahead?:false|"crowded"}} [opts]
+   *   where each animal's home spot is (herd.js); the generation the story ends at (storyLength); whether this
+   *   iPad's Field Guide already has an entry (reflection.js; none by default, like a new iPad); "crowded" only for
+   *   measuring the look-ahead of scope decision 68, which the game doesn't use; the others only for measuring other
+   *   values of GENERATION_SECONDS and GLOW_GENERATIONS
    */
-  constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, generationSeconds = GENERATION_SECONDS,
+  constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, known = () => false, generationSeconds = GENERATION_SECONDS,
     glowGenerations = GLOW_GENERATIONS, onePerVariation = true, lookahead = false } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the generation of the world the story ends at, if the line lasts */
     this.length = length;
+    /** whether this iPad's Field Guide already has an entry, by its key (reflection.js) */
+    this.known = known;
+    /** @type {Set<string>} the Field Guide entries this story has asked about, so each is a guess only once */
+    this.found = new Set();
+    /**
+     * @type {null|string[]} a follow's result told this generation as a line, with the table's reason and no guess:
+     * its entry is in the Field Guide already (scope decision 69)
+     */
+    this.told = null;
+    /** @type {string[]} a line that just died out, told as lines when its "Why?" is no new discovery (scope decision 69) */
+    this.diedSay = [];
     /** "crowded": the fast-forward also stops before any of the line would be crowded out (measured in scope decision 68, not used) */
     this.lookahead = lookahead;
     this.generationSeconds = generationSeconds;
@@ -372,6 +398,8 @@ export class Story {
     if (!this.fast) this.quiet += seconds;
     this.backFrom = null;
     this.diedWhy = null;
+    this.diedSay = [];
+    this.told = null;
     const last = this.choices[this.choices.length - 1];
     if (last) { last.peak = Math.max(last.peak, g.count); last.counts.push(g.count); }
     this.before = new Map(this.lastAnimals.map((a) => [a.id, a])); // the line a generation ago, for why some died
@@ -474,7 +502,8 @@ export class Story {
   /**
    * The calm rule: of the newborns in the line with a new variation this
    * generation or the one before, at most GLOW_MAX glow, the ones that can be
-   * followed first, then the newest, one per variation. A watched
+   * followed first, then those whose trait helps or hurts in the line's place
+   * (scope decision 69), then the newest, one per variation. A watched
    * generation's babies appear across its day (appearFraction), and each can
    * glow once it has appeared; glows start as the day goes on (advance).
    */
@@ -510,20 +539,40 @@ export class Story {
   /**
    * Which newborns glow now. A glow younger than GLOW_MIN_SECONDS stays; the
    * other places go to the best of the babies that have appeared (the ones
-   * that can be followed first, then the newest), one per variation, at most
-   * GLOW_MAX; a new glow waits until GLOW_GAP_SECONDS after the last one
-   * started. Glows start only while the world is watched.
+   * that can be followed first, then those whose trait helps or hurts in the
+   * line's place, then the newest), one per variation, at most GLOW_MAX; a new
+   * glow waits until GLOW_GAP_SECONDS after the last one started. Glows start
+   * only while the world is watched.
+   *
+   * The glow balance (scope decision 69): while a baby of the line whose trait
+   * helps or hurts in its place glows or can (born, followable, with its glow
+   * not over), at most one glowing baby has a trait that doesn't matter there
+   * (a "~" or a neutral trait). And helpful and harmful traits glow first: no
+   * glow with a trait that doesn't matter starts while such a baby still
+   * waits to light up (its variation not glowing yet). A generation's babies
+   * are all born at its tick, so this holds from the start of the day, before
+   * they appear.
    * @returns {Glow[]} the glows that started now
    */
   startGlows() {
-    const t = this.watchT, current = this.glowing, started = [];
+    const t = this.watchT, current = this.glowing, started = [], zone = this.testZone();
+    const matters = (x) => variationEffect(x.v.t, x.v.dir, zone) !== 0;
+    const open = (x) => current.includes(x) || x.bornT + this.glowGenerations * this.generationSeconds - t >= GLOW_MIN_SECONDS;
+    const balance = this.fresh.some((x) => matters(x) && this.followable(x) && open(x));
     const ready = this.fresh.filter((x) => x.showAt <= t + 1e-9)
-      .sort((a, b) => Number(!this.followable(a)) - Number(!this.followable(b)) || b.generation - a.generation || b.showAt - a.showAt || a.id - b.id);
-    const next = current.filter((x) => t - x.since < GLOW_MIN_SECONDS);
+      .sort((a, b) => Number(!this.followable(a)) - Number(!this.followable(b)) || Number(!matters(a)) - Number(!matters(b)) ||
+        b.generation - a.generation || b.showAt - a.showAt || a.id - b.id);
+    // A young glow stays, but with the balance on, only one of them with a trait that doesn't matter here (the oldest).
+    const young = current.filter((x) => t - x.since < GLOW_MIN_SECONDS), plainYoung = young.filter((x) => !matters(x)).sort((a, b) => a.since - b.since);
+    const next = balance && plainYoung.length > 1 ? young.filter((x) => matters(x) || x === plainYoung[0]) : young;
+    // A baby of the line with a trait that helps or hurts here, still to light up: its variation isn't glowing yet.
+    const waiting = () => this.fresh.some((y) => matters(y) && this.followable(y) && open(y) && !next.includes(y) && !next.some((z) => sameVariation(z.v, y.v)));
     for (const x of ready) {
       if (next.length >= GLOW_MAX) break;
       if (next.includes(x) || (this.onePerVariation && next.some((y) => sameVariation(y.v, x.v)))) continue;
+      if (balance && !matters(x) && next.some((y) => !matters(y))) continue;
       if (current.includes(x)) { next.push(x); continue; }
+      if (!matters(x) && waiting()) continue;
       if (this.phase !== "watch" || t - this.lastGlowAt < GLOW_GAP_SECONDS - 1e-9) continue;
       // Only a glow with GLOW_MIN_SECONDS left before its generations are up starts at all.
       if (x.bornT + this.glowGenerations * this.generationSeconds - t < GLOW_MIN_SECONDS) continue;
@@ -603,19 +652,37 @@ export class Story {
   }
 
   /**
-   * A tap-to-guess question now, or null (scope decisions 60 and 68).
-   * - A followed line just died out: its "Why?" right away (diedGuess), whatever the gap.
+   * This trait's result in this place would be a new Field Guide discovery on
+   * this iPad: its entry was not found on it before, nor asked about in this
+   * story. Only then is its "Why?" a tap-to-guess question (scope decision 69).
+   */
+  isNew(t, zone) {
+    const key = guideEntry(t, zone)?.key;
+    return !!key && !this.found.has(key) && !this.known(key);
+  }
+
+  /** A discovery is asked about now: its entry counts as found in this story, whatever the guess (the page keeps it). */
+  foundNow(discovery) {
+    const key = discovery ? guideEntry(discovery.t, discovery.zone)?.key : null;
+    if (key) this.found.add(key);
+  }
+
+  /**
+   * A tap-to-guess question now, or null (scope decisions 60, 68 and 69). A
+   * "Why?" is a question only when its answer is a new Field Guide discovery on
+   * this iPad (isNew); otherwise the table's reason is told as a line.
+   * - A followed line just died out: its "Why?" right away (diedWhyFor), whatever the gap.
    * - The latest follow's result goes the table's way: the line clearly
    *   growing on a trait that helps there ("Why is your line with bigger eyes
    *   growing?"), clearly dying off on one that hurts, or doing about as well
    *   as its relatives here on one that doesn't matter there. Each is a Field
-   *   Guide discovery. Asked once a follow, from 2 generations after it and
-   *   once a generation has been watched since its fast-forward.
-   * - A sudden drop of the line, mostly crowded out: "Why is your line
-   *   shrinking?", about its biggest hurter there, or the trait that most set
-   *   the ones that died apart.
-   * The three options are the trait's lines for the three places. Otherwise
-   * at most one every GUESS_GAP generations.
+   *   Guide entry. Once a follow, from 2 generations after it and once a
+   *   generation has been watched since its fast-forward. A new entry is asked
+   *   at most once every GUESS_GAP generations; a known one is told at once, in
+   *   `told`: what happened, then the table's reason.
+   * A sudden drop of the line is no discovery: the generation's own lines say
+   * why (changeReasons), with no guess.
+   * The three options are the trait's lines for the three places.
    * @param {import("./bridge.js").GenerationEvents} ev
    * @returns {null|import("./why.js").Guess}
    */
@@ -625,53 +692,58 @@ export class Story {
       const q = this.diedWhy;
       this.diedWhy = null;
       this.guessedAt = ev.generation;
+      this.foundNow(q.discovery);
       return q;
     }
-    if (ev.generation - this.guessedAt < GUESS_GAP) return null;
-    const c = this.choices[this.choices.length - 1], g = ev.group;
+    // The generation a line died out is its own: no other question then, even when its "Why?" is told.
+    if (this.backFrom) return null;
+    const c = this.choices[this.choices.length - 1];
     // After at least one generation watched since the fast-forward, and 2 since the follow.
-    if (c && !c.asked && c.rise && ev.generation > c.rise.until && ev.generation - c.generation >= 2) {
-      const e = variationEffect(c.v.t, c.v.dir, c.zone), now = this.family.now, relatives = this.bridge.relativesIn(c.zone);
-      const shown = e > 0 ? this.growing(c, now) : e < 0 ? this.dyingOff(c, now) : this.aboutSame(c, now, relatives);
-      if (shown) {
-        c.asked = true;
-        // Its result, for the ending: the line and its relatives here, and how long after the follow.
-        c.result = { line: now, relatives, after: ev.generation - c.generation };
-        this.guessedAt = ev.generation;
-        const text = e > 0 ? growingQuestion(c.v.group, this.name) : e < 0 ? dyingQuestion(c.v.group, this.name) : sameQuestion(this.name);
-        return { ...guessFor(text, c.v.t, c.zone), same: e === 0, discovery: { t: c.v.t, zone: c.zone } };
-      }
+    if (!c || c.asked || !c.rise || ev.generation <= c.rise.until || ev.generation - c.generation < 2) return null;
+    const e = variationEffect(c.v.t, c.v.dir, c.zone), now = this.family.now, relatives = this.bridge.relativesIn(c.zone);
+    const shown = e > 0 ? this.growing(c, now) : e < 0 ? this.dyingOff(c, now) : this.aboutSame(c, now, relatives);
+    if (!shown) return null;
+    const ask = this.isNew(c.v.t, c.zone);
+    if (ask && ev.generation - this.guessedAt < GUESS_GAP) return null;
+    c.asked = true;
+    // Its result, for the ending: the line and its relatives here, and how long after the follow.
+    c.result = { line: now, relatives, after: ev.generation - c.generation };
+    if (!ask) {
+      const happened = e > 0 ? growingLine(c.v.group, this.name) : e < 0 ? dyingOffLine(c.v.group, this.name) : sameLine(this.name);
+      this.told = [happened, whyLine(c.v.t, c.zone)];
+      return null;
     }
-    if (g && g.before - g.count >= 3 && g.count <= (1 - DROP_SHARE) * g.before && !this.oldAgeMostly(g, ev.deaths)) {
-      // Crowded out: its biggest hurter there, or else the trait that most set the ones that died apart.
-      const hurt = this.reasons.hurting[0], sf = hurt ? null : this.deathShortfall(ev);
-      if (hurt || sf) {
-        this.guessedAt = ev.generation;
-        return guessFor(`Why is ${your(this.noun, this.name)} shrinking?`, hurt ? hurt.t : sf.t, hurt ? this.place : sf.zone, sf ? sf.who : null);
-      }
-    }
-    return null;
+    this.guessedAt = ev.generation;
+    const discovery = { t: c.v.t, zone: c.zone };
+    this.foundNow(discovery);
+    const text = e > 0 ? growingQuestion(c.v.group, this.name) : e < 0 ? dyingQuestion(c.v.group, this.name) : sameQuestion(this.name);
+    return { ...guessFor(text, c.v.t, c.zone), same: e === 0, discovery };
   }
 
   /**
-   * Why the followed line died out, asked right there (scope decision 68):
-   * "Why did your animals with bigger eyes die out?" None when most of them
-   * were old. Else about the followed trait when it hurts in the line's place
-   * (a Field Guide discovery), or doesn't matter there ("Other traits decided
-   * who made it."). When it helps there, about what else set them apart: the
-   * line's biggest hurter there, or the trait the others there had more of.
+   * Why the followed line died out, right there (scope decisions 68 and 69).
+   * A question, "Why did your animals with smaller eyes die out?", only when
+   * its answer is a new Field Guide discovery: the followed trait hurts in the
+   * line's place, and this iPad hasn't found that yet. Otherwise the reason as
+   * lines: that trait's line from the table; when it doesn't matter there, its
+   * line and "Other traits decided who made it."; when it helps there, what
+   * else set them apart (the line's biggest hurter there, or the trait the
+   * others there had more of). Nothing when most of them were old: the page
+   * says "Some were old and died."
    * @param {import("./bridge.js").GenerationEvents} ev the generation it died out
    * @param {Choice} c its follow
-   * @returns {null|import("./why.js").Guess}
+   * @returns {{q:null|import("./why.js").Guess, lines:string[]}}
    */
-  diedGuess(ev, c) {
-    if (this.oldAgeMostly(ev.group, ev.deaths)) return null;
-    const text = diedQuestion(c.v.group, this.name), e = variationEffect(c.v.t, c.v.dir, c.zone);
-    if (e < 0) return { ...guessFor(text, c.v.t, c.zone), died: true, discovery: { t: c.v.t, zone: c.zone } };
-    if (e === 0) return { ...guessFor(text, c.v.t, c.zone, OTHER_TRAITS), died: true };
+  diedWhyFor(ev, c) {
+    if (this.oldAgeMostly(ev.group, ev.deaths)) return { q: null, lines: [] };
+    const e = variationEffect(c.v.t, c.v.dir, c.zone);
+    if (e < 0 && this.isNew(c.v.t, c.zone)) {
+      return { q: { ...guessFor(diedQuestion(c.v.group, this.name), c.v.t, c.zone), died: true, discovery: { t: c.v.t, zone: c.zone } }, lines: [] };
+    }
+    if (e < 0) return { q: null, lines: [whyLine(c.v.t, c.zone)] };
+    if (e === 0) return { q: null, lines: [whyLine(c.v.t, c.zone), OTHER_TRAITS] };
     const hurt = this.reasons.hurting[0], sf = hurt ? null : this.deathShortfall(ev);
-    if (!hurt && !sf) return null;
-    return { ...guessFor(text, hurt ? hurt.t : sf.t, hurt ? this.place : sf.zone, sf ? sf.who : null), died: true };
+    return { q: null, lines: hurt ? [hurt.line] : sf ? [sf.line, sf.who] : [] };
   }
 
   /** The table's reason for a variation in the line's place (scope decision 60). */
@@ -767,7 +839,9 @@ export class Story {
    * animals with the variation in its place, and from now on a baby joins it
    * when a parent is in it and it inherited the variation. The rest of the old
    * line there are relatives. The world then fast-forwards while the
-   * variation's count in the line rises (riseGeneration).
+   * variation's count in the line rises (riseGeneration), unless it has
+   * RISE_TO already or fewer than FAST_FROM: then the child watches it in real
+   * time from the start (scope decisions 67 and 69).
    * @param {{v:import("./cohorts.js").Variation, id:number, zone:number, home?:any}} x a glow or an offer
    * @param {boolean} byChance picked at random on the backup panel because time ran out
    */
@@ -793,9 +867,11 @@ export class Story {
     this.options = null;
     this.rising = { v: x.v, zone, id: x.id, generation, counts: [ids.length], outcome: null };
     this.phase = "rise";
-    // Already RISE_TO or more: nothing to fast-forward to (scope decision 67). Measured only (scope decision 68): with
+    // Already RISE_TO or more: nothing to fast-forward to (scope decision 67). Fewer than FAST_FROM: watched in real
+    // time from the start, so a harmful decline is seen (scope decision 69). Measured only (scope decision 68): with
     // the look-ahead, no fast-forward either when some would be crowded out next.
     if (ids.length >= RISE_TO) this.stopRise("reached");
+    else if (ids.length < FAST_FROM) this.stopRise("small");
     else if (this.lookahead && this.crowdedNext()) this.stopRise("crowded");
     this.idle = 0;
     this.quiet = 0;
@@ -848,8 +924,9 @@ export class Story {
 
   /**
    * The followed line died out (scope decision 68). Its "Why?" is worked out
-   * first, from the line as it was (diedGuess), for the page to ask right
-   * away; then "They didn't make it. Back to your line.": the child is back
+   * first, from the line as it was (diedWhyFor), for the page to ask right
+   * away or tell as lines (scope decision 69); then "They didn't make it. Back
+   * to your line.": the child is back
    * with the line before that follow, as it is now (the rest of it in its
    * place, and their babies since), and the follow doesn't count. If none of
    * them is alive either, back again, to the line before that. With nothing
@@ -859,7 +936,7 @@ export class Story {
    */
   backToLine(ev) {
     const generation = ev.generation, gone = [];
-    const why = this.diedGuess(ev, this.choices[this.choices.length - 1]);
+    const why = this.diedWhyFor(ev, this.choices[this.choices.length - 1]);
     let members = new Set();
     while (this.choices.length && !members.size) {
       const c = this.choices.pop();
@@ -877,7 +954,8 @@ export class Story {
     }
     this.tries.push(...gone);
     this.backFrom = gone[0];
-    this.diedWhy = why;
+    this.diedWhy = why.q;
+    this.diedSay = why.lines;
     // The line before is the child's again: it counts from now, and "Your line so far" is its own again.
     const now = this.choices[this.choices.length - 1];
     if (now) { now.sizeAtEnd = null; now.relativesAtEnd = null; }
@@ -940,9 +1018,9 @@ export class Story {
  * @property {import("./cohorts.js").Variation} v @property {number} zone the line's place
  * @property {number} id the baby it started from @property {number} generation when it started
  * @property {number[]} counts the line at the follow and after each generation of it
- * @property {null|"reached"|"flat"|"fell"|"cap"|"crowded"|"gone"|"ended"} outcome why it stopped: RISE_TO reached, the
- *   count stopped rising or fell, RISE_MAX generations, some of the line would be crowded out next, the line died out
- *   during it, or the story ended
+ * @property {null|"reached"|"flat"|"fell"|"cap"|"small"|"crowded"|"gone"|"ended"} outcome why it stopped: RISE_TO
+ *   reached, the count stopped rising or fell, RISE_MAX generations, fewer than FAST_FROM at the follow (none at all),
+ *   some of the line would be crowded out next, the line died out during it, or the story ended
  *
  * @typedef {Object} Offer an option on the backup choice panel
  * @property {import("./cohorts.js").Variation} v @property {number} id the animal shown
@@ -966,7 +1044,7 @@ export class Story {
  * @property {null|{outcome:string, counts:number[], generations:number, until:number}} rise its fast-forward, once it stopped
  * @property {null|{line:number, relatives:number, after:number}} result the line and its relatives here when its result
  *   went the table's way (guessNow), for the ending
- * @property {boolean} asked its result was asked about
+ * @property {boolean} asked its result came: asked about (a new discovery), or told as a line (scope decision 69)
  *
  * @typedef {Object} TreeAnimal an animal on the family tree strip
  * @property {number} id @property {ArrayLike<number>} genome its real body @property {number} zone

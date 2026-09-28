@@ -15,24 +15,24 @@
  * the child acts at the same second of the same day.
  */
 
-import { Story, GENERATION_SECONDS } from "./story.js";
+import { Story, GENERATION_SECONDS, FAST_FROM, nearlyOver } from "./story.js";
 import { World } from "./world.js";
 import { Herd } from "./herd.js";
 import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 import { netEffect, PREDICT_AFTER } from "./journal.js";
-import { chipWords, movedLine, movingLine } from "./narration.js";
+import { chipWords, movedLine, movingLine, OTHER_TRAITS } from "./narration.js";
 import { storyCard } from "./storycard.js";
 import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "generation", "variation", "follow", "joining", "rising", "slowdown", "edge-arrow", "blocked",
-  "growing", "dying", "line-dies", "died-why", "back-line", "compare", "other-card", "relative", "grow", "shrink",
-  "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "card",
-  "same", "away", "back", "go-back", "moving", "so-far",
-  "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
+  "arrival", "naming", "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
+  "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
+  "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
+  "same", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble", "nearly-over",
+  "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
 ];
 
@@ -130,6 +130,19 @@ const MOMENT = {
   },
   /** The count reached 20 or more: the counter's last number, and the slow-down back to real time (scope decision 67). */
   slowdown: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "rise-done" && s.lastRise.outcome === "reached" && { trait: s.lastRise.v.trait, counts: s.lastRise.counts.slice() } },
+  /**
+   * A follow of fewer than FAST_FROM on a trait that hurts there: no fast-forward, so the child watches its line in
+   * real time from the start (scope decision 69). "1 of your line has smaller eyes." "Watch what happens to it."
+   */
+  "watch-small": {
+    families: FROM_OTHERS,
+    policies: ["unwise", "active"],
+    at: (s, ev, b, what) => {
+      if (what !== "day" || !s.followOpen || s.quiet < 40 || s.inDanger || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
+      const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) < 0 && s.carrierIds(x.v).length < FAST_FROM);
+      return g ? { id: g.id, carriers: s.carrierIds(g.v).length } : null;
+    },
+  },
   /** A glowing baby, and the camera turned away from it: an arrow at the screen's edge points to it (playtest). */
   "edge-arrow": { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "day" && s.followOpen && s.choices.length === 0 && ev.generation >= 3 && s.glowing.length >= 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
   /**
@@ -154,8 +167,16 @@ const MOMENT = {
   dying: { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.verdict(ev)?.kind === "dying" && ev.group.gone.length >= 2 && { gone: ev.group.gone.length } },
   /** A followed line dies out (scope decision 68): its last animals fade, the camera on them, "The last of … are dying." */
   "line-dies": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "back" && ev.group.before >= 1 && { trait: s.backFrom.trait, peak: s.backFrom.peak } },
-  /** Then its "Why?" right there: "Why did your animals with … die out?" (scope decision 68). */
+  /**
+   * Then its "Why?" right there, a guess when it is a new Field Guide discovery: "Why did your animals with … die out?"
+   * (scope decisions 68 and 69).
+   */
   "died-why": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.died && { text: s.lastGuess.text } },
+  /**
+   * A line dying out whose "Why?" is no new discovery, here on a trait that doesn't matter there: why is told as lines,
+   * with no guess, "Ear tip shape doesn't help or hurt anywhere." "Other traits decided who made it." (scope decision 69).
+   */
+  "died-told": { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "back" && s.diedSay[1] === OTHER_TRAITS && { lines: s.diedSay.slice() } },
   /** Then "They didn't make it. Back to your line.": the line before is blue again, the camera on it (scope decision 68). */
   "back-line": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.died && { text: s.lastGuess.text } },
   /** Three generations or more after a follow: the line and "Your relatives here", counts with bars (scope decision 67). */
@@ -208,6 +229,13 @@ const MOMENT = {
   map: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
+  /**
+   * A story that ends early: the child's whole line died out (scope decisions 37 and 68). Kept for that (scope decision
+   * 69). A followed line spreads through both parents, so the whole line rarely goes before the family does, with a
+   * child who has followed little: the moments page opens it in seed 35, whose family 1 dies out at generation 24 when
+   * nothing was followed.
+   */
+  extinct: { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" },
   /** The same ending's second step (scope decision 62): "Your idea", the sentence half built. */
   "ending-idea": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** Its third step: the idea checked against the table, with the clue and the last choice's line beside its relatives. */
@@ -254,6 +282,21 @@ const MOMENT = {
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
   },
   /**
+   * The whole line died out with 25 or more generations of the story left, and the child taps "Try another family":
+   * the same world as it is now, the camera on a family with a future (scope decisions 59 and 69).
+   */
+  "another-family": { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && !nearlyOver(ev.generation, s.length) },
+  /**
+   * Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try
+   * another!" (scope decisions 59 and 69).
+   */
+  "in-trouble": { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
+  /**
+   * The whole line died out with fewer than 25 generations of the story left, and the child, at the reveal, taps
+   * "Try another family": "This world is nearly over. Start a new world?" (scope decisions 64 and 69).
+   */
+  "nearly-over": { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && nearlyOver(ev.generation, s.length) },
+  /**
    * A change with its reason from the table (scope decision 60), when no follow's verdict is told instead: the line
    * grew or shrank, and the log says why, "Webbed feet push through water." then "But long legs drag in the water.",
    * with "Helping here / Hurting here" shown.
@@ -264,12 +307,24 @@ const MOMENT = {
     at: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8 || s.verdict(ev)) return null; const r = s.changeReasons(ev); return r.length >= 2 && { lines: r }; },
     relaxed: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8 || s.verdict(ev)) return null; const r = s.changeReasons(ev); return r.length >= 1 && s.reasons.helping.length + s.reasons.hurting.length > 0 && { lines: r }; },
   },
-  /** A follow's result goes the table's way, and the world waits for a guess (scope decisions 60 and 68): "Why is your line with bigger eyes growing?" */
+  /**
+   * A follow's result goes the table's way, a new Field Guide discovery, and the world waits for a guess (scope
+   * decisions 60, 68 and 69): "Why is your line with bigger eyes growing?"
+   */
   why: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && !s.lastGuess.same && !s.lastGuess.died && { text: s.lastGuess.text } },
   /** The same, after the child's guess: why, from the table. */
   "why-answer": { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && !s.lastGuess.same && !s.lastGuess.died && { text: s.lastGuess.text } },
-  /** A sudden drop of the family or line, mostly crowded out, that one trait explains: "Why is your line shrinking?" */
-  "why-drop": { families: FROM_OTHERS, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === "guess" && /shrinking\?$/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  /**
+   * A follow's result whose Field Guide entry this iPad has already (here a full Field Guide): no guess; what happened,
+   * then the table's reason, told as lines (scope decision 69). A trait that doesn't matter there: "Your line is doing
+   * about as well as your relatives." The sudden drop's "Why?" left with scope decision 69: its reason is told too.
+   */
+  told: {
+    guide: "full",
+    families: FROM_OTHERS,
+    policies: ["active", "unwise"],
+    at: (s, ev, b, what) => { const c = s.choices[s.choices.length - 1]; return what === "told" && !!c && c.v.dir * netEffect(c.v.t, c.zone) === 0 && { lines: s.told.slice() }; },
+  },
   /** "Your animals, on average", opened from the living portrait, with the family tree strip (scope decision 61). */
   average: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length >= 2 && s.familyTree().nodes.length >= 4 },
   /** A member of your line with a new trait, for its creature card. */
@@ -287,11 +342,14 @@ const MOMENT = {
 
 const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-/** A throwaway copy of the game's world, with a herd laid out like the game's (the spots fair tests measure from). */
+/**
+ * A throwaway copy of the game's world, with a herd laid out like the game's, and the same Field Guide as the page's
+ * story (a new iPad's, or a full one: the moment's `guide`), so a "Why?" is a guess in both or in neither.
+ */
 function copyOf(game) {
   const bridge = game.makeWorld(game.seed), herd = new Herd(new World(), 7919);
   herd.placeFounders(bridge);
-  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null, length: game.storyLength });
+  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null, length: game.storyLength, known: (key) => game.guideHas(key) });
   const step = () => { const ev = bridge.step(); if (ev) herd.applyGeneration(ev, bridge, 0); return ev; };
   return { bridge, story, step };
 }
@@ -323,12 +381,16 @@ async function findStory(game, moment, relaxed = false) {
         const hit = at(story, ev, bridge, what);
         if (hit) return found(hit, null);
         if (what === "choice") continue;
-        // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes).
+        // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes), or
+        // a follow's result told as lines instead (scope decision 69).
         const q = story.phase === "watch" ? story.guessNow(ev) : null;
         if (q) {
           story.lastGuess = q;
           const guess = at(story, ev, bridge, "guess");
           if (guess) return found(guess, null);
+        } else if (story.told) {
+          const told = at(story, ev, bridge, "told");
+          if (told) return found(told, null);
         }
         // The watched day: babies light up as it goes on, and the child may act.
         for (let k = 1; k <= DAY_STEPS && story.phase === "watch"; k++) {
@@ -472,6 +534,8 @@ export async function goToMoment(game, moment) {
     return;
   }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
+  // A moment is played on a new iPad, whose Field Guide is empty, unless it asks for a full one (scope decision 69).
+  game.guideAll = MOMENT[moment].guide === "full";
   await frame();
   const plan = (await findStory(game, moment)) ?? (MOMENT[moment].relaxed ? await findStory(game, moment, true) : null);
   if (!plan) {
@@ -501,10 +565,18 @@ export async function goToMoment(game, moment) {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
-  } else if (moment === "joining") {
+  } else if (moment === "joining" || moment === "watch-small") {
     // The child follows the glowing newborn: the line's animals with its trait light up, counted, and the counter starts.
+    // With fewer than FAST_FROM, no fast-forward: "Watch what happens to it." comes first here (scope decision 69).
     const g = glowOf(plan.hit.id);
     if (g) { G.followFromMap(g); if (G.since) G.closeSince(); }
+    if (moment === "watch-small") {
+      const line = G.logQueue.find((l) => l.startsWith("Watch what happens"));
+      if (line) G.logQueue = [line, ...G.logQueue.filter((l) => l !== line)];
+      G.logTimer = 0;
+      G.pumpLog(0);
+      lookAtGroup(G); // the camera on the line at once, not on its way there
+    }
   } else if (moment === "edge-arrow") {
     // The camera looks away from the baby, toward the middle of the world: an arrow at the edge points back to it.
     const a = G.herd.animals.get(plan.hit.id);
@@ -518,13 +590,15 @@ export async function goToMoment(game, moment) {
     const tw = G.camTween, zw = G.zoomTween;
     if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "line-dies" || moment === "died-why" || moment === "back-line") {
-    // The line's last animals fade, the camera on them; then its "Why?"; then back to the line before.
+  } else if (moment === "line-dies" || moment === "died-why" || moment === "died-told" || moment === "back-line") {
+    // The line's last animals fade, the camera on them; then its "Why?", a guess or told (scope decision 69); then back
+    // to the line before.
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
     if (moment !== "line-dies" && G.backing) G.backNow();
     if (moment === "back-line" && G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); G.logTimer = 0; G.pumpLog(0); }
-    if (moment === "back-line") lookAtGroup(G);
+    if (moment === "died-told") { G.logTimer = 0; G.pumpLog(0); }
+    if (moment === "back-line" || moment === "died-told") lookAtGroup(G);
   } else if (moment === "compare") {
     // The line and "Your relatives here": on a phone the slim bar opens to show them.
     lookAtGroup(G);
@@ -563,10 +637,10 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "ending" || moment.startsWith("ending-") || moment === "story-card") {
+  } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();
-    if (moment !== "ending") {
+    if (moment !== "ending" && moment !== "extinct") {
       // The child builds the idea the table would give: the family's biggest helper (or hurter) where it lived.
       const t = truthOf(G.story), trait = G.story.outcome === "survived" ? t.helper ?? t.hurter : t.hurter ?? t.helper;
       G.setEndingStep(1);
@@ -574,7 +648,9 @@ export async function goToMoment(game, moment) {
       if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
       G.ideaChanged();
       if (moment !== "ending-idea") G.answerIdea();
-      if (moment === "ending-reveal" || moment === "story-card") G.setEndingStep(3);
+      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.setEndingStep(3);
+      // At the reveal, "Try another family" with few generations left asks first (scope decision 64).
+      if (moment === "nearly-over") G.anotherFamily();
       if (moment === "story-card") {
         const s = G.story, canvas = await storyCard(doc, {
           name: s.name, noun: s.noun, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
@@ -600,9 +676,27 @@ export async function goToMoment(game, moment) {
   } else if (moment === "average") {
     lookAtGroup(G);
     G.openAverage();
-  } else if (moment === "why" || moment === "why-answer" || moment === "why-drop" || moment === "same") {
+  } else if (moment === "why" || moment === "why-answer" || moment === "same") {
     lookAtGroup(G, 0.3);
     if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);
+  } else if (moment === "told") {
+    // No guess: what happened, then the table's reason, in the narration (scope decision 69). The camera stays on the
+    // line here, rather than going to each of the day's deaths.
+    G.deathCam = [];
+    lookAtGroup(G);
+  } else if (moment === "another-family" || moment === "in-trouble") {
+    // The ending, then "Try another family" ("Keep going anyway" when few generations are left): the world as it is
+    // now, and a family with a future to tap. In trouble: a tap on one with none (scope decision 59).
+    G.endingAt = null;
+    G.showEnding();
+    await new Promise((resolve) => { G.anotherFamily(moment === "in-trouble"); setTimeout(resolve, 120); });
+    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+    if (moment === "in-trouble") {
+      const doomed = G.bridge.livingIds().find((id) => !G.hasFuture(id));
+      const a = doomed === undefined ? null : G.herd.animals.get(doomed);
+      if (a) { lookAt(G, a.x, a.y); G.tapFamily(a); plan.hit = { id: a.id }; }
+      else plan.hit = { none: "every family has a future" };
+    }
   } else if (moment === "card" || moment === "blocked" || moment === "away" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
