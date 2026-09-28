@@ -44,7 +44,7 @@
 <body>
 <main>
   <h1>LINEAGE before and after</h1>
-  <p>Each moment of the live game: before Step 5 (<code>design/current/</code>, seed 6 of the old world) and after the next round (<code>design/after/</code>): the look, family names, sound, small screens and touch, the fixes from Marc's first real play, and now the next round (Parts 1–6): Classroom mode's common-ancestor world (seed 13), fair tests inside one family, reasons from the table, the family tree, the stepped ending, the Field Guide, and the places' names on the map. Since the world changed in Part 1, a "before" picture shows the same moment, not the same animals. <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after the next round. Tap a picture to see it full size.</p>
+  <p>Each moment of the live game: before Step 5 (<code>design/current/</code>, seed 6 of the old world) and after the latest round (<code>design/after/</code>, seed 13 of the common-ancestor world): the look, family names, sound, small screens and touch, the fixes from Marc's first real play, the next round (Parts 1–6), the PR #26 decisions, Round 3, and now Marc's feedback on PR #27 (scope decisions 67 and 68). A follow narrows your line to its animals with the trait; the world fast-forwards while their count rises, with a counter and the whole line in view, then slows back to real time; you watch the line grow or die off, with the reason, each death fading with a little light; a line that dies out gets its “Why?” right there, then goes back to the line before. You compare only your line and your relatives here: no twins and no scoreboard. Since the world changed in Part 1, a “before” picture shows the same moment, not the same animals. <b>Phone</b> shows a phone held sideways, before the small-screen round (<code>design/phone-before/</code>) and after the latest round. Tap a picture to see it full size.</p>
   <div class="switch" role="group" aria-label="Screen">
     <button type="button" data-o="landscape" aria-pressed="true">Landscape</button>
     <button type="button" data-o="portrait" aria-pressed="false">Portrait</button>
@@ -55,56 +55,59 @@
 </main>
 <script>
   // [file, title, note, before, new with]: a moment with no "before" picture was added with the look, the playtest
-  // fixes, or the next round (Parts 1–6). The "after" pictures are the next round's, in its common-ancestor world.
-  const R = "the next round";
+  // fixes, the next round (Parts 1–6), Round 3 or decision 68. The "after" pictures are the latest round's, in the
+  // common-ancestor world (seed 13).
+  const R = "the next round", D = "decision 68";
   const MOMENTS = [
     ["arrival", "Arrival", "After the morning mist has lifted, on a family with a future."],
     ["arrival-mist", "Arrival, in the mist", "New with the look: the camera drifts down into the leaves.", false],
     ["naming", "Naming the family", "Fresh names every story, and two more ways: type your own, or use my name.", false],
     ["type-name", "Type your own name", "New with the next round: letters only, up to 12, the sheet at the top.", false, R],
     ["my-name", "Use my name", "New with the next round: “Mia” makes the Miapaddle family.", false, R],
-    ["generation", "A generation", "Just before the next generation; “Helping here / Hurting here” under the panel."],
+    ["generation", "A generation", "Just before the next generation; “Helping here” under the panel (“Hurting here” only when it names a trait)."],
     ["generation-dawn", "The next generation, at dawn", "New with the look: a generation is one day.", false],
     ["reason", "A reason", "New with the next round: every change of size gets a reason from the table.", false, R],
     ["variation", "A variation", "A newborn glowing: bigger, brighter, pulsing, with a sparkle above."],
-    ["follow", "Following a trait", "A glowing newborn's card: the fair test inside your family."],
-    ["no-test", "Nothing to test", "New with Part 1's decisions: a trait that doesn't matter here.", false, R],
-    ["away", "Away from your family", "New with the next round: a baby living in another place.", false, R],
+    ["follow", "Following a trait", "A glowing newborn's card: “Follow animals with …”, no number and no gate."],
+    ["joining", "Following", "Since decision 68: your line's animals with the trait light up, counted.", false, "the playtest fixes"],
+    ["rising", "The rising counter", "New with decision 68: the fast-forward while the trait's count in your line rises, the whole line in view.", false, D],
+    ["slowdown", "Back to real time", "New with decision 68: the count reached 20, then the slow-down.", false, D],
+    ["growing", "Growing, and why", "New with decision 68: your line with the trait growing, with the table's reason.", false, D],
+    ["dying", "Dying off, and why", "New with decision 68: each death fades with a little light rising, the camera on it.", false, D],
+    ["line-dies", "A line dies out", "New with decision 68: its last animals fade, the camera on them.", false, D],
+    ["died-why", "Why did they die out?", "New with decision 68: the “Why?” right there.", false, D],
+    ["back-line", "Back to your line", "New with decision 68: “They didn't make it. Back to your line.”", false, D],
+    ["compare", "Your line and your relatives", "New with decision 68: the only comparison, counts with bars.", false, D],
+    ["same", "About as well as your relatives", "Since decision 68: a trait that doesn't matter here; your line did about as well as your relatives.", false, "Round 3"],
+    ["away", "Away from your line", "New with the next round: a baby of your line living in another place.", false, R],
     ["back", "Already chosen", "New with the next round: no going back without a reason.", false, R],
-    ["go-back", "Go back?", "New with the next round: a fair test showed the choice hurting.", false, R],
-    ["joining", "Joining", "Your family's animals with the trait light up; a few from nearby walk in.", false, "the playtest fixes"],
+    ["go-back", "Go back?", "New with the next round: your line clearly died off the way it went.", false, R],
     ["edge-arrow", "An arrow to a baby", "A glowing baby off the screen, and arrows at the edge.", false, "the playtest fixes"],
-    ["spreading", "Will it be passed on?", "The fast-forward counter: “… are being passed on. 3… 7… 12 have it now.”"],
-    ["fizzled", "It wasn't passed on", "“It wasn't passed on. Most new traits aren't.”"],
-    ["danger", "Wait!", "The fast-forward stops: the family is very small."],
-    ["blocked", "Stay with them?", "A very small family: only “Keep looking”."],
-    ["fairtest", "A fair test", "With the trait (gold rings) and without (purple), both in your family."],
-    ["why", "Why? (a fair test)", "New with the next round: guess why, from the trait's line in each place.", false, R],
+    ["blocked", "Stay with them?", "A very small line: only “Keep looking”."],
+    ["why", "Why? (a result)", "New with the next round; since decision 68, your line clearly growing after a follow.", false, R],
     ["why-answer", "Why? (the answer)", "New with the next round: why, from the table; nothing marked wrong.", false, R],
     ["discovery", "A discovery", "New with the next round: “You discovered: …” for the Field Guide.", false, R],
-    ["why-drop", "Why? (a sudden drop)", "New with the next round, in seed 1: “Why is your family shrinking?”", false, R],
-    ["other-card", "Another family's card", "Its family beside yours, and how it differs.", false, "the playtest fixes"],
-    ["grow", "Growing", "The family clearly bigger."],
-    ["shrink", "Shrinking", "The family clearly smaller."],
+    ["why-drop", "Why? (a sudden drop)", "New with the next round: “Why is your line shrinking?”", false, R],
+    ["other-card", "Another family's card", "Its family beside your line, and how it differs.", false, "the playtest fixes"],
+    ["relative", "One of your relatives", "New with Round 3: the rest of your line in its place, in a soft clay; your relatives here beside your line.", false, "Round 3"],
+    ["grow", "Growing", "Your line clearly bigger."],
+    ["shrink", "Shrinking", "Your line clearly smaller."],
     ["moving", "Moving", "New with the next round: “Some of your animals are moving to the water's edge.”", false, R],
-    ["so-far", "Your family so far", "New with the next round: the chosen traits as chips, one faded with why.", false, R],
+    ["so-far", "Your line so far", "New with the next round: the traits your line added up, as chips, one faded with why.", false, R],
     ["choice", "The backup choice", "Nothing followed for a while."],
     ["prediction", "A prediction", "The question names the trait and the place."],
-    ["prediction-result", "A prediction's result", "Since your last choice."],
-    ["average", "Your animals, on average", "New with the next round: the living portrait, opened, with the family tree.", false, R],
-    ["guide", "The Field Guide", "New with the next round: 21 discoveries, each trait in each place.", false, R],
+    ["prediction-result", "A prediction's result", "Since your last choice: your line and your relatives here, and what you thought."],
+    ["average", "Your animals, on average", "New with the next round: the living portrait, opened, with your line, baby by baby.", false, R],
+    ["guide", "The Field Guide", "New with the next round: 24 discoveries, each trait in each place and each neutral trait.", false, R],
     ["habitat", "Visiting the water", "The water's edge: its animals swim.", false, "the playtest fixes"],
     ["ground", "Visiting the ground", "Open ground, with its name and borders on the map.", false, "the playtest fixes"],
     ["leaves", "Visiting the leaves", "New with the next round: animals on branches among the leaves.", false, R],
     ["map", "The map", "New with the next round: the places' names and the borders between them.", false, R],
-    ["ending", "The ending: what happened", "Step 1 of 4: the start and the end, the family tree, the result."],
+    ["ending", "The ending: what happened", "Step 1 of 4: the start and the end, your line baby by baby, your line and your relatives here."],
     ["ending-idea", "The ending: your idea", "New with the next round: step 2, the sentence to build.", false, R],
-    ["ending-check", "The ending: check my idea", "New with the next round: step 3, with the clue and the last fair test.", false, R],
+    ["ending-check", "The ending: check my idea", "New with the next round: step 3, with the clue and your last choice.", false, R],
     ["ending-reveal", "The ending: the reveal", "New with the next round: step 4, the real animal and the story card.", false, R],
     ["story-card", "The story card", "New with the next round: one picture to save or share.", false, R],
-    ["extinct", "Died out", "Seed 6: the family died out at generation 29."],
-    ["another-family", "Try another family", "New with the next round, in seed 6: the same world as it is now.", false, R],
-    ["in-trouble", "In trouble already", "New with the next round, in seed 72: a family with no future.", false, R],
     ["card", "A creature card", "An animal with a new trait."],
   ];
   const list = document.getElementById("list");

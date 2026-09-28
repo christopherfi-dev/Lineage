@@ -69,42 +69,13 @@ export function groupLines(f, noun, glowing = [], name = null) {
 
 export const TIMES_UP = "Time's up! This one was picked at random.";
 export const optionLine = (words) => `This one has ${words}.`;
-const fastForward = (skip) => `Fast-forward: ${skip} generations!`;
 
-/**
- * Right after a follow (scope decision 59): where the fair test's animals with
- * the variation come from, with real counts, then the ones without it beside
- * them, in the family's place, and the fast-forward.
- * @param {string} group the variation's words @param {number} fromFamily @param {number} fromNearby
- * @param {number} others the twins without it @param {number} zone @param {number} skip
- */
-export function chosenLines(group, fromFamily, fromNearby, others, zone, skip, name = null) {
-  return [joinLine(fromFamily, fromNearby, group, name), `And ${others} without, ${ZONE_AT[zone]}, for a fair test.`, fastForward(skip)];
-}
-
-/**
- * After a fast-forward: both sides of the fair test, and what most of the
- * family has now that it didn't before.
- * @param {Array<{trait:string, level:number}>} changed traits whose usual word changed
- */
-export function skipDoneLines(skip, n, others, group, changed, name = null) {
-  const lines = [`${skip} generations later: ${n} with ${shortGroup(group)}, ${others} without.`];
-  if (changed.length) lines.push(`Most of ${your("family", name)} has ${hasWords(changed[0].trait, changed[0].level)}.`);
-  return lines;
-}
-
-/* ================= following a new variation (scope decisions 32–34 and 42) ================= */
+/* ================= following a new variation (scope decisions 32–34, 42, 67 and 68) ================= */
 
 /** The first time a newborn glows in a story. */
 export const GLOW_HINT = "Tap a glowing baby to see what's new.";
-/** "Follow 14 animals with smaller eyes": the fair test's real size, when it can start right away (scope decision 36). */
-export const followButton = (n, group) => `Follow ${n} animals with ${group}`;
-/** Too few have it to start a fair test right away: the world first fast-forwards to see if it is passed on (scope decisions 42 and 59). */
-export const PASS_ON_BUTTON = "Will it be passed on?";
 /** Closes the card and leaves the glow on, so the child can look at other babies and come back (scope decision 43). */
 export const KEEP_LOOKING = "Keep looking";
-/** How many of the latest counts the passed-on line shows. */
-const PASSED_COUNTS = 3;
 
 /** A variation's words, short enough for one line: "more webbing between the toes" becomes "more webbing", "a stronger tail" "stronger tails". */
 const PLURALS = { "tail tip": "tail tips", tail: "tails", body: "bodies", coat: "coats" };
@@ -113,57 +84,57 @@ export const shortGroup = (group) => group.replace(" between the toes", "")
 /** "is" for "more webbing", "are" for "bigger eyes". */
 const isAre = (words) => (/s$/.test(words) ? "are" : "is");
 
+/** A glowing baby's card (scope decision 67): "Follow animals with bigger eyes", with no number and no gate. */
+export const followButton = (group) => `Follow animals with ${shortGroup(group)}`;
+/** Right after a follow: "3 of your line have bigger eyes." */
+export const carriersLine = (n, group, name = null, noun = "family") => `${n} of ${your(noun, name)} ${n === 1 ? "has" : "have"} ${shortGroup(group)}.`;
+/** How many of the latest counts the rising counter shows. */
+const RISE_COUNTS = 5;
 /**
- * The fast-forward's live counter, updated each generation (scope decision 59):
- * "Webbed feet are being passed on. 3… 7… 12 have it now." The family's
- * animals in its place that have it.
+ * The fast-forward's live counter (scope decision 67), changed in place each
+ * generation: "More webbing in your line: 1… 4… 9…", and when it stops, "…
+ * 17… 23!" at 20 or more, else a full stop.
+ * @param {string} group @param {number[]} counts the line at the follow and after each generation
+ * @param {null|string} stopped why it stopped (story.js Rise), or null while it rises
  */
-export function passedOnLine(group, counts) {
-  const words = shortGroup(group), shown = counts.slice(-PASSED_COUNTS), n = shown[shown.length - 1];
-  return `${capital(words)} ${isAre(words)} being passed on. ${shown.map((k, i) => (i < shown.length - 1 ? `${k}…` : k)).join(" ")} ${n === 1 ? "has" : "have"} it now.`;
+export function riseLine(group, counts, stopped = null, name = null) {
+  const shown = counts.slice(-RISE_COUNTS), last = shown.length - 1;
+  const end = !stopped ? "…" : stopped === "reached" ? "!" : ".";
+  return `${capital(shortGroup(group))} in ${your("line", name)}: ${shown.map((k, i) => (i < last ? `${k}…` : `${k}${end}`)).join(" ")}`;
 }
-/**
- * The fast-forward's first line, with the table's reason there (scope decision 60):
- * "More webbing is being passed on. Webbed feet push through water."
- */
-export function passingOnLine(group, reason) {
-  const words = shortGroup(group);
-  return `${capital(words)} ${isAre(words)} being passed on. ${reason}`;
-}
-/** None of the family's animals have it any more. */
-export const PASSED_GONE = "It wasn't passed on. Most new traits aren't.";
-/** None have it any more, and it hurts in the family's place: the table's reason. "It wasn't passed on. Long legs drag in the water." */
-export const passedGoneLine = (reason) => `It wasn't passed on. ${reason}`;
-/** Its last generation came with too few having it to start a fair test. */
-export const PASSED_SHORT = "Only a few have it so far. Too few to test.";
-/** Many have it, but too few without it are twins for them. */
-export const PASSED_COMMON = "Many have it now. Too few without it to test.";
-/** Most of the family moved to another place meanwhile, where the test would be. */
-export const PASSED_MOVED = "Most of your family moved. Let's keep looking.";
-/** The child's family fell to DANGER_SIZE or fewer during the fast-forward: back to the usual pace (scope decision 44). */
-export const dangerLine = (noun, name = null) => `Wait! ${capital(your(noun, name))} is getting very small.`;
-/** On every glowing baby's card while the child's family is that small: no follow starts (playtest, "no jumping ship"). */
-export const needsYou = (noun, name = null) => `${capital(your(noun, name))} needs you. Stay with them?`;
+/** The fast-forward is over (scope decision 67). */
+export const SLOW_DOWN = "Back to real time. Watch your line.";
+/** A follow with no fast-forward at all: the line has RISE_TO or more with the trait already (scope decision 67). */
+export const WATCH_THEM = "Watch what happens to them.";
+/** Real time after a follow, before the table's reason (scope decision 67): "Your line with bigger eyes is growing." */
+export const growingLine = (group, name = null) => `${capital(your("line", name))} with ${shortGroup(group)} is growing.`;
+/** "Your animals with a stronger tail are dying off." */
+export const dyingOffLine = (group, name = null) => `${capital(your("animals", name))} with ${shortGroup(group)} are dying off.`;
+/** The tap-to-guess questions about a follow (scope decision 68). */
+export const growingQuestion = (group, name = null) => `Why is ${your("line", name)} with ${shortGroup(group)} growing?`;
+export const dyingQuestion = (group, name = null) => `Why are ${your("animals", name)} with ${shortGroup(group)} dying off?`;
+export const sameQuestion = (name = null) => `Why is ${your("line", name)} doing about as well as your relatives?`;
+export const diedQuestion = (group, name = null) => `Why did ${your("animals", name)} with ${shortGroup(group)} die out?`;
+/** A followed line's last animals, fading (scope decision 68): "The last of your animals with bigger eyes are dying." */
+export const goneLine = (group, n, name = null) => `The last of ${your("animals", name)} with ${shortGroup(group)} ${n === 1 ? "is" : "are"} dying.`;
+/** A follow's line on a count row: "Your line with bigger eyes". */
+export const lineWithLabel = (group, name = null) => `${capital(your("line", name))} with ${shortGroup(group)}`;
+/** After why, when a line died out on a trait that doesn't matter there. */
+export const OTHER_TRAITS = "Other traits decided who made it.";
+/** The in-the-moment reflection's last line (scope decision 68): "They didn't make it. Back to your line." */
+export const backToLine = (noun = "line", name = null) => `They didn't make it. Back to ${your(noun, name)}.`;
+/** The comparison beside the line (scope decisions 67 and 68): its relatives in the line's place. */
+export const RELATIVES_HERE = "Your relatives here";
 
-/**
- * At a follow, where the fair test's animals with the variation come from
- * (playtest, scope decision 59): "14 of your family have bigger eyes.", or with
- * animals from nearby filling in, "12 of your family and 2 nearby have bigger eyes."
- * @param {number} fromFamily @param {number} fromNearby @param {string} group the variation's words
- */
-export function joinLine(fromFamily, fromNearby, group, name = null) {
-  const words = shortGroup(group);
-  if (!fromNearby) return `${fromFamily} of ${your("family", name)} have ${words}.`;
-  if (!fromFamily) return `${fromNearby} animals nearby have ${words}.`;
-  return `${fromFamily} of ${your("family", name)} and ${fromNearby} nearby have ${words}.`;
-}
+/** On every glowing baby's card while the child's line is very small: no follow starts (scope decision 44, playtest's "no jumping ship"). */
+export const needsYou = (noun, name = null) => `${capital(your(noun, name))} needs you. Stay with them?`;
 
 /* ================= the family's place (scope decision 59) ================= */
 
-/** A glowing baby living away from the family's place: its variation can't be tested there. */
-export const awayLine = (zone, name = null) => `This baby lives ${ZONE_AT[zone]}, away from ${your("family", name)}.`;
+/** A glowing baby living away from the family's (or line's) place: its variation can't be tested there. */
+export const awayLine = (zone, name = null, noun = "family") => `This baby lives ${ZONE_AT[zone]}, away from ${your(noun, name)}.`;
 /** The way back from a direction the family took, with no fair test showing that direction hurting. */
-export const backLine = (chosenGroup, name = null) => `${capital(your("family", name))} already chose ${shortGroup(chosenGroup)}.`;
+export const backLine = (chosenGroup, name = null, noun = "family") => `${capital(your(noun, name))} already chose ${shortGroup(chosenGroup)}.`;
 const HERE = ["up here", "on the open ground", "at the water's edge"];
 /** A fair test showed the way the family went hurting: the way back, with its reason. "Chunkier bodies are doing better up here. Go back?" */
 export const goBackLine = (group, zone) => { const w = shortGroup(group); return `${capital(w)} ${isAre(w)} doing better ${HERE[zone]}. Go back?`; };
@@ -174,6 +145,8 @@ export const movingLine = (zone, name = null) => `Some of ${your("animals", name
 export const movedLine = (zone, name = null) => `Most of ${your("animals", name)} live ${ZONE_AT[zone]} now.`;
 /** At the start, a tap on a family an observer run shows dying out within a few generations. */
 export const IN_TROUBLE = "This family is in trouble already. Try another!";
+/** "Try another family" with fewer than 25 generations of the story left in this world (scope decision 64). */
+export const NEARLY_OVER_LINE = "This world is nearly over. Start a new world?";
 
 /** "Helping here" and "Hurting here" (scope decision 60): what the family has that helps or hurts where it lives. */
 export function helpingLine(words) { return `Helping here: ${words.length ? words.join(", ") : "nothing yet"}.`; }
@@ -185,21 +158,28 @@ export const sameTraitLabel = (trait, zone) => `${capital(hasWords(trait, 2))} $
 
 /** The ending's first step (scope decision 62): the family's average body when the story began, beside the end. */
 export const startLine = (name = null) => `Here's how ${your("animals", name)} began.`;
-/** The ending's result row: the family's size when the story began and at the end. */
-export const familyLabel = (name = null) => capital(your("family", name));
+/** The ending's result row: the family's size when the story began and, as the line once followed, at the end. */
+export const familyLabel = (name = null, noun = "family") => capital(your(noun, name));
 /** Above the chosen traits on the ending: "You chose:". */
 export const YOU_CHOSE = "You chose:";
 
 /** The living portrait's sheet (scope decision 61): "Your Mossfoot animals, on average". */
 export const averageTitle = (name = null) => `${capital(your("animals", name))}, on average`;
-/** Above the family tree strip. */
+/** Above the family tree strip, before a follow. */
 export const TREE_TITLE = "Your family tree";
-/** The strip read aloud: "Your family tree: first mother, then great-grandmother, grandmother, mother, this baby." */
-export const treeSpoken = (first, labels) =>
-  `${TREE_TITLE}: ${[first, ...labels].filter(Boolean).map((l) => l.toLowerCase()).join(", then ")}.`;
+/** Above it once the line is followed (scope decision 66): the first animal tapped, then each followed baby. */
+export const LINE_TREE_TITLE = "Your line, baby by baby";
+/** A followed baby on the strip, by the trait it was followed for: "Sleeker body", "More webbing" (scope decision 66). */
+export const babyLabel = (group) => capital(group.replace(/^an? /, "").replace(" between the toes", ""));
+/** The strip read aloud: "Your family tree: great-grandmother, then grandmother, then mother, then first mother." */
+export const treeSpoken = (first, labels, title = TREE_TITLE) =>
+  `${title}: ${[first, ...labels].filter(Boolean).map((l) => l.toLowerCase()).join(", then ")}.`;
+/** The line's strip read aloud, one short sentence a baby: "Your line, baby by baby. First mother. Then sleeker body." */
+export const lineTreeSpoken = (labels) => [LINE_TREE_TITLE, ...labels.map((l, i) => (i ? `Then ${l.toLowerCase()}` : l))].map((t) => `${t}.`).join(" ");
 
-/** "Your family so far" (scope decision 59): each chosen trait, and why one faded. */
+/** "Your family so far" (scope decision 59): each chosen trait, and why one faded. "Your Mossfoot line so far" (scope decision 66). */
 export const SO_FAR = "Your family so far";
+export const soFarTitle = (name = null, noun = "family") => `${capital(your(noun, name))} so far`;
 export const chipWords = (group) => capital(shortGroup(group));
 /** "Bigger eyes faded. They didn't help here." "More webbing faded. It wasn't passed on." */
 export function fadedLine(group, why) {
@@ -259,38 +239,17 @@ export const thanYours = (trait, dir) => THAN_YOURS[trait][dir > 0 ? 1 : 0];
  * "Yours: 20 → 31", beside two small bars for then and now.
  */
 
-/** "Yours: 20 → 31" */
-export const countLine = (label, { then, now }) => `${label}: ${then} → ${now}`;
+/** "Yours: 20 → 31", or for a fair test's twins, who made it (scope decision 65): "Your 12 with pointier ear tips: 10 made it" */
+export const countLine = (label, { then, now, madeIt = false }) => (madeIt ? `${label}: ${now} made it` : `${label}: ${then} → ${now}`);
 
 export const YOURS = "Yours";
 /** "Yours", or once the family has a name, "Your Mossfoot animals". */
 export const yoursLabel = (name = null) => (name ? capital(your("animals", name)) : YOURS);
-/** The fair test's two sides, both in the family's place (scope decision 59): "With bigger eyes: 14 → 16", "Without: 14 → 12". */
-export const withLabel = (group) => `With ${shortGroup(group)}`;
-export const WITHOUT = "Without";
-/** A card for an animal from nearby that fills in a fair test. */
-export const NEARBY_IN_TEST = "From nearby, in your fair test";
-/** The ending's last fair test: "On the open ground:" */
+/** The ending's last choice (scope decision 67): "On the open ground:" */
 export const fairHeading = (zone) => `${capital(ZONE_AT[zone])}:`;
 /** Its result, when it was clear: "On the open ground, 3 generations later:" */
 export const fairLater = (zone, n) => `${capital(ZONE_AT[zone])}, ${plural(n, "generation", "generations")} later:`;
 export const SINCE_TITLE = "Since your last choice:";
-
-/** "grew", "shrank": which way a group's size went, without the number. */
-function went({ now, then }) {
-  if (now === 0) return "died out";
-  return now > then ? "grew" : now < then ? "shrank" : "stayed the same size";
-}
-
-/**
- * After following a neutral trait (scope decision 8): it made no difference to
- * who survived. The choice card never says so; this comes afterwards.
- * @param {string} group "a darker coat"
- * @param {{now:number, then:number}} size the group's size since that choice
- */
-export function neutralLines(group, size, name = null) {
-  return [`${capital(group)} didn't change who survived.`, `${capital(your("group", name))} ${went(size)} because of its other traits.`];
-}
 
 /**
  * The ending's line of evidence: "Animals with webbed feet at the water's edge: 14 then, 22 now."
@@ -341,6 +300,8 @@ export const noChoices = (outcome, name = null) =>
 
 export const inYour = (noun, name = null) => `In ${your(noun, name)}`;
 export const notInYour = (noun, name = null) => `Not in ${your(noun, name)}`;
+/** The rest of each line the child narrowed from, and their babies (scope decision 66): on a relative's card. */
+export const ONE_OF_RELATIVES = "One of your relatives";
 export const PASSED_AWAY = "This one has passed away.";
 
 /** Where else an animal spends some of its time. */

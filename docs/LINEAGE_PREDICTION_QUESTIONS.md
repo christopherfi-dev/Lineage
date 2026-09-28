@@ -4,6 +4,8 @@ Purpose: after some follows, the child predicts what will happen next. The game 
 
 Principle: nothing is ever called wrong, and there are no scores or points. Each question has one reasonable answer and two or three common Grade 3 misconceptions. The result only says what the child thought and what happened. After two of the misconceptions, one short line says why. Everything happens inside the game. There are no network calls, and no student data leaves the device (scope decision 25).
 
+*Updated 2026-09-28 for scope decision 68. The fair test is gone from what the child sees: a follow narrows the child's line to its animals with the trait, and the child compares only the line and "Your relatives here". The two question types are now "What will happen?", about the line with the trait (it grows, shrinks or dies out), and "Which will do better, your line or your relatives?". Both are resolved from that follow's line and its relatives there: at the next follow, when the line dies out, or at the ending. "Which did better" is judged by how much each grew, as on the creature cards (a tenth or more). The tables below are updated; the notes after this one are history.*
+
 *Updated 2026-09-27 for Parts 2 and 3 (scope decisions 59 and 60). A follow now starts a fair test inside the child's family: its animals with the variation against its animals without it, in the family's place. The questions name the trait and the place: "Some of your animals now have longer back legs. They live in the high leaves. What will happen?" The reasonable answer gives the reason from `docs/LINEAGE_WHY.md`: "Grow. Long back legs help them leap between branches." Its direction is the engine's Classroom table (✓, ✗ or ~), not the old net effects. The two sides are "With longer back legs" and "Without". Only a trait that helps or hurts in the family's place can be followed (scope decision 58), so the neutral and "~" questions below no longer come up. Family names no longer change these lines. The tables below are the current ones.*
 
 *Updated 2026-09-27 after Marc's first real play: the "need" option now always names the trait the child just chose ("They'll grow even bigger eyes because they need them."), so no option names a trait unrelated to the follow. It is offered in every question.*
@@ -23,14 +25,14 @@ Principle: nothing is ever called wrong, and there are no scores or points. Each
 
 ## The question types
 
-The two types take turns: the 1st, 3rd and 5th prediction are about your animals with the variation, the 2nd and 4th about the fair test. If the fair test has no side without it (it never happens: a fair test starts with at least 10 on each side), the question is about your animals with it.
+The two types take turns: the 1st, 3rd and 5th prediction are about your line with the variation, the 2nd and 4th about your line against your relatives there. If the line has no relatives there, the question is about the line.
 
 | Type | Question | What is measured |
 |---|---|---|
-| Your animals with it | "Some of your animals now have longer back legs. They live in the high leaves. What will happen?" | the side with the variation, at the follow (the fair test's size) and at the next follow |
-| The fair test | "Some of your animals now have longer back legs. They live in the high leaves. Which will do better?" | both sides at the next follow; both started at the same size, so the bigger one did better |
+| Your line | "Some of your animals now have longer back legs. They live in the high leaves. What will happen?" | the line, at the follow (its carriers) and when the next follow replaced it, it died out, or the story ended |
+| Your line or your relatives | "Some of your animals now have longer back legs. They live in the high leaves. Which will do better, your line or your relatives?" | the line and your relatives in its place, at the same two times; the one that grew by a tenth or more than the other did better |
 
-The variation words are the game's own ("more webbing between the toes", "a stronger tail"). The habitat is the fair test's. The ending resolves a prediction whose story ends before the next follow.
+The variation words are the game's own ("more webbing between the toes", "a stronger tail"). The habitat is the line's place. The ending resolves a prediction whose line is still followed when the story ends.
 
 The earlier "ones not chosen" and "where" types (scope decision 30) went with the groups they were about. No group is made from an option not chosen, and a fair test's groups start in one habitat.
 
@@ -56,23 +58,24 @@ The reasonable answer for each type, with the reason for the fair test's place:
   - "Grow. Webbed feet push through water." (more webbing at the water's edge)
   - "Shrink. Webbed feet push through water." (less webbing at the water's edge)
   - "Grow. Big eyes don't help underwater, and cost energy." (smaller eyes at the water's edge)
-- **The fair test.** "With them" (or "With it") if the variation's direction helps there, "Without them" if not.
-  - "With it. A sleek body slides through water."
-  - "Without it. Webbing makes it hard to grip branches."
-- *No longer asked, since only a trait that helps or hurts there can be followed: a neutral trait or a "~" there ("A lighter coat won't matter. Other traits will decide." and "About the same. A darker coat won't matter.").*
+- **Your line or your relatives.** "Your line" if the variation's direction helps there, "Your relatives" if not, and "About the same" if it doesn't matter there.
+  - "Your line. A sleek body slides through water."
+  - "Your relatives. Webbing makes it hard to grip branches."
+  - "About the same. A darker coat won't matter."
+- *Asked again since Round 3 (scope decision 65), when a neutral trait or a "~" there is followed: "A lighter coat won't matter. Other traits will decide." and "About the same. A darker coat won't matter." (Between decisions 58 and 65 such a trait couldn't be followed.) "Which will do better?" is judged by who made it, at the fair test's result.*
 
 ## The misconceptions
 
 | Kind | Option | Offered | The idea behind it |
 |---|---|---|---|
 | need | "Grow. They'll grow even bigger eyes because they need them." | grow or shrink, always | Animals grow what they need. |
-| need | "With them. They'll grow even bigger eyes because they need them." | the fair test, always | The same idea. |
+| need | "Your line. They'll grow even bigger eyes because they need them." | line or relatives, always | The same idea. |
 | chose | "Grow, because I picked them." | grow or shrink, always | My choice changes the animals. |
-| chose | "With them, because I picked them." | the fair test, always | The same idea. |
+| chose | "Your line, because I picked them." | line or relatives, always | The same idea. |
 | matters | "Grow. A lighter coat will help them." | grow or shrink, neutral trait | Every difference helps or hurts. |
-| matters | "Yours. A darker coat will help them." | the fair test, neutral trait | The same idea. |
+| matters | "Your line. A darker coat will help them." | line or relatives, neutral or "~" trait | The same idea. |
 | same | "Stay the same. Animals don't change." | grow or shrink, meaningful trait (the fourth option) | Groups and bodies stay fixed. |
-| luck | "About the same. It's all luck." | the fair test, meaningful trait (the fourth option) | Survival is only luck. |
+| luck | "About the same. It's all luck." | line or relatives, a trait that helps or hurts there (the fourth option) | Survival is only luck. |
 
 Options are listed in this order, and the screen shuffles them:
 - the reasonable answer;
@@ -100,7 +103,7 @@ Options are listed in this order, and the screen shuffles them:
 
 ## What the child sees afterwards
 
-At the next follow, "Since your last choice" shows the last fair test: in the backup choice panel, or in its own sheet before the new follow goes ahead (scope decision 34). Under "Your prediction:" it shows the prediction's count rows and bars, then one short line.
+At the next follow, "Since your last choice" shows your line and your relatives here since the last follow: in the backup choice panel, or in its own sheet before the new follow goes ahead (scope decisions 34 and 68). Under "Your prediction:" it shows the prediction's count rows and bars, then one short line.
 
 | The child thought | Line |
 |---|---|
@@ -109,12 +112,12 @@ At the next follow, "Since your last choice" shows the last fair test: in the ba
 | | "You thought it would stay the same. It shrank." |
 | (if the group is gone) | "… It died out." |
 | won't matter (neutral trait) | "You thought a lighter coat wouldn't matter. It didn't." |
-| with / without / about the same | "You thought the ones with it would do better." "The ones with it did better." |
-| | "You thought the ones without would do better." "The ones with it did better." |
-| | "You thought they'd do about the same." "The ones without did better." |
+| your line / your relatives / about the same | "You thought your line would do better." "Your line did better." |
+| | "You thought your relatives would do better." "Your line did better." |
+| | "You thought they'd do about the same." "Your relatives did better." |
 | (if both are gone) | "… Both died out." |
 
-For the fair test the rows are both sides: "With smaller eyes: 14 → 20" and "Without: 14 → 11". The bigger one now did better. If they are equal: "They did about the same." Each sentence is its own line.
+For "Which will do better" the rows are the line and your relatives there: "Your Mossfoot line with smaller eyes: 3 → 0" and "Your relatives here: 40 → 44". The one that grew by a tenth or more than the other did better; otherwise "They did about the same." Each sentence is its own line.
 
 After two of the misconceptions, one more line follows:
 

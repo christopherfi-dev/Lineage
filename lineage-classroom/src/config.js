@@ -4,10 +4,12 @@
  *
  * Built from M1's `currentModelConfig`, which stays exactly as it is. Only the
  * values below differ, and the Classroom-only ones (PLACE_EFFECTS, the founders'
- * home) are named at the bottom. M1's survival constants (selection slope,
- * fitness zero, zone weights, scarcity, survival bounds, the age multipliers
- * other than the zero at the maximum age) stay in the object but Classroom mode
- * never reads them: its survival is ranked, not drawn (classroom.js).
+ * home, the inheritance rule) are named at the bottom. M1's survival constants
+ * (selection slope, fitness zero, zone weights, scarcity, survival bounds, the
+ * age multipliers other than the zero at the maximum age) stay in the object but
+ * Classroom mode never reads them: its survival is ranked, not drawn
+ * (classroom.js). Nor does it use M1's body drift (`bodyDriftScale`): a baby
+ * gets each trait whole from one parent (scope decision 67).
  */
 
 import { currentModelConfig, deepFreeze } from "../../lineage-m1/src/config/modelConfig.js";
@@ -49,7 +51,7 @@ export const LITTLE_EFFECT = 0.4;
 
 export const classroomConfig = deepFreeze({
   ...currentModelConfig,
-  version: "lineage-classroom-config-1",
+  version: "lineage-classroom-config-2",
 
   // The common-ancestor world: every founder on the open ground, one body.
   startingPopulation: 40,
@@ -76,6 +78,10 @@ export const classroomConfig = deepFreeze({
   // Classroom only.
   placeEffects: PLACE_EFFECTS,
   founderAllocation: [0, 1, 0],
+  // Each body trait comes whole from one parent or the other, never the average
+  // (scope decision 67), so a new trait isn't halved away before it can be
+  // passed on. "average" is M1's rule, for comparison.
+  inheritance: "whole-trait",
 });
 
 /** M1's maximum age: the first age whose survival multiplier is zero. */
@@ -100,6 +106,7 @@ export function classroomIdentityFor(config) {
       maximumAge: maximumAgeOf(config),
       placeEffects: config.placeEffects.map((row) => Array.from(row)),
       founderAllocation: Array.from(config.founderAllocation),
+      inheritance: config.inheritance,
     },
   }));
 }

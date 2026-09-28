@@ -18,6 +18,7 @@ export {
   createAncestorWorld,
   createWebbedDemoWorld,
   placeFitness,
+  whoDoesNotMakeIt,
 } from "../../lineage-classroom/src/classroom.js";
 
 /** Where the defining fixture lives, relative to game/index.html: the ?demo=webbed world. */

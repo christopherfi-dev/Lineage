@@ -9,9 +9,10 @@
  * What is visual only (this file's own seeded generator): where on the map an
  * animal stands and how it wanders between generations.
  *
- * Each animal has two places. Its `spot` is where fair tests measure "nearest"
- * from (cohorts.js): it is placed exactly as it always was, from its own
- * generator, so no fair test changes. Its `home` is where it is shown living:
+ * Each animal has two places. Its `spot` is placed exactly as it always was,
+ * from its own generator, so a measurement run places every animal as the
+ * game does (the fair tests measured "nearest" from it until scope decision
+ * 68). Its `home` is where it is shown living:
  * a place that follows how it splits its time between the habitats (homeBand),
  * near its mother when it is a baby; a follow's gather-in can move it, within
  * that. Wandering keeps near it.
@@ -59,7 +60,9 @@ const SHALLOWS = [1.15, 1.24], WADE_MAX = 1.27, SWIM_T = 1.135;
 const T = TRAIT_INDEX;
 const GROW_MS = 900;   // a newborn grows in
 const BABY_MS = 7000;  // and stays a little smaller for a while, beside its mother
-const FADE_MS = 1500;  // a death fades softly, a little light rising from it
+const FADE_MS = 1500;  // a death fades softly
+/** A death in your line fades gently, with a little light rising from it, over this long, whatever the pace (scope decision 67). */
+export const LINE_FADE_MS = 2600;
 
 /** A glowing newborn (the calm rule is story.js): its ring of light opens over BLOOM_MS, with sparkles, then pulses gently. */
 const BLOOM_MS = 3400;
@@ -79,8 +82,10 @@ export const JOIN_GLOW_MS = 1400;
 /** How far from the gathering point the newcomers settle, at most (world px), grown a little with their number. */
 const GATHER_RADIUS = 110;
 
-/** Colours for groups on the map beside yours: "the others here" in a fair test is the first. */
+/** Colours for groups on the map beside yours, ringed (the fair tests' "others here" had the first until scope decision 68). */
 export const GROUP_COLORS = ["#C8643A", "#7A5AB8", "#B84C80"];
+/** Your relatives' quiet colour (scope decisions 66 and 67): a soft clay, so blue is your line's alone and grey everyone else's. */
+export const KIN_COLOR = "#B3876F";
 
 
 /**
@@ -131,6 +136,8 @@ export class Herd {
     this.fading = [];
     /** @type {Set<number>} your group */
     this.followed = new Set();
+    /** @type {Set<number>} your relatives: the rest of each line you narrowed from, in a quiet colour (scope decision 66) */
+    this.relatives = new Set();
     /** false while you have no group: everyone is drawn plainly */
     this.following = false;
     /** @type {Map<number, string[]>} members of "the others here", and their colour */
@@ -219,19 +226,24 @@ export class Herd {
    * @param {number} now ms clock
    * @param {(id:number) => number} [appearAt] when each newborn shows on the map (ms clock): through a
    *   watched day, so babies appear one by one; now by default. The engine made them all now.
+   * @param {(id:number) => number} [dieAt] when each animal that died starts to fade (ms clock): through a
+   *   watched day for your line's, so they die one by one (scope decision 67); now by default. Until then it
+   *   wanders on in the colour it lived in. The engine took them all now.
    */
-  applyGeneration(ev, bridge, now, appearAt = () => now) {
+  applyGeneration(ev, bridge, now, appearAt = () => now, dieAt = () => now) {
     // Real deaths: the animal leaves the canvas, in the colour it lived in.
     for (const d of ev.deaths) {
       const a = this.animals.get(d.id);
       if (!a) continue;
-      this.animals.delete(d.id);
-      if (a.hidden) continue; // never shown: it simply isn't there
-      a.diedAt = now;
-      a.fadeMs = FADE_MS / this.pace;
+      if (a.hidden) { this.animals.delete(d.id); continue; } // never shown: it simply isn't there
       a.wasFollowed = this.followed.has(a.id);
+      a.wasRelative = this.relatives.has(a.id);
       a.wasFollowing = this.following;
       a.wasMarked = this.marks.get(a.id) ?? null;
+      a.diedAt = Math.max(now, dieAt(d.id));
+      a.fadeMs = a.wasFollowed ? LINE_FADE_MS : FADE_MS / this.pace;
+      if (a.diedAt > now) continue; // its moment comes later in the day (tick)
+      this.animals.delete(d.id);
       this.fading.push(a);
     }
     // Real births: each newborn appears beside its mother (the parent whose family it joins, bridge.js),
@@ -274,8 +286,9 @@ export class Herd {
 
   /**
    * A follow's gather-in (playtest): the animals already in your group light
-   * up, then the newcomers, and their twins beside them, walk in and settle
-   * around them. Visual only: their spots, and so every fair test, stay as they were.
+   * up, then any newcomers (and twins beside them, as the fair tests had until
+   * scope decision 68) walk in and settle around them. Visual only: their
+   * spots stay as they were.
    * @param {number[]} stay members of your group who were already in it
    * @param {number[]} come members new to your group
    * @param {Map<number, number>} twins each member's twin among the others here
@@ -370,6 +383,7 @@ export class Herd {
 
   /* ================= wandering (visual only) ================= */
   tick(dt, now) {
+    this.dieNow(now);
     dt *= this.pace;
     const s = dt / 16.7, W = this.world.W, H = this.world.H;
     const cell = 74, grid = new Map();
@@ -430,6 +444,15 @@ export class Herd {
     this.fading = this.fading.filter((a) => now - a.diedAt < a.fadeMs);
   }
 
+  /** An animal of your line that died this generation, whose moment comes later in the day, fades now (scope decision 67). */
+  dieNow(now) {
+    for (const [id, a] of this.animals) {
+      if (a.diedAt === null || a.diedAt > now) continue;
+      this.animals.delete(id);
+      this.fading.push(a);
+    }
+  }
+
   /** Visual only: a swimmer goes out into the water below its home, swims there a while, and comes back to rest. */
   wade(c, now) {
     if (c.wadeAt === undefined) c.wadeAt = now + this.mr(1500, 14000);
@@ -477,7 +500,8 @@ export class Herd {
     const style = (c) => {
       const following = c.diedAt !== null ? c.wasFollowing : this.following;
       const mine = c.diedAt !== null ? c.wasFollowed : this.followed.has(c.id);
-      return mine ? "mine" : marksOf(c) ? "other" : following ? "gray" : "plain";
+      const kin = c.diedAt !== null ? c.wasRelative : this.relatives.has(c.id);
+      return mine ? "mine" : marksOf(c) ? "other" : kin && following ? "kin" : following ? "gray" : "plain";
     };
     const lifeOf = (c) => {
       if (c.diedAt !== null) return clamp(1 - (now - c.diedAt) / c.fadeMs, 0, 1);
@@ -496,7 +520,7 @@ export class Herd {
       const sprite = glowSprite(), r = sprite.width / 2;
       const k = (0.8 + 0.9 * L.night) * (1 + 0.35 * Math.max(0, this.mood) - 0.3 * Math.max(0, -this.mood));
       for (const c of vis) {
-        if (c.diedAt !== null || !this.followed.has(c.id)) continue;
+        if (c.diedAt !== null ? !c.wasFollowed || now >= c.diedAt : !this.followed.has(c.id)) continue;
         x.globalAlpha = clamp(lifeOf(c) * k, 0, 1);
         x.drawImage(sprite, c.x - r, c.y - 12 - r);
       }
@@ -515,7 +539,7 @@ export class Herd {
       x.globalAlpha = 1;
     }
     // The others here live among your animals (a fair test), so the two are drawn together by depth.
-    const rank = { gray: 0, plain: 1, other: 2, mine: 2 };
+    const rank = { gray: 0, plain: 1, kin: 1, other: 2, mine: 2 };
     vis.sort((a, b) => rank[style(a)] - rank[style(b)] || a.y - b.y);
     for (const c of vis) {
       const st = style(c);
@@ -700,7 +724,8 @@ function shade(hex, k) {
 /**
  * World-scale creature, ported from the mockup's drawCreature. Styles: "mine" —
  * your group, larger, sharper, lit by the sun with a warm rim and a light ring on
- * the ground; "other" — a group you did not choose, in its colour; "gray" —
+ * the ground; "other" — a group you did not choose, in its colour; "kin" — your
+ * relatives (scope decisions 66 and 67), full size in a quiet clay; "gray" —
  * everyone else while you follow a group, smaller and faded; "plain" — everyone
  * while you have no group. One animal drawn large is creature.js.
  * @param {CanvasRenderingContext2D} x
@@ -715,7 +740,7 @@ function shade(hex, k) {
 function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, zoom = 1, outline = null) {
   const g = c.looks;
   const mine = style === "mine", gray = style === "gray";
-  const other = style === "other" && !!color;
+  const other = style === "other" && !!color, kin = style === "kin";
   const unit = mine ? 11.6 : gray ? 7.4 : 8.4, fine = unit * zoom >= FINE_PX;
   const fade = (gray ? 0.9 : 1) * alpha;
   const A = (a) => a * fade;
@@ -760,11 +785,12 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   // A swimmer is drawn above the water only: its legs and belly are under it.
   if (swim) { x.beginPath(); x.rect(-u * 4, -u * 8, u * 8, u * 8 + waterline); x.clip(); }
 
-  const body = shade(mine ? "#237089" : other ? color : "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
-  const dark = mine ? "#0E4051" : other ? shade(color, -0.45) : "#7C7463";
-  const far = mine ? "#15546A" : other ? shade(color, -0.25) : "#807867";
-  const rim = mine ? (L.night > 0.5 ? "#BDE8F2" : "#FFDDA4") : other ? shade(color, 0.5) : "#C4B9A0";
-  const webCol = mine ? "#F2C7B8" : other ? shade(color, 0.65) : "#D9D2BE";
+  const tint = other ? color : kin ? KIN_COLOR : null;
+  const body = shade(mine ? "#237089" : tint ?? "#8E8574", (g.shade - 0.5) * (mine ? 0.6 : 0.4));
+  const dark = mine ? "#0E4051" : tint ? shade(tint, -0.45) : "#7C7463";
+  const far = mine ? "#15546A" : tint ? shade(tint, -0.25) : "#807867";
+  const rim = mine ? (L.night > 0.5 ? "#BDE8F2" : "#FFDDA4") : tint ? shade(tint, 0.5) : "#C4B9A0";
+  const webCol = mine ? "#F2C7B8" : tint ? shade(tint, 0.65) : "#D9D2BE";
 
   const fw = u * (0.15 + 0.14 * g.feet);
   const legW = mine ? u * 0.15 : u * 0.12;
@@ -824,7 +850,7 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
 
   const shag = clamp((g.coat / 2 - 0.3) / 0.5, 0, 1);
   if (fine && shag > 0.05) {
-    x.strokeStyle = mine ? "#2A7C93" : other ? shade(color, -0.15) : "#A69E8C";
+    x.strokeStyle = mine ? "#2A7C93" : tint ? shade(tint, -0.15) : "#A69E8C";
     x.lineWidth = u * 0.12; x.globalAlpha = A((mine ? 0.85 : 0.5) * shag); x.lineCap = "round";
     x.beginPath(); // ten tufts, one stroke
     for (let k = 0; k < 10; k++) {
@@ -885,12 +911,14 @@ function drawCreature(x, c, style, scale, color, now, L, alpha, glowAt = null, z
   }
 
   const midY = c.y + bodyY;
-  /* a fading member of your group: a little light rises from it */
+  /* a member of your line dying: it fades gently, and a soft light rises from it (scope decision 67) */
   if (mine && alpha < 1) {
-    const k = 1 - alpha, sp = speckSprite();
-    for (let i = 0; i < 3; i++) {
-      x.globalAlpha = Math.sin(Math.PI * clamp(k * 1.2 - i * 0.12, 0, 1)) * 0.8;
-      x.drawImage(sp, c.x + (i - 1) * u * 0.5 - 5, midY - k * u * (2.2 + i * 0.5) - 5, 10, 10);
+    const k = 1 - alpha, sp = speckSprite(), glow = bloomSprite(), R = u * 1.6;
+    x.globalAlpha = Math.sin(Math.PI * k) * 0.5;
+    x.drawImage(glow, c.x - R, midY - k * u * 1.6 - R, 2 * R, 2 * R);
+    for (let i = 0; i < 5; i++) {
+      x.globalAlpha = Math.sin(Math.PI * clamp(k * 1.25 - i * 0.08, 0, 1)) * 0.85;
+      x.drawImage(sp, c.x + (i - 2) * u * 0.32 - 5, midY - k * u * (2.4 + (i % 3) * 0.6) - 5, 10, 10);
     }
   }
   if (glowAt !== null && alpha === 1) drawMark(x, c, u, midY, now, L.night, glowAt);

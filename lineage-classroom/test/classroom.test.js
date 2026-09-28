@@ -41,6 +41,64 @@ test("M1 stays as it is: its config is untouched, and neither mode advances the 
   assert.throws(() => advanceGeneration(classroom, currentModelConfig), /configuration mismatch/);
   assert.throws(() => advanceClassroomGeneration(createInitialState(3), classroomConfig), /not a Classroom world/);
   assert.notEqual(classroomIdentityFor(classroomConfig), classroomIdentityFor({ ...classroomConfig, placeEffects: PLACE_EFFECTS.map((r) => r.map((x) => -x)) }));
+  assert.notEqual(classroomIdentityFor(classroomConfig), classroomIdentityFor({ ...classroomConfig, inheritance: "average" }));
+});
+
+/** A world of these animals under this config (its identity must match the config it is advanced with). */
+function worldUnder(config, animals, seed = 1) {
+  const state = createAncestorWorld(seed, config);
+  state.currentIndividuals = animals.map((a, i) => makeIndividual({
+    id: i + 1, parentIds: null, birthGeneration: 0, ageGenerations: 1, bodyGenome: a.genome, timeAllocation: [0, 1, 0], birthEventId: i + 1,
+  }));
+  state.nextIndividualId = animals.length + 1;
+  state.nextBirthEventId = animals.length + 1;
+  return state;
+}
+
+test("a baby gets each trait whole from one parent or the other, never the average", () => {
+  assert.equal(classroomConfig.inheritance, "whole-trait");
+  const still = { ...classroomConfig, bodyMutationProbabilityPerChild: 0 };
+  // Every animal has its own value in every trait, so each baby's trait shows exactly whose it is.
+  const animals = [];
+  for (let i = 0; i < 40; i++) animals.push({ genome: Array.from({ length: 10 }, (_, t) => (i * 10 + t + 1) / 1000) });
+  const state = worldUnder(still, animals, 4);
+  advanceClassroomGeneration(state, still);
+  const byId = new Map(animals.map((a, i) => [i + 1, a.genome]));
+  const births = state.lastGenerationResult.births;
+  assert.ok(births.length >= 30);
+  let fromA = 0, all = 0;
+  for (const b of births) {
+    const baby = state.currentIndividuals.find((i) => i.id === b.childId).bodyGenome, A = byId.get(b.parentAId), B = byId.get(b.parentBId);
+    for (let t = 0; t < 10; t++) {
+      assert.ok(baby[t] === A[t] || baby[t] === B[t], `trait ${t}: ${baby[t]} is neither parent's (${A[t]}, ${B[t]})`);
+      fromA += baby[t] === A[t]; all++;
+    }
+  }
+  // About half from each parent.
+  assert.ok(fromA / all > 0.4 && fromA / all < 0.6, `${fromA} of ${all} from parent A`);
+  // M1's rule, for comparison, averages them.
+  const average = { ...still, inheritance: "average", bodyDriftScale: 0 };
+  const m1 = worldUnder(average, animals, 4);
+  advanceClassroomGeneration(m1, average);
+  const b = m1.lastGenerationResult.births[0], baby = m1.currentIndividuals.find((i) => i.id === b.childId).bodyGenome;
+  assert.equal(baby[3], (byId.get(b.parentAId)[3] + byId.get(b.parentBId)[3]) / 2);
+});
+
+test("a new trait is passed on whole: about half the babies of a mother with it have it all", () => {
+  const still = { ...classroomConfig, bodyMutationProbabilityPerChild: 0 };
+  const eyes = TRAIT_INDEX.large_eyes, plain = Array.from(classroomConfig.ancestorBodyGenome);
+  const big = plain.slice(); big[eyes] = Math.min(1, plain[eyes] + 0.3);
+  // Ten animals with bigger eyes among forty without.
+  const animals = [];
+  for (let i = 0; i < 50; i++) animals.push({ genome: i < 10 ? big : plain });
+  const state = worldUnder(still, animals, 9);
+  advanceClassroomGeneration(state, still);
+  const theirs = state.lastGenerationResult.births.filter((b) => b.parentAId <= 10 || b.parentBId <= 10);
+  const babies = theirs.map((b) => state.currentIndividuals.find((i) => i.id === b.childId).bodyGenome[eyes]);
+  assert.ok(babies.length >= 10);
+  for (const v of babies) assert.ok(v === big[eyes] || v === plain[eyes], "whole, never halved");
+  const withIt = babies.filter((v) => v === big[eyes]).length;
+  assert.ok(withIt >= babies.length * 0.3 && withIt <= babies.length * 0.8, `${withIt} of ${babies.length} have it`);
 });
 
 test("no luck in who survives: the same animals meet the same fate whatever the random state", () => {

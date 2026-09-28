@@ -464,7 +464,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   position: sticky; bottom: -28px; display: flex; flex-wrap: wrap; gap: 14px; margin: 22px -34px -28px; padding: 16px 34px 28px;
   background: linear-gradient(to bottom, rgba(247, 240, 223, 0), #F7F0DF 16px);
 }
-#ending .buttons button {
+#ending .buttons button:not(.say) {
   flex: 1 1 240px; min-height: 62px; padding: 16px 22px; border: 0; border-radius: 999px; cursor: pointer;
   background: #14657F; color: #F4FBFD; font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700;
   box-shadow: 0 8px 20px rgba(20, 80, 100, .25);
@@ -545,7 +545,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   border-radius: 18px; background: #FCEBD8; box-shadow: inset 0 0 0 2px #EDB98A;
   font-family: Petrona, Georgia, serif; font-size: 20px; line-height: 1.25; color: #5B3414; text-wrap: balance;
 }
-/* ---- The fair test: yours and the others here, side by side, as counts with bars. ---- */
+/* ---- Your line and your relatives here (scope decision 67), side by side, as counts with bars. ---- */
 .fair-board, #ending-fair-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 #since-body .count, #choice-since .count, #ending-fair-rows .count {
   display: flex; align-items: flex-end; gap: 14px; min-width: 0; padding: 12px 16px 14px; border-radius: 18px; white-space: normal;
@@ -588,7 +588,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #since.open #since-body > .count { animation-delay: .25s; }
 #since.open #since-body > .count ~ .count { animation-delay: .45s; }
 
-/* The ending's last fair test: the same scoreboard. */
+/* The ending's last choice: its line and its relatives here, the same way. */
 #ending-fair[hidden] { display: none; }
 #ending-fair-rows { padding: 12px; border-radius: 20px; background: #EFE5CE; }
 #ending-fair-rows .heading { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; padding: 0 4px; font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 600; }
@@ -608,12 +608,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #ending.died #reveal { background: #E9E6EE; color: #33384C; box-shadow: 0 0 0 2px rgba(110, 120, 160, .35); }
 #ending.died #reveal-why { color: #474C60; }
 
-/* ---- Will it spread? The counter rises like something growing; the world leans warm while it runs. ---- */
+/* ---- The fast-forward after a follow (scope decision 67): the counter rises like something growing; the world leans warm while it runs. ---- */
 #stage::after {
   content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
   background: radial-gradient(ellipse 120% 90% at 50% 55%, transparent 55%, rgba(255, 196, 96, .28) 100%);
 }
-#stage.spreading::after { opacity: 1; animation: spreadBreathe 2s ease-in-out infinite alternate; }
+#stage.rising::after { opacity: 1; animation: spreadBreathe 2s ease-in-out infinite alternate; }
 @keyframes spreadBreathe { from { opacity: .65; } to { opacity: 1; } }
 #logbar #log.spread {
   padding: 8px 10px 8px 20px; border-radius: 999px;
@@ -626,7 +626,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   35% { transform: scale(1.045); box-shadow: 0 0 0 3px rgba(255, 226, 160, .95), 0 0 46px rgba(255, 206, 110, .75); }
   100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 214, 138, .55), 0 0 30px rgba(255, 196, 96, .35); }
 }
-/* It disappeared / didn't spread: the glow lets go softly, a little cooler, with no alarm. */
+/* A gentle line: the glow lets go softly, a little cooler, with no alarm. */
 #logbar #log.gentle { padding: 8px 10px 8px 20px; border-radius: 999px; background: rgba(34, 40, 52, .32); box-shadow: 0 0 0 1.5px rgba(210, 222, 240, .45); color: #F1F4FA; animation: gentleIn 1.4s ease both; }
 @keyframes gentleIn { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: none; } }
 /* Wait! Your group is getting very small: warm and clear, the camera already on them. */
@@ -716,7 +716,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   font-size: 13.5px; font-weight: 600; color: #4A4C3E; transition: opacity .6s ease;
 }
 #why-here[hidden] { display: none; }
-#stage.arriving #why-here, #stage.panel-up #why-here { opacity: 0; pointer-events: none; }
+#stage.arriving #why-here, #stage.panel-up #why-here, #why-here.crowded { opacity: 0; pointer-events: none; }
 #why-here p { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; }
 #why-here .help::before, #why-here .hurt::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin-right: 2px; border-radius: 50%; }
 #why-here .help::before { background: #3E8E5B; }
@@ -773,13 +773,17 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #average h3, #ending h3.tree-title { display: flex; align-items: center; margin: 18px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9A8E70; }
 @media (max-height: 599px), (max-width: 599px) { #average .cols { grid-template-columns: 1fr; } #average-animal { max-width: 280px; } }
 
-/* The family tree strip: great-grandmother to this baby, each drawn from its real body. */
+/* The family tree strip: the first one tapped, then each followed baby (scope decision 66), each drawn from its real
+   body; the ancestors in between are smaller. */
 .tree { display: flex; align-items: flex-end; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
 .tree .who { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; }
 .tree .who canvas { width: 104px; height: 76px; border-radius: 14px; box-shadow: 0 0 0 2px #E6DAC0; }
 .tree .who.first canvas { box-shadow: 0 0 0 3px #D9892B; }
 .tree .who.baby canvas { box-shadow: 0 0 0 3px #14657F; }
 .tree .who span { font-size: 13px; font-weight: 700; line-height: 1.2; text-align: center; color: #585A4A; }
+.tree .who.between { width: 64px; }
+.tree .who.between canvas { width: 64px; height: 47px; border-radius: 10px; }
+.tree .who.between span { font-size: 11px; font-weight: 600; color: #8A8266; }
 .tree .step { flex: 0 0 auto; align-self: center; margin-bottom: 22px; font-size: 20px; color: #B7AA8A; }
 
 /* ---- The ending in four short steps (scope decision 62). ---- */
@@ -793,6 +797,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #ending .pair figcaption { display: flex; align-items: center; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 19px; font-style: italic; color: #3E4436; }
 #ending-animal { height: 200px; animation: none; }
 #ending-result { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+/* The line and, beside it, your relatives (scope decision 66). */
+#ending-result .group-rows { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; }
 #ending-result .count { font-family: Petrona, Georgia, serif; font-size: 20px; }
 #ending-result .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 #ending-result .chip { padding: 4px 11px; border-radius: 99px; background: #14657F; color: #EFFAFD; font-size: 14px; font-weight: 700; }
@@ -823,6 +829,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #idea-check.right p:first-child { color: #2F7A4B; }
 #ending .buttons [hidden] { display: none; }
 #ending .buttons #ending-next { flex: 0 1 260px; margin-left: auto; }
+/* "This world is nearly over. Start a new world?" (scope decision 64): New world, and a small "Keep going anyway". */
+#nearly-over { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; animation: rise .5s ease both; }
+#nearly-over-line { flex: 1 1 100%; display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1.25; color: #2A2B22; }
+#ending .buttons #nearly-keep { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; background: none; box-shadow: none; color: #14657F;
+  font-size: 15px; text-decoration: underline; text-underline-offset: 3px; }
 #ending .extras { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
 #ending .extras button { min-height: 48px; padding: 10px 20px; border: 0; border-radius: 999px; background: #FBF7EC; color: #14657F; font: 700 16px Karla, system-ui, sans-serif;
   box-shadow: inset 0 0 0 2px #14657F; cursor: pointer; }
@@ -867,7 +878,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #guide-grid .entry.helps .mark { background: #DCEFE2; color: #2F7A4B; }
 #guide-grid .entry.hurts .mark { background: #F6E0D6; color: #B0502C; }
 #guide-grid .entry.little .mark { background: #ECE6D6; color: #7D745C; }
+/* A neutral trait's one entry, for every place (scope decision 65). */
+#guide-grid .entry.wide { grid-column: span 3; }
 #guide-grid .entry .text { flex: 1; }
 #guide-grid .entry.unknown { background: #F1EBDD; box-shadow: none; color: #A69D86; font-style: italic; }
 #guide-grid .entry.unknown .mark { background: #E6DECB; color: #A69D86; }
-@media (max-width: 700px) { #guide-grid { grid-template-columns: 1fr; } #guide-grid .place { display: none; } #guide-grid .trait { padding-top: 12px; } }
+@media (max-width: 700px) { #guide-grid { grid-template-columns: 1fr; } #guide-grid .place { display: none; } #guide-grid .trait { padding-top: 12px; } #guide-grid .entry.wide { grid-column: auto; } }

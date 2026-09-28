@@ -5,7 +5,7 @@
  * A generation runs exactly as M1's advanceGeneration()
  * (lineage-m1/src/core/simulation.js) and with M1's own building blocks for
  * mating, inheritance, mutation, birth and death records and genealogy. Only
- * the survival step differs:
+ * the survival step and how a baby gets its body traits differ. Survival:
  *
  *  - an animal dies of old age at M1's maximum age, as now;
  *  - every other animal lives in the place where it spends most of its time;
@@ -14,9 +14,10 @@
  *    until the place is full; between equals, the older makes room;
  *  - nobody else dies, and survival makes no random draw.
  *
- * Babies are still born a little different from their parents, and mates are
- * still found by M1's draw. M1 itself is untouched: lineage-m1 hashes every
- * file it ships, so this mode lives beside it.
+ * A baby gets each body trait whole from one parent or the other, never the
+ * average (scope decision 67), then M1's usual chance of a new variation. Mates
+ * are still found by M1's draw, and time is inherited as in M1. M1 itself is
+ * untouched: lineage-m1 hashes every file it ships, so this mode lives beside it.
  */
 
 import { formMatingPairs } from "../../lineage-m1/src/core/mating.js";
@@ -32,6 +33,31 @@ import {
   applyWebbingOverride,
 } from "../../lineage-m1/src/fixtures/definingFixtureV1.js";
 import { classroomConfig, classroomIdentityFor, maximumAgeOf } from "./config.js";
+
+/** The config handed to M1's createChild once the traits are picked: no body drift, so its parents' average is exact. */
+const exact = new WeakMap();
+const noDrift = (config) => {
+  if (!exact.has(config)) exact.set(config, Object.freeze({ ...config, bodyDriftScale: 0 }));
+  return exact.get(config);
+};
+
+/**
+ * One baby (scope decision 67): each body trait comes whole from one parent or
+ * the other, a coin flip per trait in M1's trait order, never the average, so
+ * a new trait isn't halved away before it can be passed on. The rest is M1's own
+ * createChild, unchanged: both parents are handed to it carrying the picked
+ * traits, with no drift, so its average of them is exactly those traits; then
+ * M1's body-mutation opportunity, time inherited from both parents, the
+ * time-mutation opportunity, and the birth and mutation records.
+ * @param {Object} state @param {Object} A @param {Object} B parent A and parent B
+ * @param {number} targetGeneration @param {import("../../lineage-m1/src/core/rng.js").Rng} rng @param {Object} config
+ */
+export function classroomChild(state, A, B, targetGeneration, rng, config = classroomConfig) {
+  if (config.inheritance !== "whole-trait") return createChild(state, A, B, targetGeneration, rng, config);
+  const picked = new Float64Array(A.bodyGenome.length);
+  for (let t = 0; t < picked.length; t++) picked[t] = rng.nextFloat() < 0.5 ? A.bodyGenome[t] : B.bodyGenome[t];
+  return createChild(state, { ...A, bodyGenome: picked }, { ...B, bodyGenome: picked }, targetGeneration, rng, noDrift(config));
+}
 
 /** Where an animal lives: the place it spends most of its time in (ties go to the first, as M1's zone bins). */
 export const placeOf = (individual) => argmax(individual.timeAllocation);
@@ -104,7 +130,7 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
   }
   for (const s of survivors) s.ageGenerations += 1;
 
-  // From here on, exactly M1's steps 5-10.
+  // From here on, M1's steps 5-10, a baby's body traits each whole from one parent (classroomChild).
   const pairs = formMatingPairs(survivors, config, rng);
   const survivorById = new Map(survivors.map((s) => [s.id, s]));
   const newborns = [];
@@ -114,7 +140,7 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
     const B = survivorById.get(pair.parentBId);
     const childIds = [];
     for (let k = 0; k < config.offspringPerPair; k++) {
-      const child = createChild(state, A, B, targetGeneration, rng, config);
+      const child = classroomChild(state, A, B, targetGeneration, rng, config);
       newborns.push(child);
       childIds.push(child.id);
     }

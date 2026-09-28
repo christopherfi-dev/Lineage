@@ -9,8 +9,8 @@
  * family really had and where it lived. Nothing is ever marked wrong.
  */
 
-import { TRAITS, MEANINGFUL_TRAIT_INDICES } from "./engine.js";
-import { effectIn, whyLine, HAS_AT } from "./why.js";
+import { TRAITS, MEANINGFUL_TRAIT_INDICES, NEUTRAL_TRAIT_INDICES } from "./engine.js";
+import { effectIn, whyLine, HAS_AT, NEUTRAL_NOUN, NEUTRAL_WHY } from "./why.js";
 import { ZONE_AT } from "./narration.js";
 
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -92,26 +92,35 @@ const lower = (line) => line.charAt(0).toLowerCase() + line.slice(1);
 
 /* ================= the Field Guide (scope decision 62) ================= */
 
-/** The 21 discoveries: each meaningful trait in each place, with its mark (✓, ✗ or ~) and its line from the table. */
-export const FIELD_GUIDE = MEANINGFUL_TRAIT_INDICES.flatMap((t) => [0, 1, 2].map((zone) => {
-  const e = effectIn(t, zone), words = IDEA_TRAITS.find((x) => x.t === t).words;
-  return { key: `${TRAITS[t]}:${zone}`, t, zone, mark: e > 0 ? "✓" : e < 0 ? "✗" : "~", words, line: whyLine(t, zone) };
-}));
+/**
+ * The 24 discoveries: each meaningful trait in each place, with its mark (✓, ✗
+ * or ~) and its line from the table, and each neutral trait once, for every
+ * place (scope decision 65). Each is found by a fair test that goes the
+ * table's way: better, worse, or "About the same." for a "~" or a neutral trait.
+ */
+export const FIELD_GUIDE = [
+  ...MEANINGFUL_TRAIT_INDICES.flatMap((t) => [0, 1, 2].map((zone) => {
+    const e = effectIn(t, zone), words = IDEA_TRAITS.find((x) => x.t === t).words;
+    return { key: `${TRAITS[t]}:${zone}`, t, zone, mark: e > 0 ? "✓" : e < 0 ? "✗" : "~", words, line: whyLine(t, zone) };
+  })),
+  ...NEUTRAL_TRAIT_INDICES.map((t) => ({ key: TRAITS[t], t, zone: null, mark: "~", neutral: true, words: NEUTRAL_NOUN[TRAITS[t]], line: NEUTRAL_WHY[TRAITS[t]] })),
+];
 
 /** "You discovered: webbed feet help at the water's edge." (or "…don't matter much on open ground."). */
 export function discoveryLine(entry) {
+  if (entry.neutral) return `You discovered: ${lower(entry.line)}`;
   const s = SINGULAR.has(TRAITS[entry.t]);
   const verb = entry.mark === "✓" ? (s ? "helps" : "help") : entry.mark === "✗" ? (s ? "hurts" : "hurt") : `${s ? "doesn't" : "don't"} matter much`;
   return `You discovered: ${entry.words} ${verb} ${ZONE_AT[entry.zone]}.`;
 }
-/** "You've discovered 9 of 21." */
+/** "You've discovered 9 of 24." */
 export const discoveredLine = (n) => `You've discovered ${n} of ${FIELD_GUIDE.length}.`;
 export const FIELD_GUIDE_TITLE = "Field guide";
 /** An entry not discovered yet. */
 export const NOT_YET = "Not discovered yet.";
 
-/** The entry for a trait in a place, or null for a neutral trait. */
-export const guideEntry = (t, zone) => FIELD_GUIDE.find((x) => x.t === t && x.zone === zone) ?? null;
+/** The entry for a trait in a place (a neutral trait's one entry, wherever). */
+export const guideEntry = (t, zone) => FIELD_GUIDE.find((x) => x.t === t && (x.zone === zone || x.neutral)) ?? null;
 
 /* ================= this iPad's own storage (never sent anywhere) ================= */
 
