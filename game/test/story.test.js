@@ -353,6 +353,113 @@ test("an earlier trait on 'Your line so far' greys out when the line loses it; t
   assert.ok(checked > 100 && faded > 0, `${faded} of ${checked}`);
 });
 
+test("the first choice is where the family will live: a card fills in once a baby of the family lives there, the line fills the place, and only babies born there join", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story, PLACE_TO, PLACE_MAX, HOME_MARK } = await import("../src/story.js");
+  const { carries } = await import("../src/variations.js");
+  const sorted = (ids) => [...ids].sort((a, b) => a - b);
+  let arrived = 0, bornElsewhere = 0, follows = 0, backs = 0;
+  for (const zone of [0, 1, 2]) for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true });
+    story.begin(bridge.families.founding[f].ids[0]);
+    assert.equal(story.phase, "place");
+    assert.ok(story.running && story.fast, "the world runs on to the family's first babies");
+    // No baby yet, so every card waits a generation, and nothing can be chosen.
+    assert.deepEqual(story.placeCards(), [null, null, null]);
+    assert.equal(story.choosePlace(zone), null);
+    let card = null;
+    while (!card && bridge.generation < 6) {
+      assert.equal(story.afterGeneration(bridge.step()), "place");
+      assert.equal(story.glowing.length + story.fresh.length, 0, "nothing glows before the place choice");
+      const cards = story.placeCards();
+      cards.forEach((c, z) => {
+        if (!c) return;
+        // A card is a real baby of the family, born since the story began, living in that place.
+        assert.equal(c.zone, z);
+        assert.ok(bridge.isFollowed(c.id) && bridge.get(c.id).birthGeneration > story.startGeneration && bridge.zoneOf(c.id) === z);
+        assert.equal(c.living, bridge.followedIn(z));
+      });
+      card = cards[zone];
+    }
+    assert.ok(card, "a baby preferring each place turns up in the family within a few generations");
+    const family = bridge.followedAnimals(), home = story.choosePlace(zone);
+    assert.equal(story.noun, "line");
+    assert.equal(story.place, zone);
+    // The line is the family's animals living there; the rest of the family are relatives, marked with this choice.
+    const there = family.filter((a) => a.zone === zone).map((a) => a.id);
+    assert.deepEqual(sorted(bridge.followedIds()), sorted(there));
+    for (const a of family) assert.equal(bridge.relatives.get(a.id), a.zone === zone ? undefined : HOME_MARK);
+    assert.equal(story.family.then, there.length);
+    assert.equal(story.phase, there.length >= PLACE_TO ? "watch" : "moving");
+    while (story.phase !== "ended" && bridge.generation < 14) {
+      const line = new Set(bridge.followedIds()), v = bridge.follow.v, was = story.phase;
+      const ev = bridge.step();
+      for (const b of ev.births) {
+        const kid = bridge.get(b.childId);
+        if (!kid || !(line.has(b.parentAId) || line.has(b.parentBId))) continue;
+        // A baby of the line joins it only when it lives there too (and inherited the latest followed trait); one born
+        // in another place is a relative: blue is only ever the child's line, in one place.
+        assert.equal(bridge.isFollowed(b.childId), bridge.zoneOf(b.childId) === zone && (!v || carries(kid.bodyGenome, v)));
+        if (bridge.zoneOf(b.childId) !== zone) { assert.ok(bridge.isRelative(b.childId)); bornElsewhere++; }
+      }
+      const what = story.afterGeneration(ev);
+      if (what === "ended") break;
+      assert.ok(bridge.followedAnimals().every((a) => a.zone === zone), "the whole line lives in the chosen place");
+      if (was === "moving" && what !== "back") {
+        // The fast-forward runs until PLACE_TO live there, for at most PLACE_MAX generations.
+        const n = bridge.followedIds().length, done = n >= PLACE_TO || bridge.generation - home.generation >= PLACE_MAX;
+        assert.equal(what, done ? "arrived" : "moving");
+        if (done) { assert.equal(home.outcome, n >= PLACE_TO ? "reached" : "cap"); arrived++; }
+      }
+      if (what === "back") {
+        backs++;
+        // Back from a follow's line to the line before it, still in the chosen place.
+        assert.equal(bridge.follow.place, zone);
+        if (!story.choices.length) assert.equal(bridge.follow.v, null);
+      }
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        const g = story.glowing.find((x) => story.followable(x));
+        if (g && story.quiet >= 40 && !story.inDanger) {
+          story.follow(g, false);
+          follows++;
+          // A follow is in the chosen place, and its mark counts on from the place choice's.
+          const c = story.choices[story.choices.length - 1];
+          assert.equal(c.zone, zone);
+          assert.equal(c.mark, story.choices.length + HOME_MARK);
+          assert.equal(bridge.follow.place, zone);
+        }
+      }
+    }
+  }
+  assert.ok(arrived >= 6 && bornElsewhere > 0 && follows > 0 && backs > 0, `arrived ${arrived}, born elsewhere ${bornElsewhere}, follows ${follows}, backs ${backs}`);
+});
+
+test("when the line in the chosen place dies out, the family is the child's again, to choose where it lives again", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true });
+  story.begin(bridge.families.founding[0].ids[0]);
+  while (!story.placeCards()[2]) story.afterGeneration(bridge.step());
+  const family = new Set(bridge.followedIds()), home = story.choosePlace(2);
+  // The whole line in the water is lost at once (its animals no longer in the line): as if it died out.
+  const ev = bridge.step();
+  for (const id of [...bridge.follow.members]) bridge.follow.members.delete(id);
+  const what = story.afterGeneration({ ...ev, group: { ...ev.group, count: 0 } });
+  assert.equal(what, "back");
+  assert.equal(story.phase, "place");
+  assert.equal(story.home, null);
+  assert.equal(story.homeGone, home);
+  assert.deepEqual(story.homeTries, [home]);
+  assert.equal(home.outcome, "gone");
+  assert.equal(story.noun, "family");
+  // The line is the rest of the family (and their babies since); no one is a relative now.
+  assert.ok(bridge.followedIds().length > 0);
+  for (const id of bridge.followedIds()) assert.ok(family.has(id) || bridge.get(id).birthGeneration === bridge.generation);
+  assert.equal(bridge.relatives.size, 0);
+  assert.equal(bridge.follow.place, null);
+});
+
 test("next generation's deaths and their causes are known before it runs: Classroom survival draws nothing", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const bridge = Bridge.fromAncestor(3);

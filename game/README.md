@@ -17,7 +17,8 @@ python3 -m http.server 8000      # from the repo root
 
 Plain ES modules, no build step. The world is the common-ancestor world: every founder starts
 on the open ground with the same ancestral body, and the high leaves and the water's edge start
-empty. `?seed=N` picks another trajectory (default 13). `?length=76` is the teacher's full-length
+empty. In every founding family, 3 founders lean toward the water's edge and 3 toward the high
+leaves, so each place is a baby away (scope decision 70). `?seed=N` picks another trajectory (default 13). `?length=76` is the teacher's full-length
 story (a story is 50 generations by default; scope decision 64). `?demo=webbed` is the teacher demo, M1's
 defining experiment: the fixture with its webbing override, so the same webbed feet start in one
 canopy family and one shoreline family.
