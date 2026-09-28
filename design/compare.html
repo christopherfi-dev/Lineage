@@ -55,9 +55,9 @@
 </main>
 <script>
   // [file, title, note, before, new with]: a moment with no "before" picture was added with the look, the playtest
-  // fixes, the next round (Parts 1–6), Round 3 or decision 68. The "after" pictures are the latest round's, in the
-  // common-ancestor world (seed 13).
-  const R = "the next round", D = "decision 68";
+  // fixes, the next round (Parts 1–6), Round 3, decision 68 or decision 69. The "after" pictures are the latest round's,
+  // in the common-ancestor world (seed 13; a whole line dying out early only happens in other worlds).
+  const R = "the next round", D = "decision 68", E = "decision 69";
   const MOMENTS = [
     ["arrival", "Arrival", "After the morning mist has lifted, on a family with a future."],
     ["arrival-mist", "Arrival, in the mist", "New with the look: the camera drifts down into the leaves.", false],
@@ -72,10 +72,12 @@
     ["joining", "Following", "Since decision 68: your line's animals with the trait light up, counted.", false, "the playtest fixes"],
     ["rising", "The rising counter", "New with decision 68: the fast-forward while the trait's count in your line rises, the whole line in view.", false, D],
     ["slowdown", "Back to real time", "New with decision 68: the count reached 20, then the slow-down.", false, D],
+    ["watch-small", "Watch what happens", "New with decision 69: a follow of only 1 or 2 has no fast-forward; its line is watched from the start.", false, E],
     ["growing", "Growing, and why", "New with decision 68: your line with the trait growing, with the table's reason.", false, D],
     ["dying", "Dying off, and why", "New with decision 68: each death fades with a little light rising, the camera on it.", false, D],
     ["line-dies", "A line dies out", "New with decision 68: its last animals fade, the camera on them.", false, D],
-    ["died-why", "Why did they die out?", "New with decision 68: the “Why?” right there.", false, D],
+    ["died-why", "Why did they die out?", "New with decision 68: the “Why?” right there; since decision 69, only as a new Field Guide discovery.", false, D],
+    ["died-told", "Why they died out, told", "New with decision 69: no discovery, so why is told, with no guess.", false, E],
     ["back-line", "Back to your line", "New with decision 68: “They didn't make it. Back to your line.”", false, D],
     ["compare", "Your line and your relatives", "New with decision 68: the only comparison, counts with bars.", false, D],
     ["same", "About as well as your relatives", "Since decision 68: a trait that doesn't matter here; your line did about as well as your relatives.", false, "Round 3"],
@@ -87,7 +89,7 @@
     ["why", "Why? (a result)", "New with the next round; since decision 68, your line clearly growing after a follow.", false, R],
     ["why-answer", "Why? (the answer)", "New with the next round: why, from the table; nothing marked wrong.", false, R],
     ["discovery", "A discovery", "New with the next round: “You discovered: …” for the Field Guide.", false, R],
-    ["why-drop", "Why? (a sudden drop)", "New with the next round: “Why is your line shrinking?”", false, R],
+    ["told", "Why, told", "New with decision 69: a result the Field Guide already has; what happened and why, with no guess.", false, E],
     ["other-card", "Another family's card", "Its family beside your line, and how it differs.", false, "the playtest fixes"],
     ["relative", "One of your relatives", "New with Round 3: the rest of your line in its place, in a soft clay; your relatives here beside your line.", false, "Round 3"],
     ["grow", "Growing", "Your line clearly bigger."],
@@ -104,6 +106,10 @@
     ["leaves", "Visiting the leaves", "New with the next round: animals on branches among the leaves.", false, R],
     ["map", "The map", "New with the next round: the places' names and the borders between them.", false, R],
     ["ending", "The ending: what happened", "Step 1 of 4: the start and the end, your line baby by baby, your line and your relatives here."],
+    ["extinct", "Died out", "Kept with decision 69, in seed 35: the whole line died out at generation 24, so the story ends early."],
+    ["another-family", "Try another family", "Kept with decision 69, in seed 35 (the whole line dies out at generation 24): the same world as it is now.", false, R],
+    ["in-trouble", "In trouble already", "Kept with decision 69, in seed 53: then a tap on a family with no future.", false, R],
+    ["nearly-over", "This world is nearly over", "Kept with decision 69, in seed 35 with a 30-generation story: “Try another family” with fewer than 25 of the story's generations left.", false, "the PR #26 decisions"],
     ["ending-idea", "The ending: your idea", "New with the next round: step 2, the sentence to build.", false, R],
     ["ending-check", "The ending: check my idea", "New with the next round: step 3, with the clue and your last choice.", false, R],
     ["ending-reveal", "The ending: the reveal", "New with the next round: step 4, the real animal and the story card.", false, R],

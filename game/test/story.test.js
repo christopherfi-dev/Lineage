@@ -1,12 +1,12 @@
-// The story's rules (scope decisions 59 and 64-68): a follow narrows the line to its carriers in its place, the world
-// fast-forwards while their count rises, a line that dies out goes back to the line before; a family with a future
-// can be picked.
+// The story's rules (scope decisions 59 and 64-69): a follow narrows the line to its carriers in its place, the world
+// fast-forwards while their count rises (not for a follow of fewer than 3), a line that dies out goes back to the line
+// before; a "Why?" is a guess only at a new Field Guide discovery; the glow balance; a family with a future can be picked.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 test("a follow narrows the line to its carriers in its place, the rest there become relatives, and only babies that inherit it join", async () => {
   const { Bridge } = await import("../src/bridge.js");
-  const { Story, RISE_TO } = await import("../src/story.js");
+  const { Story, RISE_TO, FAST_FROM } = await import("../src/story.js");
   const { carries } = await import("../src/variations.js");
   let checked = 0, born = 0, kinBorn = 0;
   const follow = (story, bridge, g) => {
@@ -15,8 +15,8 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
     story.follow(g, false);
     checked++;
     assert.equal(story.noun, "line");
-    // The world fast-forwards while the count rises; not at all when it is RISE_TO already.
-    assert.equal(story.phase, story.lineStart >= RISE_TO ? "watch" : "rise");
+    // The world fast-forwards while the count rises; not at all when it is RISE_TO already, or under FAST_FROM.
+    assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM ? "watch" : "rise");
     // The line is now the old line's animals with the variation, in its place.
     const now = bridge.followedIds();
     assert.equal(story.family.then, now.length);
@@ -174,13 +174,17 @@ test("any trait in the line's place can be followed, and a neutral trait's guess
   assert.equal(explainGuess(g, g.options[2]), "Yes! Ear tip shape doesn't help or hurt anywhere.");
 });
 
-test("the fast-forward runs while the count rises, and every line that dies out goes back to the line before, with its Why?", async () => {
+test("the fast-forward runs while the count rises, not for a follow of fewer than 3, and every line that dies out goes back to the line before, with its Why?", async () => {
   const { Bridge } = await import("../src/bridge.js");
-  const { Story, RISE_TO, RISE_MAX } = await import("../src/story.js");
-  const { variationEffect } = await import("../src/why.js");
-  let follows = 0, rises = 0, backs = 0, whys = 0, found = 0;
+  const { Story, RISE_TO, RISE_MAX, FAST_FROM } = await import("../src/story.js");
+  const { variationEffect, whyLine } = await import("../src/why.js");
+  const { guideEntry } = await import("../src/reflection.js");
+  let follows = 0, small = 0, rises = 0, backs = 0, whys = 0, told = 0, found = 0;
   for (const seed of [1, 2]) for (const f of [0, 1, 2]) {
-    const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
+    const bridge = Bridge.fromAncestor(seed), story = new Story(bridge), asked = new Set();
+    // A "Why?" is a guess only at a new Field Guide discovery: each entry at most once a story (scope decision 69).
+    const key = (t, zone) => guideEntry(t, zone).key;
+    const ask = (q) => { const k = key(q.discovery.t, q.discovery.zone); assert.ok(!asked.has(k), k); asked.add(k); };
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
       if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
@@ -207,24 +211,36 @@ test("the fast-forward runs while the count rises, and every line that dies out 
         assert.equal(bridge.follow.v, story.choices.length ? story.choices[story.choices.length - 1].v : null);
         assert.equal(story.phase, "watch");
         assert.equal(story.chips.length, new Set(story.choices.map((c) => c.v.t)).size);
-        // Its Why? right away: about the followed trait, unless it helps there or most of them were old; a discovery
-        // when it hurts there.
-        const q = story.guessNow(ev), e = variationEffect(story.backFrom.v.t, story.backFrom.v.dir, story.backFrom.zone);
-        if (story.oldAgeMostly(ev.group, ev.deaths)) assert.equal(q, null);
-        else if (e <= 0) { assert.ok(q && q.died && q.t === story.backFrom.v.t); whys++; if (e < 0) assert.ok(q.discovery); }
+        // Its Why? right away: a guess only when the followed trait hurts there and that is a new discovery; else the
+        // table's reason told as lines (scope decision 69); nothing when most of them were old.
+        const q = story.guessNow(ev), c = story.backFrom, e = variationEffect(c.v.t, c.v.dir, c.zone);
+        if (story.oldAgeMostly(ev.group, ev.deaths)) { assert.equal(q, null); assert.deepEqual(story.diedSay, []); }
+        else if (q) { assert.ok(e < 0 && q.died && q.discovery && q.t === c.v.t); ask(q); whys++; }
+        else {
+          if (e < 0) assert.ok(asked.has(key(c.v.t, c.zone)), "a hurting trait found before is told");
+          if (e <= 0) assert.equal(story.diedSay[0], whyLine(c.v.t, c.zone));
+          if (story.diedSay.length) told++;
+        }
         continue;
       }
       // The story ends only when the whole line is gone, or at its last generation.
       if (what === "ended") assert.ok(story.outcome === "survived" ? ev.generation === story.length : bridge.followedIds().length === 0 && !bridge.relatives.size);
       if (story.phase === "watch") {
-        const q = story.guessNow(ev);
-        if (q?.discovery) {
-          // A result that goes the table's way: growing on a trait that helps, dying off on one that hurts, about as
-          // well as the relatives on one that doesn't matter.
+        const q = story.guessNow(ev), c = story.choices[story.choices.length - 1];
+        if (q) {
+          // A result that goes the table's way, its entry new: growing on a trait that helps, dying off on one that
+          // hurts, about as well as the relatives on one that doesn't matter. Never a sudden drop (scope decision 69).
+          assert.ok(q.discovery);
+          ask(q);
           found++;
-          const c = story.choices[story.choices.length - 1], e = variationEffect(c.v.t, c.v.dir, c.zone);
+          const e = variationEffect(c.v.t, c.v.dir, c.zone);
           assert.equal(q.t, c.v.t);
           assert.ok(e > 0 ? story.growing(c) : e < 0 ? story.dyingOff(c) : story.aboutSame(c));
+        } else if (story.told) {
+          // Its entry was asked about before: what happened, then the table's reason, with no guess.
+          assert.ok(asked.has(key(c.v.t, c.zone)));
+          assert.equal(story.told[1], whyLine(c.v.t, c.zone));
+          told++;
         }
       }
       for (let k = 0; k < 40 && story.phase === "watch"; k++) {
@@ -233,11 +249,75 @@ test("the fast-forward runs while the count rises, and every line that dies out 
         if (!g || story.inDanger || story.quiet < 40) continue;
         story.follow(g, false);
         follows++;
-        assert.equal(story.phase, story.lineStart >= RISE_TO ? "watch" : "rise");
+        // No fast-forward at RISE_TO or more, nor under FAST_FROM: that line is watched from the start (scope decision 69).
+        assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM ? "watch" : "rise");
+        if (story.lineStart < FAST_FROM) { small++; assert.equal(story.lastRise.outcome, "small"); }
       }
     }
   }
-  assert.ok(follows > 10 && rises > 3 && backs > 3 && whys > 3 && found > 0, `${follows} follows, ${rises} fast-forwards, ${backs} back, ${whys} whys, ${found} found`);
+  assert.ok(follows > 10 && small > 0 && rises > 3 && backs > 3 && whys > 0 && told > 0 && found > 0,
+    `${follows} follows (${small} small), ${rises} fast-forwards, ${backs} back, ${whys} died whys, ${told} told, ${found} found`);
+});
+
+test("on an iPad whose Field Guide has every entry, no Why? is a guess: each is told, with the table's reason", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  let told = 0;
+  for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(1), story = new Story(bridge, { known: () => true });
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (story.phase !== "ended") {
+      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
+      const ev = bridge.step(), what = story.afterGeneration(ev);
+      if (story.phase === "watch") {
+        assert.equal(story.guessNow(ev), null);
+        if (story.told || (what === "back" && story.diedSay.length)) told++;
+      }
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        const g = story.glowing.find((x) => story.followable(x));
+        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+      }
+    }
+  }
+  assert.ok(told > 3, `${told} told`);
+});
+
+test("glow balance: helpful and harmful traits glow first, and while one glows or can, at most one glowing baby's trait doesn't matter", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story, GLOW_MIN_SECONDS } = await import("../src/story.js");
+  const { variationEffect } = await import("../src/why.js");
+  const { sameVariation } = await import("../src/cohorts.js");
+  let balanced = 0, starts = 0;
+  for (const seed of [1, 2, 13]) for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (story.phase !== "ended") {
+      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
+      story.afterGeneration(bridge.step());
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        const started = story.advance(0.5), t = story.watchT, zone = story.testZone();
+        const matters = (x) => variationEffect(x.v.t, x.v.dir, zone) !== 0;
+        const open = (x) => story.glowing.includes(x) || x.bornT + story.glowGenerations * story.generationSeconds - t >= GLOW_MIN_SECONDS;
+        if (story.fresh.some((x) => matters(x) && story.followable(x) && open(x))) {
+          balanced++;
+          assert.ok(story.glowing.filter((x) => !matters(x)).length <= 1, "at most one glow whose trait doesn't matter here");
+        }
+        for (const x of started) {
+          starts++;
+          if (matters(x)) continue;
+          // A trait that doesn't matter here lit up: no baby of the line with one that helps or hurts was still waiting
+          // to, even one yet to appear in its day.
+          const waiting = story.fresh.filter((y) => matters(y) && story.followable(y) && open(y) &&
+            !story.glowing.includes(y) && !story.glowing.some((z) => sameVariation(z.v, y.v)));
+          assert.equal(waiting.length, 0);
+        }
+        const g = story.glowing.find((x) => story.followable(x));
+        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+      }
+    }
+  }
+  assert.ok(balanced > 50 && starts > 50, `${balanced} balanced steps, ${starts} glows started`);
 });
 
 test("an earlier trait on 'Your line so far' greys out when the line loses it; the latest one doesn't, until the child comes back to that line", async () => {

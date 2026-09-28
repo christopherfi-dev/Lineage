@@ -104,13 +104,19 @@ export function riseLine(group, counts, stopped = null, name = null) {
 }
 /** The fast-forward is over (scope decision 67). */
 export const SLOW_DOWN = "Back to real time. Watch your line.";
-/** A follow with no fast-forward at all: the line has RISE_TO or more with the trait already (scope decision 67). */
+/**
+ * A follow with no fast-forward at all: the line has RISE_TO or more with the trait already (scope decision 67), or
+ * fewer than FAST_FROM, watched from the start (scope decision 69; "it" for one).
+ */
 export const WATCH_THEM = "Watch what happens to them.";
+export const watchThem = (n) => (n === 1 ? "Watch what happens to it." : WATCH_THEM);
 /** Real time after a follow, before the table's reason (scope decision 67): "Your line with bigger eyes is growing." */
 export const growingLine = (group, name = null) => `${capital(your("line", name))} with ${shortGroup(group)} is growing.`;
 /** "Your animals with a stronger tail are dying off." */
 export const dyingOffLine = (group, name = null) => `${capital(your("animals", name))} with ${shortGroup(group)} are dying off.`;
-/** The tap-to-guess questions about a follow (scope decision 68). */
+/** A "~" or neutral trait's result told as a line, with no guess (scope decision 69). */
+export const sameLine = (name = null) => `${capital(your("line", name))} is doing about as well as your relatives.`;
+/** The tap-to-guess questions about a follow (scope decision 68), asked only at a new Field Guide discovery (69). */
 export const growingQuestion = (group, name = null) => `Why is ${your("line", name)} with ${shortGroup(group)} growing?`;
 export const dyingQuestion = (group, name = null) => `Why are ${your("animals", name)} with ${shortGroup(group)} dying off?`;
 export const sameQuestion = (name = null) => `Why is ${your("line", name)} doing about as well as your relatives?`;

@@ -39,6 +39,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FAST_SECONDS` | 2 | real seconds per generation in a fast-forward |
 | `RISE_TO` | 20 | a fast-forward after a follow stops once the trait's count in the line reaches this (scope decision 67) |
 | `RISE_MAX` | 15 | and after this many generations, at most |
+| `FAST_FROM` | 3 | a follow of fewer than this has no fast-forward: its line is watched from the start (scope decision 69) |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most (`src/cohorts.js`) |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
 | `GLOW_GAP_SECONDS` | 4 | new glows start at least this far apart (seconds of watching) |
@@ -47,7 +48,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `DANGER_SIZE` | 5 | your line this small or smaller keeps any follow from starting, and holds back the push |
 | `FADED_BELOW` | 3 | an earlier chosen trait greys out on "Your line so far" when fewer of the line have it (and fewer than half) |
 | `SAME_BY`, `SAME_FROM` | 1.25, 5 | a line on a trait that doesn't matter there is doing "about as well as your relatives" when each grew within a quarter of the other, at 5 animals or more |
-| `GUESS_GAP` | 4 | a "Why?" comes at most once in this many generations, except when a line dies out |
+| `GUESS_GAP` | 4 | a "Why?" guess comes at most once in this many generations, except when a line dies out; only a new Field Guide discovery is a guess (scope decision 69) |
 | `PUSH_SECONDS` | 120 | story time with no follow before the backup choice panel opens |
 | `CHOICE_SECONDS` | 20 | time to choose on that panel before one option is picked at random |
 | `STORY_CHOICES` | 15 | follows in a story, at most |
@@ -55,7 +56,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story takes a median 14.6 minutes, with a median of 6 follows and 4 traits added up, measured with a simulated child (scope decision 68).
+A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits added up and 4 "Why?" guesses, measured with a simulated child (scope decision 69).
 
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
@@ -63,7 +64,10 @@ A story takes a median 14.6 minutes, with a median of 6 follows and 4 traits add
 2. **Glowing newborns** (scope decision 32). When a baby in your line is born with a new
    variation, it glows: the trait new in it at birth takes it past the line's usual (its median
    for that trait, plus or minus 0.12). At most three glow at once, the ones that can be followed
-   first, then the newest, one per variation; nothing else flashes. The engine makes a
+   first, then those whose trait helps or hurts in the line's place, then the newest, one per
+   variation; nothing else flashes. The glow balance (scope decision 69): while a baby whose trait
+   helps or hurts there glows or can, at most one glowing baby has a trait that doesn't matter
+   there, and none of those starts to glow while such a baby still waits to light up. The engine makes a
    generation's babies at its tick, but on a watched day they appear on the map one by one over
    the first 80% of the day, and the glows start one at a time as they appear (scope decision
    50). The log names each baby as it lights up; the line is underlined, and a tap on it (or on
@@ -89,7 +93,8 @@ A story takes a median 14.6 minutes, with a median of 6 follows and 4 traits add
    the line rises, with one line that changes in place and a rising note: "Bigger eyes in your
    Mossfoot line: 2… 5… 7… 16… 29!". It stops at `RISE_TO` ("!"), as soon as the count stops
    rising or falls ("."), or after `RISE_MAX` generations; with 20 or more already, there is none
-   ("Watch what happens to them."). Meanwhile the camera holds the whole line in view, zooming out
+   ("Watch what happens to them."), nor with fewer than 3: that line is watched from the start, so
+   a harmful decline is seen ("Watch what happens to it.", scope decision 69). Meanwhile the camera holds the whole line in view, zooming out
    as far as needed, so no one of it dies off screen. Then "Back to real time. Watch your line.":
    the animals and the light ease back to their own pace over 1.8 s, and the camera goes back to
    the story's zoom.
@@ -105,22 +110,25 @@ A story takes a median 14.6 minutes, with a median of 6 follows and 4 traits add
    Mossfoot line: 2 → 46", "Your relatives here: 38 → 63". In the generation panel (one speaker
    for both), in "Since your last choice" before each new follow and on the backup panel, on a
    relative's card, and at the ending. No twins, no rings and no scoreboard.
-7. **See, guess, explain** (scope decisions 60, 62 and 68). Once a follow's result goes the table's
-   way, after at least a generation watched since its fast-forward, the world waits for a guess:
-   "Why is your Mossfoot line with bigger eyes growing?" (clearly growing on a ✓), "Why are your
-   Mossfoot animals with smaller eyes dying off?" (clearly dying off on a ✗), or "Why is your
-   Mossfoot line doing about as well as your relatives?" (a "~" or a neutral trait). Three
-   answers, the trait's line from the table in each place; then why, and a Field Guide discovery.
-   The narration never gives the reason first: it comes after the guess. A sudden drop still
-   asks "Why is your Mossfoot line shrinking?".
+7. **See, guess, explain** (scope decisions 60, 62, 68 and 69). Once a follow's result goes the
+   table's way, after at least a generation watched since its fast-forward, the world waits for a
+   guess, when the result is a new Field Guide discovery on this iPad: "Why is your Mossfoot line
+   with bigger eyes growing?" (clearly growing on a ✓), "Why are your Mossfoot animals with smaller
+   eyes dying off?" (clearly dying off on a ✗), or "Why is your Mossfoot line doing about as well
+   as your relatives?" (a "~" or a neutral trait). Three answers, the trait's line from the table in
+   each place; then why, and the discovery. The narration never gives the reason first: it comes
+   after the guess. A result the Field Guide already has is told instead, with no guess: "Your
+   Mossfoot line is doing about as well as your relatives." and the trait's line. A sudden drop
+   asks nothing: the generation's lines give its reason.
 8. **Back to your line** (scope decision 68). When a followed line dies out, its last animals
    fade, the camera on them ("The last of your Mossfoot animals with smaller eyes are dying."),
-   and the world waits; then its "Why?" right there ("Why did your Mossfoot animals with smaller
-   eyes die out?", about the trait when it hurts or doesn't matter there, with "Other traits
-   decided who made it."; about what else set them apart when it helps there), and then "They
+   and the world waits; then its "Why?" right there: a guess ("Why did your Mossfoot animals with
+   smaller eyes die out?") when a trait that hurts there is a new discovery, else why is told (the
+   trait's line from the table; with "Other traits decided who made it." when it doesn't matter
+   there; what else set them apart when it helps there; "Some were old and died."). Then "They
    didn't make it. Back to your Mossfoot line.": the line before is blue again, the camera on
    it. The follow doesn't count; if the line before is gone too, back again. The story ends
-   early only when the whole line is gone.
+   early only when the whole line is gone, with the died-out ending (kept, scope decision 69).
 
    **The push** (scope decisions 34 and 42). After `PUSH_SECONDS` with no follow, the world
    pauses and the choice panel offers up to three variations that can be followed. Each is drawn
@@ -261,7 +269,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44 and 68). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68. Each works with `?seed=` (and `?sound=off`) too; all are found in the default world, seed 13.
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but the early endings: `extinct`, `another-family` and `nearly-over` (a 30-generation story) in seed 35, and `in-trouble` in seed 53. A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 

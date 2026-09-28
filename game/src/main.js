@@ -32,7 +32,7 @@ import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, lastPassed, madeIt, endingTitle, question, choicesHeading,
   choiceRecap, noChoices, evidenceLine, countLine, SINCE_TITLE, ONE_OF_RELATIVES, RELATIVES_HERE, fairHeading, fairLater,
   inYour, notInYour, PASSED_AWAY, livesLine, newAtBirthLine, lookLine, yoursLabel, traitsTitle, namedReveal, homeLabel,
-  GLOW_HINT, followButton, KEEP_LOOKING, needsYou, carriersLine, riseLine, SLOW_DOWN, WATCH_THEM, growingLine, dyingOffLine, goneLine, backToLine,
+  GLOW_HINT, followButton, KEEP_LOOKING, needsYou, carriersLine, riseLine, SLOW_DOWN, watchThem, growingLine, dyingOffLine, goneLine, backToLine,
   lineWithLabel, helpingLine, hurtingLine, SAME_TRAIT, sameTraitLabel, averageTitle, TREE_TITLE, LINE_TREE_TITLE, treeSpoken, lineTreeSpoken,
   startLine, familyLabel, YOU_CHOSE, ZONE_AT,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
@@ -364,8 +364,8 @@ export class Game {
     // The teacher demo keeps every family, so the webbed family in the high leaves can still be followed.
     const future = this.demo ? null : familiesWithAFuture(this.makeWorld, this.seed, bridge);
     this.future = future && future.size ? future : null;
-    // Fair tests measure "nearest" between the animals' spots (herd.js), which never move.
-    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null, length: this.storyLength });
+    // A "Why?" is a guess only at a new Field Guide discovery on this iPad (scope decision 69).
+    this.story = new Story(bridge, { homeOf: (id) => this.herd.animals.get(id)?.spot ?? null, length: this.storyLength, known: (key) => this.guideHas(key) });
     this.clock = 0;
     this.choice = null;
     this.endingAt = null;
@@ -390,8 +390,9 @@ export class Game {
     this.deathCam = [];
     this.deathCamOn = null;
     /**
-     * @type {null|{at:number, q:null|import("./why.js").Guess, old:boolean}} a line that just died out (scope decision
-     * 68): once its last animals have faded (at), its "Why?" (q), then "They didn't make it. Back to your line."
+     * @type {null|{at:number, q:null|import("./why.js").Guess, old:boolean, say:string[]}} a line that just died out
+     * (scope decision 68): once its last animals have faded (at), its "Why?" as a guess (q) or told (say, scope
+     * decision 69), then "They didn't make it. Back to your line."
      */
     this.backing = null;
     /** the zoom the story was at before a fast-forward held the whole line in view, to go back to afterwards */
@@ -487,8 +488,9 @@ export class Game {
     }
     const what = s.afterGeneration(ev);
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
-    // See, guess, explain: at a follow's result or a sudden drop, the world waits for a guess (scope decision 60). A line
-    // that died out gets its own right there, once its last animals have faded (scope decision 68).
+    // See, guess, explain: at a follow's result the world waits for a guess (scope decision 60). A line that died out
+    // gets its own right there, once its last animals have faded (scope decision 68). Only a new Field Guide discovery
+    // is a guess; any other "Why?" is told as a line, with no guess (scope decision 69).
     const q = s.phase === "watch" && !this.since && !this.journal && !this.naming && !this.guess ? s.guessNow(ev) : null;
     // A line that died out keeps its look on the map until the child is back with the line before (backNow).
     if (what === "back") { this.herd.followed = new Set(); this.syncGlow(); } else this.syncGroups();
@@ -503,9 +505,10 @@ export class Game {
       // During a fast-forward, only its counter is narrated. The babies are named as each one lights up
       // (glowLines), never more than glow; the line just shown stays a moment first. Every change gets a reason from
       // the table (scope decision 60): after a follow, the line growing or dying off with its trait's (scope decision 67).
-      // With a question now, the reasons wait: why comes after the guess.
+      // With a question now, the reasons wait: why comes after the guess. A follow's result whose entry is in the Field
+      // Guide already is told instead: what happened, then the table's reason (scope decision 69).
       const v = s.verdict(ev);
-      const lines = v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
+      const lines = s.told ? s.told : v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
         [...groupLines(ev.group, s.noun, [], s.name), ...(q ? [] : s.changeReasons(ev))];
       this.say([...lines, ...this.moveLines(), ...this.glowLines()], true);
     }
@@ -1004,7 +1007,8 @@ export class Game {
     this.preRoll(2);
     // The carriers were the family's at the first follow, then the line's (scope decision 66).
     const carriers = carriersLine(c.sizeAtChoice, x.v.group, s.name, s.choices.length > 1 ? "line" : "family");
-    if (!s.fast) { this.say([carriers, WATCH_THEM]); return; } // already RISE_TO or more: nothing to fast-forward
+    // Already RISE_TO or more, nothing to fast-forward; or fewer than FAST_FROM, watched from the start (scope decision 69).
+    if (!s.fast) { this.say([carriers, watchThem(c.sizeAtChoice)]); return; }
     const counter = riseLine(x.v.group, c.counts, null, s.name);
     this.logMoods.set(counter, "spread");
     this.say([carriers, counter]);
@@ -1082,13 +1086,14 @@ export class Game {
   /**
    * A followed line died out (scope decision 68). Its last animals fade, one
    * by one on a watched day, the camera on them; then its "Why?" (backNow),
-   * and "They didn't make it. Back to your line."
+   * a guess only at a new Field Guide discovery, else its reason told as lines
+   * (scope decision 69); and "They didn't make it. Back to your line."
    * @param {import("./bridge.js").GenerationEvents} ev @param {Map<number, number>} dying when each fade starts
    */
   lineDied(ev, dying, now) {
     const s = this.story, c = s.backFrom;
     const last = Math.max(now, ...dying.values()) + LINE_FADE_MS;
-    this.backing = { at: last, q: null, old: s.oldAgeMostly(ev.group, ev.deaths) };
+    this.backing = { at: last, q: null, old: s.oldAgeMostly(ev.group, ev.deaths), say: s.diedSay };
     this.say([goneLine(c.v.group, ev.group.gone.length, s.name)]);
     this.sound.goneTone();
     this.zoomBeforeFast = null;
@@ -1100,18 +1105,23 @@ export class Game {
     }
   }
 
-  /** The line's last animals have faded: its "Why?", or with none, straight back to the line before. */
+  /** The line's last animals have faded: its "Why?" as a guess, or its reason told, then back to the line before. */
   backNow() {
     const b = this.backing;
     this.backing = null;
     if (b.q) this.openGuess(b.q); // closeGuess comes back to the line
-    else this.comeBack(b.old);
+    else this.comeBack(b.old, b.say);
   }
 
-  /** "They didn't make it. Back to your line.": the line before is the child's again, in blue, and the camera goes to it. */
-  comeBack(old = false) {
+  /**
+   * "They didn't make it. Back to your line.": the line before is the child's
+   * again, in blue, and the camera goes to it. First, why they died out, when
+   * it was told rather than asked (scope decision 69).
+   * @param {boolean} [old] most of them were old @param {string[]} [why] the table's reason, as lines
+   */
+  comeBack(old = false, why = []) {
     const s = this.story;
-    this.say([...(old ? ["Some were old and died."] : []), backToLine(s.noun, s.name)]);
+    this.say([...(old ? ["Some were old and died."] : why), backToLine(s.noun, s.name)]);
     this.setHomeLabel(); // "Back to my family" again, when the child is back with the family
     this.syncGroups();
     this.updateHud();
@@ -1651,6 +1661,15 @@ export class Game {
     this.sayNext([line]);
     this.sound.chime();
   }
+
+  /**
+   * This iPad's Field Guide has the entry already (reflection.js), so its
+   * "Why?" is told as a line, with no guess (scope decision 69). A moment
+   * pretends a new iPad (false) or a full Field Guide (true), so that its
+   * search and its replay agree (moments.js).
+   * @param {string} key a Field Guide entry's key
+   */
+  guideHas(key) { return this.guideAll ?? discoveries().has(key); }
 
   /**
    * "Try another family" (scope decision 59): this world as it is now, and the
