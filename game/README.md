@@ -59,7 +59,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits added up and 4 "Why?" guesses, measured with a simulated child (scope decision 69).
+A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "Why?" guesses, whichever place the child chooses first, measured with a simulated child (scope decision 70).
 
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
