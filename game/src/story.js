@@ -73,7 +73,7 @@
 import { averageOf, carries, formOf } from "./variations.js";
 import { variationEffect, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
 import { CLUE_FROM, census, evidenceFor, sameTraitClue } from "./evidence.js";
-import { babyLabel, diedQuestion, growingQuestion, dyingQuestion, sameQuestion, OTHER_TRAITS, growingLine, dyingOffLine, sameLine } from "./narration.js";
+import { babyLabel, diedQuestion, growingQuestion, dyingQuestion, sameQuestion, OTHER_TRAITS, growingLine, dyingOffLine, sameLine, PLACE_LABELS } from "./narration.js";
 import { revealFor } from "./reveal.js";
 import { guideEntry } from "./reflection.js";
 import { GLOW_GENERATIONS, GLOW_MAX, PUSH_OPTIONS, familyVariations, newbornVariation, placeOf, sameVariation } from "./cohorts.js";
@@ -798,11 +798,13 @@ export class Story {
    * the child tapped first and her own mother line. Once the line is followed
    * (scope decision 66), the chain of followed babies: the first one tapped,
    * then each followed baby in order, each after its in-between ancestors
-   * (at most TREE_BETWEEN, drawn smaller), all from their real bodies. A step
+   * (at most TREE_BETWEEN, drawn smaller), all from their real bodies. Once
+   * the child chose where the family lives, the baby on that place's card is
+   * the first step (scope decision 70). A step
    * is "→" when the baby's mother line reaches the one before it, "…" when it
    * does not within TREE_BETWEEN mothers. A mother's body is known back to
    * the story's start (every line member since), and for anyone alive.
-   * @returns {{line:boolean, nodes:TreeAnimal[]}} line: the chain of followed babies (after the first follow)
+   * @returns {{line:boolean, nodes:TreeAnimal[]}} line: the chain of chosen babies (after the place choice or the first follow)
    */
   familyTree() {
     const known = (id) => this.segment.get(id) ?? (this.bridge.get(id) ? this.bridge.animal(id) : null);
@@ -821,20 +823,23 @@ export class Story {
       return { up, reached: m === stop };
     };
     const node = (a, kind, label, joined) => ({ id: a.id, genome: a.genome, zone: a.zone, kind, label, joined });
-    if (!this.choices.length) {
+    // The baby on the chosen place's card is the line's first step (scope decision 70), then each followed baby.
+    const steps = [...(this.home ? [{ anchor: this.home.id, label: PLACE_LABELS[this.home.zone] }] : []),
+      ...this.choices.map((c) => ({ anchor: c.anchor, label: babyLabel(c.v.group) }))];
+    if (!steps.length) {
       const { up } = mothers(this.firstId, TREE_DEPTH - 1, null);
       const labels = ["Great-grandmother", "Grandmother", "Mother"].slice(-up.length || 3);
       return { line: false, nodes: [...up.map((a, i) => node(a, "between", labels[i], i > 0)), ...(first ? [node(first, "first", "First mother", up.length > 0)] : [])] };
     }
     const nodes = first ? [node(first, "first", "First mother", false)] : [];
     let before = this.firstId;
-    for (const c of this.choices) {
+    for (const c of steps) {
       const baby = known(c.anchor);
       if (!baby) continue;
       const { up, reached } = mothers(c.anchor, TREE_BETWEEN, before);
       const labels = ["Great-grandmother", "Grandmother", "Mother"].slice(-up.length || 3);
       up.forEach((a, i) => nodes.push(node(a, "between", labels[i], i > 0 || reached)));
-      nodes.push(node(baby, "baby", babyLabel(c.v.group), up.length > 0 || reached));
+      nodes.push(node(baby, "baby", c.label, up.length > 0 || reached));
       before = c.anchor;
     }
     return { line: true, nodes };
@@ -980,6 +985,12 @@ export class Story {
     return out;
   }
 
+  /** A baby a place's card may show: of the family, born since the story began, alive and living there. */
+  isPlaceBaby(id, zone) {
+    const ind = this.bridge.get(id);
+    return !!ind && this.bridge.isFollowed(id) && ind.birthGeneration > this.startGeneration && this.bridge.zoneOf(id) === zone;
+  }
+
   /**
    * The child chooses where the family will live (scope decision 70): the
    * line becomes the family's animals living in that place, and from now on a
@@ -988,15 +999,18 @@ export class Story {
    * narrowToPlace). Choosing the open ground is staying: the line becomes the
    * family's animals there. The world then fast-forwards while the line fills
    * the place (moveGeneration), unless PLACE_TO live there already.
-   * @param {number} zone @returns {null|Home} null when no baby of the family lives there yet
+   * @param {number} zone
+   * @param {number} [shown] the baby on the card the child saw, when it is still one the card may show
+   * @returns {null|Home} null when no baby of the family lives there yet
    */
-  choosePlace(zone) {
+  choosePlace(zone, shown) {
     const card = this.phase === "place" ? this.placeCards()[zone] : null;
     if (!card) return null;
     const ids = this.bridge.followedAnimals().filter((a) => a.zone === zone).map((a) => a.id);
+    const baby = shown !== undefined && this.isPlaceBaby(shown, zone) ? shown : card.id;
     this.bridge.narrowToPlace(ids, zone, HOME_MARK);
     const generation = this.bridge.generation;
-    this.home = { zone, id: card.id, generation, mark: HOME_MARK, sizeAtChoice: ids.length, counts: [ids.length], outcome: null, until: null };
+    this.home = { zone, id: baby, generation, mark: HOME_MARK, sizeAtChoice: ids.length, counts: [ids.length], outcome: null, until: null };
     this.lineStart = ids.length;
     this.fresh = [];
     this.glowing = [];

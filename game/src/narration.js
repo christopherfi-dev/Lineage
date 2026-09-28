@@ -132,6 +132,41 @@ export const backToLine = (noun = "line", name = null) => `They didn't make it. 
 /** The comparison beside the line (scope decisions 67 and 68): its relatives in the line's place. */
 export const RELATIVES_HERE = "Your relatives here";
 
+/* ================= "Where will your family live?" (scope decision 70) ================= */
+
+/** Where the line lives, in Marc's words for the three places. */
+const PLACE_AT = ["in the high trees", "on the open ground", "near the water"];
+/** The first choice's question: "Where will your Mossfoot family live?" */
+export const placeQuestion = (name = null) => `Where will ${your("family", name)} live?`;
+/** Each place's card, under a real baby of the family living there (Marc's lines). */
+export const PLACE_CARDS = [
+  "This baby seems to prefer the high trees.",
+  "This baby seems to prefer the open ground.",
+  "This baby seems to prefer living near the water.",
+];
+/** A card with no baby living there yet: it fills in when one is born. */
+export const WAIT_GENERATION = "Wait a generation.";
+/** The first choice on "Your line so far", the family tree strip and the ending. */
+export const PLACE_LABELS = ["High trees", "Open ground", "Near the water"];
+/** Right after the choice: "2 of your Mossfoot family live near the water." */
+export const homeLine = (n, zone, name = null) => `${n} of ${your("family", name)} ${n === 1 ? "lives" : "live"} ${PLACE_AT[zone]}.`;
+/**
+ * The move's live counter, changed in place each generation of its
+ * fast-forward: "Your Mossfoot line near the water: 2… 5… 11… 20!", a full
+ * stop when it stopped short of 20. A line with 20 there already: "… 23!".
+ * @param {number} zone @param {number[]} counts the line at the choice and after each generation
+ * @param {null|string} stopped why the fast-forward stopped (story.js Home), or null while it runs
+ */
+export function homeCounter(zone, counts, stopped = null, name = null) {
+  const shown = counts.slice(-RISE_COUNTS), last = shown.length - 1;
+  const end = !stopped ? "…" : stopped === "reached" ? "!" : ".";
+  return `${capital(your("line", name))} ${PLACE_AT[zone]}: ${shown.map((k, i) => (i < last ? `${k}…` : `${k}${end}`)).join(" ")}`;
+}
+/** No fast-forward to the new home: the line has 20 or more there already. */
+export const WATCH_LINE = "Watch your line.";
+/** The last of a line in the chosen place, fading: "The last of your animals near the water are dying." */
+export const homeGoneLine = (zone, n, name = null) => `The last of ${your("animals", name)} ${PLACE_AT[zone]} ${n === 1 ? "is" : "are"} dying.`;
+
 /** On every glowing baby's card while the child's line is very small: no follow starts (scope decision 44, playtest's "no jumping ship"). */
 export const needsYou = (noun, name = null) => `${capital(your(noun, name))} needs you. Stay with them?`;
 

@@ -468,3 +468,25 @@ test("next generation's deaths and their causes are known before it runs: Classr
     assert.deepEqual(new Map(ev.deaths.map((d) => [d.id, d.cause])), next);
   }
 });
+
+test("the first choice's lines are short, with no percentages, even with the longest family name", async () => {
+  const N = await import("../src/narration.js");
+  const { MOMENTS } = await import("../src/moments.js");
+  const { readFileSync } = await import("node:fs");
+  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE];
+  for (const zone of [0, 1, 2]) {
+    lines.push(N.homeLine(19, zone, name), N.homeCounter(zone, [2, 5, 11, 20], "reached", name), N.homeCounter(zone, [3, 7, 12, 16, 18, 19], "cap", name),
+      N.homeGoneLine(zone, 2, name), N.PLACE_LABELS[zone]);
+  }
+  for (const line of lines) {
+    const words = line.split(/\s+/).filter((w) => /\p{L}|\d/u.test(w)).length;
+    assert.ok(words <= 13, `"${line}" has ${words} words`);
+    assert.doesNotMatch(line, /%|percent/i);
+  }
+  assert.equal(N.homeCounter(2, [2, 5, 11, 20], "reached", "Mossfoot"), "Your Mossfoot line near the water: 2… 5… 11… 20!");
+  assert.equal(N.homeCounter(0, [2, 5], null), "Your line in the high trees: 2… 5…");
+  // Every moment has its link on the moments page, and every link is a moment.
+  const page = readFileSync(new URL("../moments.html", import.meta.url), "utf8");
+  const linked = [...page.matchAll(/data-moment="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual([...linked].sort(), [...MOMENTS].sort());
+});

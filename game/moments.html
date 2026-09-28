@@ -51,6 +51,9 @@
   <ol id="moments">
     <li><a data-moment="arrival" href="./?moment=arrival"><b>Arrival</b><span>The opening, before the first tap.</span></a></li>
     <li><a data-moment="naming" href="./?moment=naming"><b>Naming the family</b><span>Right after the first tap: three names, and time waits.</span></a></li>
+    <li><a data-moment="choose-place" href="./?moment=choose-place"><b>Where will your family live?</b><span>The first choice: a real baby of your family on each place's card, glowing on the map.</span></a></li>
+    <li><a data-moment="moving" href="./?moment=moving"><b>Moving</b><span>Your line fills its new home in a fast-forward, with a live counter.</span></a></li>
+    <li><a data-moment="arrived" href="./?moment=arrived"><b>A new home</b><span>About 20 of your line live there: back to real time, the camera on the new home.</span></a></li>
     <li><a data-moment="generation" href="./?moment=generation"><b>A generation</b><span>Mid-story, just before a generation passes.</span></a></li>
     <li><a data-moment="variation" href="./?moment=variation"><b>A variation</b><span>One newborn with a new trait, glowing.</span></a></li>
     <li><a data-moment="follow" href="./?moment=follow"><b>Following a trait</b><span>A glowing newborn's card: “Follow animals with …”.</span></a></li>
@@ -77,17 +80,14 @@
     <li><a data-moment="habitat" href="./?moment=habitat"><b>Visiting the water</b><span>The camera flies to the water's edge, and the narration sums it up. Its animals swim.</span></a></li>
     <li><a data-moment="ground" href="./?moment=ground"><b>Visiting the ground</b><span>The same for the open ground.</span></a></li>
     <li><a data-moment="ending" href="./?moment=ending"><b>The ending</b><span>A surviving line's ending, its first step: what happened, with your line baby by baby.</span></a></li>
-    <li><a data-moment="extinct" data-seed="35" href="./?moment=extinct&amp;seed=35"><b>Died out</b><span>Your whole line died out, so the story ends early.</span></a></li>
+    <li><a data-moment="extinct" data-seed="13" data-demo="webbed" href="./?moment=extinct&amp;seed=13&amp;demo=webbed"><b>Died out</b><span>Your whole line died out, so the story ends early. In the teacher demo: with a place chosen, the whole line dies out only if the family does too.</span></a></li>
     <li><a data-moment="card" href="./?moment=card"><b>A creature card</b><span>An animal with a new trait, its card open.</span></a></li>
     <li><a data-moment="same" href="./?moment=same"><b>About as well as your relatives</b><span>A trait that doesn't matter here: your line did about as well as your relatives. Guess why.</span></a></li>
-    <li><a data-moment="away" href="./?moment=away"><b>Away from your line</b><span>A glowing baby of your line living in another place: its card says so.</span></a></li>
     <li><a data-moment="back" href="./?moment=back"><b>Already chosen</b><span>A glowing baby with the way back from a trait your line chose.</span></a></li>
-    <li><a data-moment="go-back" href="./?moment=go-back"><b>Go back?</b><span>Your line clearly died off the way it went: the way back is offered, with why.</span></a></li>
-    <li><a data-moment="moving" href="./?moment=moving"><b>Moving</b><span>Some of your line moves to another place, and the narration says so.</span></a></li>
+    <li><a data-moment="go-back" data-seed="1" href="./?moment=go-back&amp;seed=1"><b>Go back?</b><span>Your line clearly died off the way it went: the way back is offered, with why.</span></a></li>
     <li><a data-moment="so-far" href="./?moment=so-far"><b>Your line so far</b><span>The traits your line added up, as chips, one of them faded, with why.</span></a></li>
-    <li><a data-moment="another-family" data-seed="35" href="./?moment=another-family&amp;seed=35"><b>Try another family</b><span>After your whole line died out early: the same world as it is now.</span></a></li>
-    <li><a data-moment="in-trouble" data-seed="53" href="./?moment=in-trouble&amp;seed=53"><b>In trouble already</b><span>Then a tap on a family with no future: try another.</span></a></li>
-    <li><a data-moment="nearly-over" data-seed="35" data-length="30" href="./?moment=nearly-over&amp;seed=35&amp;length=30"><b>This world is nearly over</b><span>Try another family with fewer than 25 generations left (a 30-generation story): start a new world?</span></a></li>
+    <li><a data-moment="another-family" data-seed="13" data-demo="webbed" href="./?moment=another-family&amp;seed=13&amp;demo=webbed"><b>Try another family</b><span>After your whole line died out early: the same world as it is now (in the teacher demo).</span></a></li>
+    <li><a data-moment="nearly-over" data-seed="5" data-demo="webbed" data-length="30" href="./?moment=nearly-over&amp;seed=5&amp;demo=webbed&amp;length=30"><b>This world is nearly over</b><span>Try another family with fewer than 25 generations left (the teacher demo, a 30-generation story): start a new world?</span></a></li>
     <li><a data-moment="reason" href="./?moment=reason"><b>A reason</b><span>Your line changed size, and the narration says why, with “Helping here” (and “Hurting here” when something hurts).</span></a></li>
     <li><a data-moment="why" href="./?moment=why"><b>Why? (a result)</b><span>Your line clearly growing after a follow, a new Field Guide discovery: guess why, from three reasons.</span></a></li>
     <li><a data-moment="why-answer" href="./?moment=why-answer"><b>Why? (the answer)</b><span>After the guess: why, from the table.</span></a></li>
@@ -108,14 +108,15 @@
 </main>
 <script>
   // A seed, if given, goes on every link (?moment=…&seed=…), and so does ?sound=off when ticked. Without one, a
-  // moment no founding family of the default world reaches (a line with two follows, a very small line) opens in its
-  // own seed. A moment that needs another story length keeps its ?length=.
+  // moment no founding family of the default world reaches opens in its own seed. A moment that needs another story
+  // length keeps its ?length=, and one only the teacher demo reaches (a whole line dying out early) its ?demo=.
   const seed = document.getElementById("seed"), quiet = document.getElementById("quiet");
   const links = [...document.querySelectorAll("#moments a")];
   const update = () => {
     for (const a of links) {
       const n = Number.parseInt(seed.value, 10) || Number.parseInt(a.dataset.seed ?? "", 10);
-      a.href = `./?moment=${a.dataset.moment}` + (n > 0 ? `&seed=${n}` : "") + (a.dataset.length ? `&length=${a.dataset.length}` : "") + (quiet.checked ? "&sound=off" : "");
+      a.href = `./?moment=${a.dataset.moment}` + (n > 0 ? `&seed=${n}` : "") + (a.dataset.demo ? `&demo=${a.dataset.demo}` : "") +
+        (a.dataset.length ? `&length=${a.dataset.length}` : "") + (quiet.checked ? "&sound=off" : "");
     }
   };
   seed.addEventListener("input", update);

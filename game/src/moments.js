@@ -13,6 +13,12 @@
  * Glowing babies light up through the watched day (story.js), so the search
  * and the replay both pass each day in the same steps of DAY_STEP seconds, and
  * the child acts at the same second of the same day.
+ *
+ * Every story's first choice is where the family will live (scope decision
+ * 70): the child takes the moment's place as soon as a baby of the family
+ * lives there, in the search and in the replay alike. The teacher demo has no
+ * place choice, and the early endings open there: with a place chosen, the
+ * whole line dies out only if the family does too.
  */
 
 import { Story, GENERATION_SECONDS, FAST_FROM, nearlyOver } from "./story.js";
@@ -22,16 +28,17 @@ import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 import { netEffect, PREDICT_AFTER } from "./journal.js";
-import { chipWords, movedLine, movingLine, OTHER_TRAITS } from "./narration.js";
+import { OTHER_TRAITS } from "./narration.js";
 import { storyCard } from "./storycard.js";
 import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
+  "arrival", "naming", "choose-place", "moving", "arrived",
+  "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
   "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
   "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
-  "same", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble", "nearly-over",
+  "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
 ];
@@ -43,6 +50,11 @@ export const MOMENTS = [
  */
 const FROM_WEBBED = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const FROM_OTHERS = [4, 1, 2, 3, 5, 6, 7, 8, 0];
+
+/** The places to try for a moment, in order, unless it names its own (engine zones: 2 the water's edge, 1 the open ground, 0 the high leaves). */
+const PLACES = [2, 1, 0];
+/** A place still without a baby of the family this many generations into the story is left out (main.js PLACE_WAIT_MAX). */
+const PLACE_WAIT = 6;
 
 /** A watched day passes in steps this long (seconds), in the search and in the replay alike. */
 const DAY_STEP = 0.5;
@@ -100,6 +112,29 @@ const since = (s, ev) => { const c = s.choices[s.choices.length - 1]; return c ?
  * watched day, when babies light up.
  */
 const MOMENT = {
+  /**
+   * "Where will your family live?" (scope decision 70): each place's card with a real baby of the family living there,
+   * the babies glowing on the map, and the time to choose running.
+   */
+  "choose-place": {
+    families: FROM_OTHERS,
+    policies: ["passive"],
+    at: (s, ev, b, what) => { const c = what === "place" ? s.placeCards() : []; return c.length && c.every(Boolean) && { cards: c.map((x) => x.id) }; },
+  },
+  /** The move: the fast-forward while the line fills its new home, its live counter rising, the camera on the line there. */
+  moving: {
+    families: FROM_OTHERS,
+    policies: ["passive"],
+    places: [2, 0],
+    at: (s, ev, b, what) => what === "moving" && s.home.counts.length >= 2 && { zone: s.home.zone, counts: s.home.counts.slice() },
+  },
+  /** About 20 of the line live in its new home: the counter's last number, and back to real time with the camera there. */
+  arrived: {
+    families: FROM_OTHERS,
+    policies: ["passive"],
+    places: [2, 0],
+    at: (s, ev, b, what) => what === "arrived" && { zone: s.home.zone, counts: s.home.counts.slice(), outcome: s.home.outcome },
+  },
   /** Mid-story, just before a generation passes, with a group big enough to see. */
   generation: { families: FROM_OTHERS, policies: ["active", "passive"], at: midStory },
   /** A newborn with a new variation lights up: the only one glowing. */
@@ -253,11 +288,6 @@ const MOMENT = {
    * doing about as well as its relatives, and the world waits for a guess why (scope decisions 65 and 68).
    */
   same: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.same && { text: s.lastGuess.text } },
-  /**
-   * A glowing baby of the line living away from its place (scope decisions 59 and 66): its card says so, "This baby
-   * lives in the high leaves, away from your line.", with only "Keep looking".
-   */
-  away: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => s.choices.length > 0 && explained("away")(s, ev, b, what) },
   /** A glowing baby with the way back from a direction the line took (scope decision 59): "Your line already chose sleeker bodies." */
   back: { families: FROM_OTHERS, policies: ["wise", "active"], at: explained("back") },
   /**
@@ -273,8 +303,6 @@ const MOMENT = {
       return g ? { id: g.id } : null;
     },
   },
-  /** A real move of the line, told as it happens (scope decision 59): "Some of your animals are moving to the water's edge." */
-  moving: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.moved && { zone: s.moved.zone, main: s.moved.main } },
   /** "Your line so far" with two or more chosen traits, one of them faded, with why (scope decisions 59 and 68). */
   "so-far": {
     families: FROM_OTHERS,
@@ -286,11 +314,6 @@ const MOMENT = {
    * the same world as it is now, the camera on a family with a future (scope decisions 59 and 69).
    */
   "another-family": { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && !nearlyOver(ev.generation, s.length) },
-  /**
-   * Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try
-   * another!" (scope decisions 59 and 69).
-   */
-  "in-trouble": { families: FROM_OTHERS, policies: ["passive", "unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
   /**
    * The whole line died out with fewer than 25 generations of the story left, and the child, at the reveal, taps
    * "Try another family": "This world is nearly over. Start a new world?" (scope decisions 64 and 69).
@@ -349,7 +372,8 @@ const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve
 function copyOf(game) {
   const bridge = game.makeWorld(game.seed), herd = new Herd(new World(), 7919);
   herd.placeFounders(bridge);
-  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null, length: game.storyLength, known: (key) => game.guideHas(key) });
+  const story = new Story(bridge, { homeOf: (id) => herd.animals.get(id)?.spot ?? null, length: game.storyLength, known: (key) => game.guideHas(key),
+    places: game.story.places });
   const step = () => { const ev = bridge.step(); if (ev) herd.applyGeneration(ev, bridge, 0); return ev; };
   return { bridge, story, step };
 }
@@ -363,8 +387,8 @@ function copyOf(game) {
  */
 async function findStory(game, moment, relaxed = false) {
   const { families, policies } = MOMENT[moment], at = relaxed ? MOMENT[moment].relaxed : MOMENT[moment].at;
-  const founding = game.bridge.families.founding.length;
-  for (const family of families.filter((f) => f < founding)) {
+  const founding = game.bridge.families.founding.length, places = game.story.places ? MOMENT[moment].places ?? PLACES : [null];
+  for (const family of families.filter((f) => f < founding)) for (const place of places) {
     for (const name of policies) {
       const { bridge, story, step } = copyOf(game), policy = POLICIES[name], actions = [];
       story.begin(bridge.families.founding[family].ids[0]);
@@ -377,9 +401,17 @@ async function findStory(game, moment, relaxed = false) {
         }
         const ev = step();
         if (!ev) break;
-        const what = story.afterGeneration(ev), found = (hit, day) => ({ family, actions, generation: ev.generation, day, follows: story.choices.length, hit });
+        const what = story.afterGeneration(ev), found = (hit, day) => ({ family, place, actions, generation: ev.generation, day, follows: story.choices.length, hit });
         const hit = at(story, ev, bridge, what);
         if (hit) return found(hit, null);
+        // The first choice (scope decision 70): the moment's place, as soon as a baby of the family lives there.
+        if (story.phase === "place") {
+          if (story.placeCards()[place]) {
+            actions.push({ generation: ev.generation, day: null, kind: "place", zone: place });
+            story.choosePlace(place);
+          } else if (ev.generation - story.startGeneration >= PLACE_WAIT) break;
+          continue;
+        }
         if (what === "choice") continue;
         // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes), or
         // a follow's result told as lines instead (scope decision 69).
@@ -410,9 +442,16 @@ async function findStory(game, moment, relaxed = false) {
   return null;
 }
 
-/** A little over a second of the animals wandering, as between two generations. */
+/**
+ * A little over a second of the animals wandering, as between two generations. A fast-forward generation is 2 s of
+ * the animals hurrying (main.js FAST_PACE), so a baby born in another place than its mother has walked to its new
+ * home by then, as in the game (scope decision 70).
+ */
 function wander(game) {
-  for (let i = 0; i < 25; i++) game.herd.tick(48, performance.now());
+  const fast = game.story.fast, pace = game.herd.pace;
+  if (fast) game.herd.pace = 2.5;
+  for (let i = 0; i < (fast ? 42 : 25); i++) game.herd.tick(48, performance.now());
+  game.herd.pace = pace;
 }
 
 /**
@@ -464,6 +503,14 @@ async function playTo(game, plan) {
     G.generation(last ? t0 - (plan.day ?? 0) * 1000 : t0 - 60000);
     G.clock = hold;
     if (last && plan.day === null) break;
+    // The first choice: the place's card, the generation it had its baby in the search (scope decision 70).
+    const place = plan.actions.find((a) => a.kind === "place" && due(a));
+    if (place && G.placing) {
+      G.pickPlace(place.zone, false, performance.now());
+      G.placeChosen(place.zone);
+      G.clock = hold;
+      continue;
+    }
     if (G.backing) G.backNow(); // a line that died out: its last animals have faded long ago, and its "Why?" comes
     if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); } // the child guesses, and reads why
     if (G.story.phase === "choice") {
@@ -550,7 +597,7 @@ export async function goToMoment(game, moment) {
   if (plan.day === null) G.revealAll(performance.now());
   G.clock = (plan.day ?? 0) * 1000;
   // At a generation, its line shows now (playing forward took only a moment); the fast-forward's counter stays up.
-  if (plan.day === null && moment !== "rising" && moment !== "slowdown") G.logTimer = 0;
+  if (plan.day === null && moment !== "rising" && moment !== "slowdown" && moment !== "moving") G.logTimer = 0;
   if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
   // A guess the last generation asked belongs to its own moments; the others show what they are about.
@@ -585,6 +632,17 @@ export async function goToMoment(game, moment) {
       lookAt(G, a.x < G.world.W / 2 ? a.x + away : a.x - away, a.y);
       G.exploring = true;
     }
+  } else if (moment === "choose-place") {
+    // The sheet, each card with its baby; the camera on the babies glowing on the map, above it.
+    const tw = G.camTween, zw = G.zoomTween;
+    if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "moving" || moment === "arrived") {
+    // The move holds the whole line in view in its new home; on arriving, the camera goes back to the story's zoom there.
+    const tw = G.camTween, zw = G.zoomTween;
+    if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+    if (moment === "arrived") { G.logTimer = 0; G.pumpLog(0); } // "Back to real time. Watch your line." on screen
   } else if (moment === "rising" || moment === "slowdown") {
     // The fast-forward holds the whole line in view; at its end, the camera goes back to the story's zoom on the line.
     const tw = G.camTween, zw = G.zoomTween;
@@ -606,15 +664,10 @@ export async function goToMoment(game, moment) {
   } else if (moment === "growing" || moment === "dying") {
     // The line growing, or dying off one by one with the camera on each: its verdict and reason in the narration.
     if (moment === "growing") lookAtGroup(G);
-  } else if (moment === "grow" || moment === "shrink" || moment === "moving" || moment === "so-far" || moment === "reason") {
+  } else if (moment === "grow" || moment === "shrink" || moment === "so-far" || moment === "reason") {
     lookAtGroup(G);
     // The reason's line comes first, so it is the one on screen.
     if (moment === "reason") G.logQueue = [plan.hit.lines[0], ...G.logQueue.filter((l) => l !== plan.hit.lines[0])];
-    if (moment === "moving") {
-      // The move's line comes first, so it is the one on screen (the family's size follows it).
-      const line = (plan.hit.main ? movedLine : movingLine)(plan.hit.zone, G.story.name);
-      G.logQueue = [line, ...G.logQueue.filter((l) => l !== line)];
-    }
   } else if (moment === "other-card" || moment === "relative") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
@@ -653,7 +706,7 @@ export async function goToMoment(game, moment) {
       if (moment === "nearly-over") G.anotherFamily();
       if (moment === "story-card") {
         const s = G.story, canvas = await storyCard(doc, {
-          name: s.name, noun: s.noun, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
+          name: s.name, noun: s.noun, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: G.storyChips(),
           reveal: G.revealEl.querySelector("#reveal-line .text")?.textContent ?? null, idea: G.idea?.sentence ?? null, died: s.outcome === "died",
         });
         G.cardCanvas = canvas;
@@ -684,27 +737,20 @@ export async function goToMoment(game, moment) {
     // line here, rather than going to each of the day's deaths.
     G.deathCam = [];
     lookAtGroup(G);
-  } else if (moment === "another-family" || moment === "in-trouble") {
-    // The ending, then "Try another family" ("Keep going anyway" when few generations are left): the world as it is
-    // now, and a family with a future to tap. In trouble: a tap on one with none (scope decision 59).
+  } else if (moment === "another-family") {
+    // The ending, then "Try another family": the world as it is now, and a family to tap (scope decision 59).
     G.endingAt = null;
     G.showEnding();
-    await new Promise((resolve) => { G.anotherFamily(moment === "in-trouble"); setTimeout(resolve, 120); });
+    await new Promise((resolve) => { G.anotherFamily(); setTimeout(resolve, 120); });
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
-    if (moment === "in-trouble") {
-      const doomed = G.bridge.livingIds().find((id) => !G.hasFuture(id));
-      const a = doomed === undefined ? null : G.herd.animals.get(doomed);
-      if (a) { lookAt(G, a.x, a.y); G.tapFamily(a); plan.hit = { id: a.id }; }
-      else plan.hit = { none: "every family has a future" };
-    }
-  } else if (moment === "card" || moment === "blocked" || moment === "away" || moment === "back" || moment === "go-back") {
+  } else if (moment === "card" || moment === "blocked" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
   }
   note.remove();
-  globalThis.lineageMoment = { moment, seed: G.seed, family: plan.family, generation: plan.generation, day: plan.day, choices: plan.follows, ...plan.hit };
-  console.info(`[lineage] moment "${moment}": seed ${G.seed}, founding family ${plan.family}, generation ${plan.generation}` +
+  globalThis.lineageMoment = { moment, seed: G.seed, family: plan.family, place: plan.place, generation: plan.generation, day: plan.day, choices: plan.follows, ...plan.hit };
+  console.info(`[lineage] moment "${moment}": seed ${G.seed}, founding family ${plan.family}${plan.place === null ? "" : `, place ${plan.place}`}, generation ${plan.generation}` +
     `${plan.day === null ? "" : `, ${plan.day} s into its day`}, ${plan.follows} follows`);
 }
 
@@ -712,7 +758,9 @@ export async function goToMoment(game, moment) {
  * @typedef {Object} Action what the child did
  * @property {number} generation the generation whose day it was (or, for a push, the one the panel opened after)
  * @property {null|number} day seconds into that watched day (null for a push)
- * @property {"follow"|"push"} kind "follow" on a glowing newborn's card, or the option taken on the backup panel
+ * @property {"follow"|"push"|"place"} kind "follow" on a glowing newborn's card, the option taken on the backup panel, or
+ *   the place's card on "Where will your family live?" (scope decision 70)
  * @property {number} [id] the glowing newborn tapped
  * @property {string} [trait] @property {number} [dir] the option taken on the backup panel
+ * @property {number} [zone] the place chosen
  */

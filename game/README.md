@@ -30,7 +30,7 @@ unchanged, and the world you see starts again from generation 0 with the same se
 seeds 1–100 pass in the common-ancestor world (and 30 of 1–30 in the demo). A `?seed=` that fails is swapped for a good one, and "New world" only picks
 good seeds.
 
-## The story (scope decisions 6, 32–35, 42, 44 and 58–68)
+## The story (scope decisions 6, 32–35, 42, 44 and 58–70)
 
 The rules are in `src/story.js`, with every number at the top of the file:
 
@@ -41,6 +41,8 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `RISE_TO` | 20 | a fast-forward after a follow stops once the trait's count in the line reaches this (scope decision 67) |
 | `RISE_MAX` | 15 | and after this many generations, at most |
 | `FAST_FROM` | 3 | a follow of fewer than this has no fast-forward: its line is watched from the start (scope decision 69) |
+| `PLACE_TO` | 20 | after the first choice, where the family will live, the fast-forward runs until this many of the line live there (scope decision 70) |
+| `PLACE_MAX` | 4 | or for this many generations, at most (Part 1's limit) |
 | `GLOW_MAX` | 3 | newborns glowing at once, at most (`src/cohorts.js`) |
 | `GLOW_GENERATIONS` | 2 | a newborn glows in the generation it is born and the next |
 | `GLOW_GAP_SECONDS` | 4 | new glows start at least this far apart (seconds of watching) |
@@ -62,6 +64,19 @@ A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits add
 1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
    generations back through the mother line, `src/families.js`), and names it.
+   **"Where will your family live?"** (scope decision 70) is then the first choice: a card for
+   each place, each with a real baby of the family that lives there, drawn in that place, and
+   Marc's line ("This baby seems to prefer living near the water."). A place with no such baby
+   yet says "Wait a generation.": the world runs on, fast, behind the sheet until each card has
+   its baby, which also glows on the map; then the world waits, and after 30 s one is picked at
+   random. Choosing moves the line: it becomes the family's animals living there, and from then
+   on a baby joins it only when it lives there too; the rest of the family are relatives. The
+   world fast-forwards with a live counter, "Your Mossfoot line near the water: 2… 9… 40!", the
+   camera holding the line in its new home, until about 20 live there (`PLACE_TO`, or
+   `PLACE_MAX` generations); then back to real time, the camera on the new home. The open ground
+   usually has 20 of the family already: the line stays, with no fast-forward ("… 23!", "Watch
+   your line."). The trait choices then happen in that place. The teacher demo has no place
+   choice.
 2. **Glowing newborns** (scope decision 32). When a baby in your line is born with a new
    variation, it glows: the trait new in it at birth takes it past the line's usual (its median
    for that trait, plus or minus 0.12). At most three glow at once, the ones that can be followed
@@ -76,8 +91,7 @@ A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits add
    points to a glowing baby off the screen (scope decision 49). Tapping one opens its card with
    "Follow animals with smaller eyes" (no number and no gate) and "Keep looking", which closes the
    card and leaves the glow on. Any trait in the line's place can be followed, one that doesn't
-   matter there too, with no hint (scope decision 65); the card explains instead for a baby
-   living away from the line's place, for the way back from a trait the line already chose
+   matter there too, with no hint (scope decision 65); the card explains instead for the way back from a trait the line already chose
    (unless the line clearly died off that way: "Chunkier bodies are doing better up here. Go
    back?"), and while the line is very small ("Your line needs you. Stay with them?").
 3. **Following a line** (scope decisions 66–68). The first tap follows a family. A follow
@@ -86,9 +100,11 @@ A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits add
    trait (the latest one only). The rest of the old line in its place, the line's babies that
    didn't inherit it, and their babies are "your relatives", drawn full size in a soft clay
    (`KIN_COLOR`); everyone else is small and grey. Only the line's babies glow, and the traits add
-   up on "Your Mossfoot line so far"; an earlier one that fades in the line greys out, with its
-   reason. "Your line" replaces "your family" from the first follow on, and the tree strip becomes
-   "Your line, baby by baby" (`TREE_BETWEEN`).
+   up on "Your Mossfoot line so far", after the place chosen ("Near the water"); an earlier one
+   that fades in the line greys out, with its reason. "Your line" replaces "your family" from the
+   place choice on, and the tree strip becomes "Your line, baby by baby" (`TREE_BETWEEN`), the
+   baby on the chosen place's card its first step. Once a place is chosen, a baby of the line born
+   in another place is a relative: the line always lives in one place (scope decision 70).
 4. **The rising counter** (scope decisions 67 and 68). After a follow the world fast-forwards
    (2 s a generation, the Fast-forward badge, the world's edges warm) while the trait's count in
    the line rises, with one line that changes in place and a rising note: "Bigger eyes in your
@@ -128,8 +144,11 @@ A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits add
    trait's line from the table; with "Other traits decided who made it." when it doesn't matter
    there; what else set them apart when it helps there; "Some were old and died."). Then "They
    didn't make it. Back to your Mossfoot line.": the line before is blue again, the camera on
-   it. The follow doesn't count; if the line before is gone too, back again. The story ends
-   early only when the whole line is gone, with the died-out ending (kept, scope decision 69).
+   it. The follow doesn't count; if the line before is gone too, back again, to the line in the
+   chosen place; if that is gone too, to the family, which chooses where to live again (scope
+   decision 70). The story ends early only when the whole family is gone, with the died-out
+   ending (kept, scope decision 69); with a place chosen that didn't happen in 540 measured
+   stories, so its moments open in the teacher demo.
 
    **The push** (scope decisions 34 and 42). After `PUSH_SECONDS` with no follow, the world
    pauses and the choice panel offers up to three variations that can be followed. Each is drawn
