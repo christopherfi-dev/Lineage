@@ -15,6 +15,7 @@ export { assertFixtureConsistency } from "../../lineage-m1/src/fixtures/defining
 export { classroomConfig, PLACE_EFFECTS } from "../../lineage-classroom/src/config.js";
 export {
   advanceClassroomGeneration,
+  babiesPerPair,
   createAncestorWorld,
   createWebbedDemoWorld,
   placeFitness,

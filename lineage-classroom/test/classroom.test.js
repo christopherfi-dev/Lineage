@@ -12,7 +12,7 @@ import { currentModelConfig } from "../../lineage-m1/src/config/modelConfig.js";
 import { EFFECT, UPKEEP, TRAIT_INDEX, NEUTRAL_TRAIT_INDICES } from "../../lineage-m1/src/config/traits.js";
 import { classroomConfig, classroomIdentityFor, PLACE_EFFECTS, LITTLE_EFFECT } from "../src/config.js";
 import {
-  advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt,
+  advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt, babiesPerPair,
 } from "../src/classroom.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -161,13 +161,20 @@ test("every trait keeps M1's direction in every place; a '~' is where M1's effec
   assert.ok(webbed[WATER] - plain[WATER] > 0 && webbed[LEAVES] - plain[LEAVES] < 0 && webbed[GROUND] === plain[GROUND]);
 });
 
-test("the common-ancestor world: every founder on the open ground with the same body; leaves and water empty", () => {
+test("the common-ancestor world: every founder on the open ground with the same body; in every family some lean toward the water and some toward the leaves", () => {
   const state = createAncestorWorld(6);
   assert.equal(state.currentIndividuals.length, classroomConfig.startingPopulation);
   for (const ind of state.currentIndividuals) {
     assert.deepEqual(Array.from(ind.bodyGenome), Array.from(currentModelConfig.ancestorBodyGenome));
     assert.equal(placeOf(ind), GROUND);
-    assert.deepEqual(Array.from(ind.timeAllocation), [0, 1, 0]);
+  }
+  // The game's founding families are 13, 13 and 14 founders by id (scope decision 70): 3 of each lean each way.
+  const lean = classroomConfig.founderLean;
+  for (const [from, to] of [[1, 13], [14, 26], [27, 40]]) {
+    const fam = state.currentIndividuals.filter((i) => i.id >= from && i.id <= to).map((i) => Array.from(i.timeAllocation));
+    assert.equal(fam.filter((t) => t[WATER] === lean && t[GROUND] === 1 - lean).length, 3);
+    assert.equal(fam.filter((t) => t[LEAVES] === lean && t[GROUND] === 1 - lean).length, 3);
+    assert.equal(fam.filter((t) => t[GROUND] === 1).length, fam.length - 6);
   }
   // The same seed makes the same world, generation after generation.
   const a = createAncestorWorld(6), b = createAncestorWorld(6);
@@ -188,6 +195,50 @@ test("less mixing: tree animals' babies get time only in the leaves and on the g
   assert.ok(moved.length <= babies.length / 4);
   for (const b of moved) assert.ok(b.timeAllocation[GROUND] >= classroomConfig.allocationMutationTransferMin);
   for (const b of babies.filter((x) => placeOf(x) === LEAVES)) assert.ok(b.timeAllocation[LEAVES] > 0.9);
+});
+
+test("a baby with a parent leaning toward a place next door is born living there about 3 times in 10 (scope decision 70)", () => {
+  // Water-leaners and plain ground animals: the ground is full enough for two babies a pair.
+  const animals = [];
+  for (let i = 0; i < 40; i++) animals.push({ age: 1 + (i % 4), time: i < 20 ? [0, 1 - classroomConfig.founderLean, classroomConfig.founderLean] : [0, 1, 0] });
+  let theirs = 0, moved = 0, others = 0, othersMoved = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const state = worldOf(animals, seed);
+    advanceClassroomGeneration(state);
+    for (const b of state.lastGenerationResult.births) {
+      const baby = state.currentIndividuals.find((i) => i.id === b.childId);
+      if (b.parentAId <= 20 || b.parentBId <= 20) {
+        theirs++;
+        if (placeOf(baby) === WATER) { moved++; assert.ok(baby.timeAllocation[WATER] >= classroomConfig.allocationMutationTransferMin); }
+        assert.equal(baby.timeAllocation[LEAVES] > 0.5, false, "a water-leaner's baby never moves to the leaves by its lean");
+      } else { others++; if (placeOf(baby) !== GROUND) othersMoved++; }
+    }
+  }
+  assert.ok(theirs >= 60);
+  assert.ok(moved / theirs > 0.2 && moved / theirs < 0.45, `${moved} of ${theirs} moved to the water`);
+  // Babies of two plain ground parents move only as M1's movers do, one in twenty.
+  assert.ok(othersMoved / others < 0.12, `${othersMoved} of ${others}`);
+});
+
+test("a pair in a place with plenty of room has two more babies: there's more food (scope decision 70)", () => {
+  const cap = classroomConfig.zoneCapacity[WATER];
+  assert.equal(babiesPerPair(0, WATER), classroomConfig.offspringPerPair + classroomConfig.roomyBirths);
+  assert.equal(babiesPerPair(Math.ceil(cap * classroomConfig.roomyBelow), WATER), classroomConfig.offspringPerPair);
+  // Ten water animals in an empty place: four babies a pair; fifty on the ground next to them: two.
+  const animals = [];
+  for (let i = 0; i < 10; i++) animals.push({ age: 2, time: [0, 0, 1] });
+  for (let i = 0; i < 50; i++) animals.push({ age: 2, time: [0, 1, 0] });
+  const state = worldOf(animals, 7);
+  advanceClassroomGeneration(state);
+  const perPair = new Map();
+  for (const b of state.lastGenerationResult.births) perPair.set(`${b.parentAId}:${b.parentBId}`, (perPair.get(`${b.parentAId}:${b.parentBId}`) ?? 0) + 1);
+  for (const [pair, n] of perPair) {
+    const water = Number(pair.split(":")[0]) <= 10;
+    assert.equal(n, water ? 4 : 2, pair);
+  }
+  // Without it, as before: two.
+  const before = { ...classroomConfig, roomyBirths: 0 };
+  assert.equal(babiesPerPair(0, WATER, before), 2);
 });
 
 test("the teacher demo (?demo=webbed) is M1's defining fixture, run in Classroom mode", () => {

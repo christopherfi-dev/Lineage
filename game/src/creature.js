@@ -497,17 +497,10 @@ function creatureLayer(w, h, genome, seed, transform) {
 const SMALL_PARTS = ["toe_webbing", "curved_claws", "ear_tip_shape", "tail_tip_marking"];
 
 /**
- * Draw one animal from its genome.
- * @param {HTMLCanvasElement} cv sized by CSS
- * @param {ArrayLike<number>} genome engine body genome (or a group's mean)
- * @param {{seed?:number, focus?:string|null, closeUp?:boolean, glow?:string[], habitat?:number|null}} [opts]
- *   focus: ring the part a trait changes (choice options); closeUp: and, if that part is small, show
- *   it magnified in a corner; glow: traits new in this animal; habitat: a soft wash behind the
- *   animal in its habitat's colour (engine zone index)
- * @returns {{ms:number, parts:Object<string, number[]>}} drawing time, and where each trait's part is (CSS px)
+ * The painted card behind an animal: warm paper and, for a habitat, its scene and a soft wash in its colour.
+ * @param {HTMLCanvasElement} cv sized by CSS @param {null|number} habitat engine zone index @param {number} seed
  */
-export function paintCreature(cv, genome, { seed = 1, focus = null, closeUp = false, glow = [], habitat = null } = {}) {
-  const t0 = performance.now();
+function backdrop(cv, habitat, seed) {
   const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
   const w = cv.clientWidth || 300, h = cv.clientHeight || 210;
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
@@ -537,6 +530,28 @@ export function paintCreature(cv, genome, { seed = 1, focus = null, closeUp = fa
       x.fillStyle = wg; x.beginPath(); x.ellipse(wx, wy, rad * 1.35, rad * 0.8, 0, 0, TAU); x.fill();
     }
   }
+  return { x, dpr, w, h, k, ox, oy, toFrame, paper };
+}
+
+/**
+ * A place with no animal in it yet (scope decision 70): a waiting card on "Where will your family live?".
+ * @param {HTMLCanvasElement} cv sized by CSS @param {number} habitat engine zone index @param {number} [seed]
+ */
+export function paintPlace(cv, habitat, seed = 1) { backdrop(cv, habitat, seed); }
+
+/**
+ * Draw one animal from its genome.
+ * @param {HTMLCanvasElement} cv sized by CSS
+ * @param {ArrayLike<number>} genome engine body genome (or a group's mean)
+ * @param {{seed?:number, focus?:string|null, closeUp?:boolean, glow?:string[], habitat?:number|null}} [opts]
+ *   focus: ring the part a trait changes (choice options); closeUp: and, if that part is small, show
+ *   it magnified in a corner; glow: traits new in this animal; habitat: a soft wash behind the
+ *   animal in its habitat's colour (engine zone index)
+ * @returns {{ms:number, parts:Object<string, number[]>}} drawing time, and where each trait's part is (CSS px)
+ */
+export function paintCreature(cv, genome, { seed = 1, focus = null, closeUp = false, glow = [], habitat = null } = {}) {
+  const t0 = performance.now();
+  const { x, dpr, w, h, k, ox, oy, toFrame, paper } = backdrop(cv, habitat, seed);
 
   // The creature on its own layer, so it can be grained and softened as one.
   const { lay, a, tl, hd, frontFoot } = creatureLayer(cv.width, cv.height, genome, seed, toFrame);

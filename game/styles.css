@@ -25,7 +25,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
-#hud, #hint, #card, #choice, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here, #portrait, #average, #guide, #guide-button {
+#hud, #hint, #card, #choice, #place, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here, #portrait, #average, #guide, #guide-button {
   background-color: #F7F0DF;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -249,6 +249,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   background: linear-gradient(90deg, #FFE7B2, #FFF4DA 80%); box-shadow: 0 0 0 1.5px rgba(232, 184, 92, .6);
 }
 #card-group .same { font-style: italic; color: #585A4A; }
+/* Another group that lived in your line's place before your line came, once it is full (scope decision 70). */
+#card-group .first { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.25; color: #3E4436; }
 /* While the choice panel is up, the card sits in the room above it, wide (scope decision 23). */
 #card.above {
   left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 860px; margin-left: auto;
@@ -330,6 +332,38 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #choice .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
 #choice .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
+
+/* The first choice (scope decision 70): where the family will live, the choice panel's sheet with a painted card for
+   each place, a real baby of the family in it. A card with no baby there yet waits a generation, its place painted empty. */
+#place {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
+  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
+  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
+  max-height: 74%; overflow-y: auto;
+}
+#place.open { transform: none; }
+#place[hidden] { display: none; }
+#place .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
+#place h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -.4px; line-height: 1.1; color: #2A2B22; text-wrap: balance; }
+#place-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+#place-cards .option .pick:disabled { cursor: default; }
+#place-cards .option.waiting { box-shadow: 0 0 0 2px #E6DAC0; background: #F4EEDD; }
+#place-cards .option.waiting canvas { opacity: .55; filter: saturate(.6); }
+#place-cards .option.waiting .words { font-style: italic; color: #7D745C; }
+#place-cards .option.filled-in { animation: placeFill .7s cubic-bezier(.2, .9, .28, 1); }
+@keyframes placeFill { from { transform: scale(.96); box-shadow: 0 0 0 3px #EFC27E, 0 0 30px rgba(217, 164, 65, .45); } to { transform: none; } }
+#place .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
+#place .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
+#place-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
+/* A short screen (a phone held sideways): smaller pictures, so the three cards and their words fit above the fold. */
+@media (max-height: 599px) {
+  #place { max-height: 82%; padding-top: 8px; }
+  #place h2 { font-size: 26px; }
+  #place-cards { gap: 10px; margin-top: 10px; }
+  #place-cards .option canvas { height: 118px; }
+  #place-cards .option .pick { gap: 6px; padding: 8px 8px 12px; font-size: 18px; }
+}
 
 /* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
 #journal, #naming, #guess {
@@ -635,7 +669,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 @keyframes dangerIn { 0% { opacity: 0; transform: translateY(8px); } 60% { opacity: 1; transform: translateY(-2px); } 100% { transform: none; } }
 
 /* ---- Touch: two fingers zoom the map (main.js), never the page, so the panels keep their size. ---- */
-#card, #choice, #since, #journal, #naming, #guess, #average, #guide, #ending .card { touch-action: pan-y; }
+#card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending .card { touch-action: pan-y; }
 
 /* ---- A short or narrow screen (a phone): the generation panel is a slim bar, and a tap opens it whole. ---- */
 #hud .mini { display: none; }

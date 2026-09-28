@@ -4,7 +4,8 @@
  *
  * Built from M1's `currentModelConfig`, which stays exactly as it is. Only the
  * values below differ, and the Classroom-only ones (PLACE_EFFECTS, the founders'
- * home, the inheritance rule) are named at the bottom. M1's survival constants
+ * home, the inheritance rule, and what makes the first choice of a place fill it
+ * fast) are named at the bottom. M1's survival constants
  * (selection slope, fitness zero, zone weights, scarcity, survival bounds, the
  * age multipliers other than the zero at the maximum age) stay in the object but
  * Classroom mode never reads them: its survival is ranked, not drawn
@@ -51,7 +52,7 @@ export const LITTLE_EFFECT = 0.4;
 
 export const classroomConfig = deepFreeze({
   ...currentModelConfig,
-  version: "lineage-classroom-config-2",
+  version: "lineage-classroom-config-3",
 
   // The common-ancestor world: every founder on the open ground, one body.
   startingPopulation: 40,
@@ -82,7 +83,28 @@ export const classroomConfig = deepFreeze({
   // (scope decision 67), so a new trait isn't halved away before it can be
   // passed on. "average" is M1's rule, for comparison.
   inheritance: "whole-trait",
+
+  // The first choice, "Where will your family live?", fills a new place fast
+  // (scope decision 70). The ancestors: in every FOUNDING_GROUP founders by id
+  // (the game's founding families), founderLeaners lean toward the water's edge
+  // and as many toward the high leaves, spending founderLean of their time
+  // there; they still live on the open ground. A baby with a parent that leans
+  // toward a place next door (leanAt of its time there, or more) is born living
+  // there leanMoveChance of the time, with most of its time there, as M1's
+  // movers. And while the parents' place holds fewer than roomyBelow of the
+  // animals it has room for, a pair has roomyBirths more babies: there is more
+  // food. Set founderLeaners, leanMoveChance and roomyBirths to 0 for the world
+  // before it.
+  founderLeaners: 3,
+  founderLean: 0.4,
+  leanAt: 0.25,
+  leanMoveChance: 0.3,
+  roomyBirths: 2,
+  roomyBelow: 0.5,
 });
+
+/** Founders by id make the game's founding families in groups of this many (game/src/families.js: 13, 13 and 14 of 40). */
+export const FOUNDING_GROUP = 13;
 
 /** M1's maximum age: the first age whose survival multiplier is zero. */
 export function maximumAgeOf(config) {
@@ -107,6 +129,9 @@ export function classroomIdentityFor(config) {
       placeEffects: config.placeEffects.map((row) => Array.from(row)),
       founderAllocation: Array.from(config.founderAllocation),
       inheritance: config.inheritance,
+      founders: { leaners: config.founderLeaners ?? 0, lean: config.founderLean ?? 0 },
+      leanMove: { at: config.leanAt ?? 1, chance: config.leanMoveChance ?? 0 },
+      roomyBirths: { extra: config.roomyBirths ?? 0, below: config.roomyBelow ?? 0 },
     },
   }));
 }

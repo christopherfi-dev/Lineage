@@ -16,8 +16,11 @@
  *
  * A baby gets each body trait whole from one parent or the other, never the
  * average (scope decision 67), then M1's usual chance of a new variation. Mates
- * are still found by M1's draw, and time is inherited as in M1. M1 itself is
- * untouched: lineage-m1 hashes every file it ships, so this mode lives beside it.
+ * are still found by M1's draw, and time is inherited as in M1. Two births differ
+ * too (scope decision 70): a baby with a parent that leans toward a place next
+ * door may be born living there (leanMove), and a pair has more babies while its
+ * place has plenty of room. M1 itself is untouched: lineage-m1 hashes every file
+ * it ships, so this mode lives beside it.
  */
 
 import { formMatingPairs } from "../../lineage-m1/src/core/mating.js";
@@ -32,7 +35,8 @@ import {
   hydrateDefiningFixtureV1,
   applyWebbingOverride,
 } from "../../lineage-m1/src/fixtures/definingFixtureV1.js";
-import { classroomConfig, classroomIdentityFor, maximumAgeOf } from "./config.js";
+import { classroomConfig, classroomIdentityFor, maximumAgeOf, FOUNDING_GROUP } from "./config.js";
+import { ZONE_NEIGHBORS } from "../../lineage-m1/src/config/zones.js";
 
 /** The config handed to M1's createChild once the traits are picked: no body drift, so its parents' average is exact. */
 const exact = new WeakMap();
@@ -61,6 +65,43 @@ export function classroomChild(state, A, B, targetGeneration, rng, config = clas
 
 /** Where an animal lives: the place it spends most of its time in (ties go to the first, as M1's zone bins). */
 export const placeOf = (individual) => argmax(individual.timeAllocation);
+
+/**
+ * A baby with a parent that leans toward a place next door to where that
+ * parent lives (config.leanAt of its time there or more) is born living there
+ * config.leanMoveChance of the time (scope decision 70): it takes 0.8-1.0 of
+ * the rest of its time there, as M1's movers do, and so lives there. With both
+ * parents leaning, one of their leans, picked evenly. Draws only when a parent
+ * leans, so a world without leaners draws as before. Changes the baby in place.
+ * @param {Object} child just made by classroomChild @param {Object} A @param {Object} B its parents
+ * @param {import("../../lineage-m1/src/core/rng.js").Rng} rng @param {Object} [config]
+ * @returns {number} the place it moved to, or -1
+ */
+export function leanMove(child, A, B, rng, config = classroomConfig) {
+  if (!(config.leanMoveChance > 0)) return -1;
+  const leans = [];
+  for (const P of [A, B]) for (const z of ZONE_NEIGHBORS[placeOf(P)]) if (P.timeAllocation[z] >= config.leanAt) leans.push(z);
+  if (!leans.length || !(rng.nextFloat() < config.leanMoveChance)) return -1;
+  const z = leans[Math.min(leans.length - 1, Math.floor(rng.nextFloat() * leans.length))];
+  const u = config.allocationMutationTransferMin + (config.allocationMutationTransferMax - config.allocationMutationTransferMin) * rng.nextFloat();
+  const a = child.timeAllocation, rest = 1 - a[z], out = new Float64Array(a.length);
+  for (let k = 0; k < a.length; k++) out[k] = k === z ? a[z] + u * rest : a[k] * (1 - u);
+  child.timeAllocation = out;
+  return z;
+}
+
+/**
+ * How many babies a pair has (scope decision 70): M1's offspringPerPair, and
+ * config.roomyBirths more while the place the pair lives in (parent A's) holds
+ * fewer than config.roomyBelow of the animals it has room for: there is more
+ * food. Counted after this generation's deaths, before its births.
+ * @param {number} living how many live in the pair's place now @param {number} place
+ * @param {Object} [config]
+ */
+export function babiesPerPair(living, place, config = classroomConfig) {
+  const roomy = (config.roomyBirths ?? 0) > 0 && living < (config.roomyBelow ?? 0) * config.zoneCapacity[place];
+  return config.offspringPerPair + (roomy ? config.roomyBirths : 0);
+}
 
 /**
  * An animal's fitness in each place: each trait times its effect there.
@@ -129,8 +170,12 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
     else state.deathEvents.push(makeDeathEvent(targetGeneration, ind, 0, null, cause));
   }
   for (const s of survivors) s.ageGenerations += 1;
+  // How many live in each place now: a pair in a place with plenty of room has more babies (scope decision 70).
+  const living = ZONES.map(() => 0);
+  for (const s of survivors) living[placeOf(s)]++;
 
-  // From here on, M1's steps 5-10, a baby's body traits each whole from one parent (classroomChild).
+  // From here on, M1's steps 5-10, a baby's body traits each whole from one parent (classroomChild), then the lean
+  // move (scope decision 70).
   const pairs = formMatingPairs(survivors, config, rng);
   const survivorById = new Map(survivors.map((s) => [s.id, s]));
   const newborns = [];
@@ -139,8 +184,16 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
     const A = survivorById.get(pair.parentAId);
     const B = survivorById.get(pair.parentBId);
     const childIds = [];
-    for (let k = 0; k < config.offspringPerPair; k++) {
+    const n = babiesPerPair(living[placeOf(A)], placeOf(A), config);
+    for (let k = 0; k < n; k++) {
+      const recorded = state.bodyMutationEvents.length;
       const child = classroomChild(state, A, B, targetGeneration, rng, config);
+      if (leanMove(child, A, B, rng, config) >= 0) {
+        // Its body-mutation record, if any, keeps the time it was born with.
+        for (let e = recorded; e < state.bodyMutationEvents.length; e++) {
+          if (state.bodyMutationEvents[e].childId === child.id) state.bodyMutationEvents[e].childTimeAllocationAtBirth = Array.from(child.timeAllocation);
+        }
+      }
       newborns.push(child);
       childIds.push(child.id);
     }
@@ -185,10 +238,27 @@ export function assertClassroomState(state, config = classroomConfig) {
 }
 
 /**
+ * A founder's time (scope decisions 56 and 70): the open ground
+ * (config.founderAllocation), except for the leaners. In every FOUNDING_GROUP
+ * founders by id (the game's founding families), the 2nd, 4th and 6th lean
+ * toward the water's edge and the 3rd, 5th and 7th toward the high leaves
+ * (config.founderLeaners of each), spending config.founderLean of their time
+ * there and the rest on the ground, where they live.
+ * @param {number} id @param {Object} [config]
+ * @returns {number[]}
+ */
+export function founderTimeOf(id, config = classroomConfig) {
+  const k = (id - 1) % FOUNDING_GROUP, lean = config.founderLean ?? 0;
+  if (k < 1 || k > 2 * (config.founderLeaners ?? 0)) return Array.from(config.founderAllocation);
+  return k % 2 === 1 ? [0, 1 - lean, lean] : [lean, 1 - lean, 0];
+}
+
+/**
  * The common-ancestor world: every founder on the open ground with the same
  * ancestral body (M1's ancestor genome, no spread), M1's founder ages; the
- * high leaves and the water's edge start empty. Making it draws nothing, so
- * the seed decides only what happens next.
+ * high leaves and the water's edge start empty. Some founders of every
+ * founding family lean toward each of them (founderTimeOf). Making it draws
+ * nothing, so the seed decides only what happens next.
  * @param {number} seed
  * @param {Object} [config]
  */
@@ -203,7 +273,7 @@ export function createAncestorWorld(seed, config = classroomConfig) {
       birthGeneration: 0,
       ageGenerations: founderAgeForId(id, config),
       bodyGenome: config.ancestorBodyGenome,
-      timeAllocation: config.founderAllocation,
+      timeAllocation: founderTimeOf(id, config),
       birthEventId,
     }));
     const birth = { id: birthEventId, generation: 0, childId: id, parentIds: null, founder: true };

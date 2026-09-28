@@ -19,6 +19,14 @@ const MASTER = 0.8;
 const BED = { leaves: 0.07, ground: 0.06, water: 0.09 };
 /** How quickly the beds crossfade as the camera moves, in seconds (time constant). */
 const CROSSFADE = 0.9;
+/**
+ * Nobody has touched the iPad for this long (ms): the sound is idle (Round 4, scope decision 70). A newborn's chime,
+ * the one cue that kept coming while nobody played, then comes at most once every IDLE_CHIME_GAP seconds, every cue
+ * and bed is at IDLE_LEVEL of its usual level, and the birds sing a third as often. A touch brings it all back.
+ */
+export const IDLE_MS = 45000;
+export const IDLE_CHIME_GAP = 45;
+export const IDLE_LEVEL = 0.4;
 
 /** The major pentatonic from C5: the spread's counts climb it. */
 const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];
@@ -54,7 +62,12 @@ export class SoundGraph {
     this.beds = { leaves: this.leavesBed(), ground: this.groundBed(), water: this.waterBed() };
     this.birdAt = ctx.currentTime + 2 + 4 * random();
     this.waveAt = ctx.currentTime + 0.5;
+    /** every cue's and bed's share of its usual level: IDLE_LEVEL while idle */
+    this.level = 1;
   }
+
+  /** Idle (no touch for a while): cues and beds quieter, birds rarer; or back to usual. */
+  setIdle(idle) { this.level = idle ? IDLE_LEVEL : 1; }
 
   /** A few seconds of soft noise, made once and looped by every bed. */
   makeNoise(seconds) {
@@ -142,12 +155,12 @@ export class SoundGraph {
   update(weights) {
     const ctx = this.ctx, t = ctx.currentTime;
     const [leaves, ground, water] = weights;
-    this.beds.leaves.out.gain.setTargetAtTime(BED.leaves * leaves, t, CROSSFADE);
-    this.beds.ground.out.gain.setTargetAtTime(BED.ground * ground, t, CROSSFADE);
-    this.beds.water.out.gain.setTargetAtTime(BED.water * water, t, CROSSFADE);
+    this.beds.leaves.out.gain.setTargetAtTime(BED.leaves * leaves * this.level, t, CROSSFADE);
+    this.beds.ground.out.gain.setTargetAtTime(BED.ground * ground * this.level, t, CROSSFADE);
+    this.beds.water.out.gain.setTargetAtTime(BED.water * water * this.level, t, CROSSFADE);
     if (t >= this.birdAt) {
       if (leaves > 0.2) this.bird(t + 0.05);
-      this.birdAt = t + 3.5 + 6 * this.random();
+      this.birdAt = t + (3.5 + 6 * this.random()) * (this.level < 1 ? 3 : 1);
     }
     if (t >= this.waveAt) {
       const w = this.beds.water, rise = 2.2 + this.random(), fall = 3.2 + 1.5 * this.random(), peak = 0.75 + 0.25 * this.random();
@@ -187,6 +200,7 @@ export class SoundGraph {
     o.frequency.setValueAtTime(freq, t);
     if (to !== freq) o.frequency.exponentialRampToValueAtTime(to, t + glide);
     f.type = "lowpass"; f.frequency.value = lowpass;
+    gain *= this.level;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gain, t + attack);
     g.gain.setValueAtTime(gain, t + attack + hold);
@@ -241,6 +255,16 @@ export class Sound {
     /** @type {null|SoundGraph} */
     this.graph = null;
     this.ctx = null;
+    /** nobody has touched the iPad for IDLE_MS */
+    this.idle = false;
+    /** when the last chime played (audio clock, s) */
+    this.chimedAt = -Infinity;
+  }
+
+  /** Nobody has touched the iPad for IDLE_MS, or someone just did (scope decision 70). */
+  setIdle(idle) {
+    this.idle = idle;
+    if (this.graph) this.graph.setIdle(idle);
   }
 
   /** On a tap: the first one starts the sound (unless muted). */
@@ -252,6 +276,7 @@ export class Sound {
       try {
         this.ctx = new AC();
         this.graph = new SoundGraph(this.ctx);
+        this.graph.setIdle(this.idle);
       } catch (err) {
         console.warn("[lineage] no sound", err);
         this.ctx = null; this.graph = null;
@@ -283,7 +308,14 @@ export class Sound {
   get on() { return !this.muted && !!this.graph && this.ctx.state === "running"; }
 
   update(weights) { if (this.on) this.graph.update(weights); }
-  chime() { if (this.on) this.graph.chime(); }
+  /** A newborn's chime; while idle, at most once every IDLE_CHIME_GAP seconds. */
+  chime() {
+    if (!this.on) return;
+    const t = this.ctx.currentTime;
+    if (this.idle && t - this.chimedAt < IDLE_CHIME_GAP) return;
+    this.chimedAt = t;
+    this.graph.chime();
+  }
   spreadNote(count) { if (this.on) this.graph.spreadNote(count); }
   waitTone() { if (this.on) this.graph.waitTone(); }
   goneTone() { if (this.on) this.graph.goneTone(); }

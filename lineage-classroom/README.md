@@ -26,7 +26,17 @@ What differs from M1:
   at least half their time; babies inherit time only in their parents' places and next door, and
   now and then one moves next door.
 - **The common-ancestor world** (`createAncestorWorld`): every founder on the open ground with
-  M1's ancestral body. **The teacher demo** (`createWebbedDemoWorld`): M1's defining fixture.
+  M1's ancestral body. In every 13 founders by id (the game's founding families), 3 lean toward
+  the water's edge and 3 toward the high leaves, spending 0.4 of their time there
+  (`founderTimeOf`, scope decision 70). **The teacher demo** (`createWebbedDemoWorld`): M1's
+  defining fixture.
+- **A new place fills fast** (scope decision 70), so the story's first choice, "Where will your
+  family live?", has a baby for each place at once and about 20 living there within a few
+  generations. A baby with a parent that leans toward a place next door (0.25 of its time there
+  or more) is born living there 3 times in 10, with 0.8–1.0 of the rest of its time there, as
+  M1's movers (`leanMove`). And a pair has 2 more babies while its place holds fewer than half
+  the animals it has room for: there is more food (`babiesPerPair`). Survival is untouched.
+  `founderLeaners`, `leanMoveChance` and `roomyBirths` at 0 give the world before it.
 
 A Classroom world carries its own model identity, so M1's `advanceGeneration()` rejects it and
 Classroom mode rejects an M1 world.
