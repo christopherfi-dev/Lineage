@@ -15,7 +15,7 @@
  * the child acts at the same second of the same day.
  */
 
-import { Story, GENERATION_SECONDS, nearlyOver } from "./story.js";
+import { Story, GENERATION_SECONDS } from "./story.js";
 import { World } from "./world.js";
 import { Herd } from "./herd.js";
 import { isNeutral } from "./variations.js";
@@ -28,12 +28,12 @@ import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "generation", "variation", "follow", "joining", "edge-arrow", "spreading", "fizzled", "danger", "blocked",
-  "fairtest", "other-card", "relative", "grow", "shrink", "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
-  "same", "away", "back", "go-back", "moving", "so-far", "another-family", "in-trouble",
+  "arrival", "naming", "generation", "variation", "follow", "joining", "rising", "slowdown", "edge-arrow", "blocked",
+  "growing", "dying", "line-dies", "died-why", "back-line", "compare", "other-card", "relative", "grow", "shrink",
+  "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "card",
+  "same", "away", "back", "go-back", "moving", "so-far",
   "reason", "why", "why-answer", "why-drop", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "nearly-over",
 ];
 
 /**
@@ -48,55 +48,36 @@ const FROM_OTHERS = [4, 1, 2, 3, 5, 6, 7, 8, 0];
 const DAY_STEP = 0.5;
 const DAY_STEPS = Math.round(GENERATION_SECONDS / DAY_STEP);
 
-/**
- * The child can follow now: watched at least 40 s, the group not very small, and a glowing variation that
- * helps or hurts there (scope decision 58) can start a fair test.
- */
+/** The child can follow now: watched at least 40 s, the line not very small, and a glowing variation that can be followed. */
 function followable(s) {
   if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-  return s.glowing.find((x) => s.followable(x) && s.canStartFor(x)) ?? null;
+  return s.glowing.find((x) => s.followable(x)) ?? null;
 }
 
 /**
  * How the child plays while a story is looked for (the measurement's simulated
  * child is "active"). On the backup choice panel every child takes the first
- * option. While the child's group is very small, nothing can be followed
+ * option. While the child's line is very small, nothing can be followed
  * (scope decision 44 and the playtest's "no jumping ship").
  */
 const POLICIES = {
-  /** Follows the first glowing variation that can be followed and can start a fair test, after at least 40 s of watching. */
+  /** Follows the first glowing variation that can be followed, after at least 40 s of watching. */
   active: (s) => { const g = followable(s); return g ? { kind: "follow", id: g.id } : null; },
-  /** Like "active", but only a variation that helps in its habitat (the engine's own trait effects). */
+  /** Like "active", but only a variation that helps in its place. */
   wise: (s) => {
     if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone(x)) > 0 && s.canStartFor(x));
+    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) > 0);
     return g ? { kind: "follow", id: g.id } : null;
   },
-  /** Like "active", but only a variation that hurts in its habitat: its fair test soon shows it. */
+  /** Like "active", but only a variation that hurts in its place: its line soon dies off. */
   unwise: (s) => {
     if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone(x)) < 0 && s.canStartFor(x));
+    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) < 0);
     return g ? { kind: "follow", id: g.id } : null;
   },
   /** Follows nothing by itself. */
   passive: () => null,
-  /**
-   * The measurement's simulated child (scope decision 42): taps the first glowing variation that can be followed after at
-   * least 40 s of watching, whether or not it can start a fair test right away. If not, the world fast-forwards to
-   * see if it spreads.
-   */
-  tapper: (s) => {
-    if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
-    const g = s.glowing.find((x) => s.followable(x));
-    return g ? { kind: s.canStartFor(g) ? "follow" : "spread", id: g.id } : null;
-  },
 };
-
-/** How many of a fair test's animals with the variation are the family's, and how many fill in from nearby, if the child followed this glow now. */
-function joinCounts(s, g) {
-  const t = s.testFor(g);
-  return { stay: t.fromFamily, come: t.fromNearby };
-}
 
 /** A glowing baby the card explains instead of offering a follow, for this reason (story.js whyNot), just lit up. */
 const explained = (reason) => (s, ev, b, what) => {
@@ -108,114 +89,106 @@ const explained = (reason) => (s, ev, b, what) => {
 /** Mid-story, with a group big enough to see: the plain generation's test, and the places' too. */
 const midStory = (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.generation >= 20 && ev.group.count >= 10;
 
+/** The latest follow, and how many generations ago it was. */
+const since = (s, ev) => { const c = s.choices[s.choices.length - 1]; return c ? ev.generation - c.generation : -1; };
+
 /**
  * What each moment is, as a test on the story. It returns something truthy
  * (with the animal to show, when there is one) at the moment. `what` is the
- * story's own answer to a generation (null is a plain one), or "day" at each
- * step of a watched day, when babies light up.
+ * story's own answer to a generation (null is a plain one), "guess" when the
+ * story asks a tap-to-guess question after it, or "day" at each step of a
+ * watched day, when babies light up.
  */
 const MOMENT = {
   /** Mid-story, just before a generation passes, with a group big enough to see. */
   generation: { families: FROM_OTHERS, policies: ["active", "passive"], at: midStory },
   /** A newborn with a new variation lights up: the only one glowing. */
   variation: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === "day" && s.phase === "watch" && s.glowing.length === 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
-  /** A glowing newborn whose variation can start a fair test: its card is opened. */
-  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x) && s.canStartFor(x)); return g ? { id: g.id } : null; } },
+  /** A glowing newborn whose variation can be followed: its card is opened, "Follow animals with …" (scope decision 67). */
+  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x)); return g ? { id: g.id } : null; } },
   /**
-   * A follow's gather-in (playtest, scope decision 59): the line's animals with the trait light up, and no prediction
-   * comes first. A fair test is strictly inside the line now (scope decision 66), so no one walks in from nearby.
+   * A follow (scope decisions 66 and 67): the line's animals with the trait light up, counted, and the counter
+   * starts; no prediction comes first. At least five of them.
    */
   joining: {
     families: FROM_OTHERS,
     policies: ["active"],
     at: (s, ev, b, what) => {
       if (what !== "day" || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
-      const g = followable(s);
-      if (!g) return null;
-      const n = joinCounts(s, g);
-      return n.stay >= 5 && { id: g.id, ...n };
+      const g = followable(s), n = g ? s.carrierIds(g.v).length : 0;
+      return n >= 5 && { id: g.id, carriers: n };
     },
   },
+  /** The fast-forward after a follow, its counter rising generation by generation, the whole line in view (scope decisions 67 and 68). */
+  rising: {
+    families: FROM_OTHERS,
+    policies: ["wise", "active"],
+    at: (s, ev, b, what) => {
+      const c = what === "rising" ? s.rising.counts : [];
+      return c.length >= 4 && c.at(-3) < c.at(-2) && c.at(-2) < c.at(-1) && { trait: s.rising.v.trait, counts: c.slice() };
+    },
+  },
+  /** The count reached 20 or more: the counter's last number, and the slow-down back to real time (scope decision 67). */
+  slowdown: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "rise-done" && s.lastRise.outcome === "reached" && { trait: s.lastRise.v.trait, counts: s.lastRise.counts.slice() } },
   /** A glowing baby, and the camera turned away from it: an arrow at the screen's edge points to it (playtest). */
   "edge-arrow": { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "day" && s.followOpen && s.choices.length === 0 && ev.generation >= 3 && s.glowing.length >= 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
-  /** A variation too rare to start a fair test, fast-forwarded to see if it spreads: three generations in, the counter rising. */
-  spreading: {
-    families: FROM_OTHERS,
-    policies: ["tapper"],
-    at: (s, ev, b, what) => {
-      const c = what === "spreading" ? s.spread.counts : [];
-      return c.length >= 4 && c.at(-3) < c.at(-2) && c.at(-2) < c.at(-1) && { id: s.spread.id, trait: s.spread.v.trait, counts: c.slice() };
-    },
-  },
-  /**
-   * The spread stopped, a few generations in, because none carry the variation any more: "It disappeared. Most new
-   * traits do." A world with no such spread falls back to one that disappeared after a single generation.
-   */
-  fizzled: {
-    families: FROM_OTHERS,
-    policies: ["tapper"],
-    at: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" && s.lastSpread.counts.length >= 3 &&
-      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
-    relaxed: (s, ev, b, what) => what === "spread-failed" && s.lastSpread.outcome === "gone" &&
-      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice() },
-  },
-  /**
-   * A spread stopped because the child's line fell to DANGER_SIZE or fewer: "Wait! Your line is getting very small."
-   * Lines are small (scope decision 66), but none of seed 13 gets that small during a fast-forward: the moments page
-   * opens this one in seed 4, at generation 15.
-   */
-  danger: {
-    families: FROM_OTHERS,
-    policies: ["tapper"],
-    at: (s, ev, b, what) => what === "spread-danger" &&
-      { id: s.lastSpread.id, trait: s.lastSpread.v.trait, counts: s.lastSpread.counts.slice(), size: s.family.now },
-  },
   /**
    * The child's line is at DANGER_SIZE or fewer and a baby glows: its card says "Your line needs you. Stay with
-   * them?" with only "Keep looking", whatever its trait (a meaningful one when there is one). Not in seed 13: the
-   * moments page opens it in seed 1 (generation 10).
+   * them?" with only "Keep looking", whatever its trait (a meaningful one when there is one).
    */
   blocked: {
     families: FROM_WEBBED,
-    policies: ["passive", "tapper"],
+    policies: ["passive", "active"],
     at: (s, ev, b, what) => {
       if (what !== "day" || !s.followOpen || !s.inDanger) return null;
       const g = s.glowing.find((x) => s.followable(x)) ?? s.glowing[0];
       return g ? { id: g.id, size: s.family.now } : null;
     },
   },
-  /** Both groups of a fair test at its result, the end of the fast-forward: who made it, clearly more with the variation. */
-  fairtest: {
+  /** Real time after a follow on a trait that helps there: "Your line with … is growing." and the table's reason (scope decision 67). */
+  growing: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.verdict(ev)?.kind === "growing" && since(s, ev) >= 2 && { lines: [s.verdict(ev).reason] } },
+  /**
+   * Real time after a follow on a trait that hurts there: "Your animals with … are dying off." and the table's
+   * reason; each death fades gently with a little light rising, one by one, the camera on it (scope decision 67).
+   */
+  dying: { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.verdict(ev)?.kind === "dying" && ev.group.gone.length >= 2 && { gone: ev.group.gone.length } },
+  /** A followed line dies out (scope decision 68): its last animals fade, the camera on them, "The last of … are dying." */
+  "line-dies": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "back" && ev.group.before >= 1 && { trait: s.backFrom.trait, peak: s.backFrom.peak } },
+  /** Then its "Why?" right there: "Why did your animals with … die out?" (scope decision 68). */
+  "died-why": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.died && { text: s.lastGuess.text } },
+  /** Then "They didn't make it. Back to your line.": the line before is blue again, the camera on it (scope decision 68). */
+  "back-line": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.died && { text: s.lastGuess.text } },
+  /** Three generations or more after a follow: the line and "Your relatives here", counts with bars (scope decision 67). */
+  compare: {
     families: FROM_OTHERS,
-    policies: ["active", "passive"],
-    // At its result, the end of the fast-forward: who made it clearly differs (scope decision 65).
-    at: (s, ev, b, what) => (what === null || what === "skip-done") && s.phase === "watch" && !!s.fair && ev.generation - s.fair.generation === 2 &&
-      s.mine.then >= 10 && s.mine.now >= 5 && s.mine.now - s.theirs.now >= 3,
+    policies: ["wise", "active"],
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && since(s, ev) >= 3 && s.family.now >= 5 && s.relativesHere.now >= 5 &&
+      { line: [s.family.then, s.family.now], relatives: [s.relativesHere.then, s.relativesHere.now] },
   },
   /** An animal of another family in your line's place, three generations or more after a follow: its card sums up its family beside yours (playtest). */
   "other-card": {
     families: FROM_OTHERS,
     policies: ["active", "passive"],
     at: (s, ev, b, what) => {
-      if (what !== null || s.phase !== "watch" || !s.fair || ev.generation - s.fair.generation < 3) return null;
+      if (what !== null || s.phase !== "watch" || since(s, ev) < 3) return null;
       const near = b.livingIds().filter((id) => !b.isFollowed(id) && !b.isRelative(id) && b.zoneOf(id) === s.place);
       return near.length ? { id: Math.max(...near) } : null;
     },
   },
   /**
-   * One of your relatives, drawn in their quiet colour, three generations or more after a follow (scope decision 66):
-   * its card, "One of your relatives", sets all your relatives beside your line.
+   * One of your relatives, drawn in their quiet colour, three generations or more after a follow (scope decisions
+   * 66 and 67): its card, "One of your relatives", sets your relatives here beside your line.
    */
   relative: {
     families: FROM_OTHERS,
     policies: ["active", "passive"],
     at: (s, ev, b, what) => {
-      if (what !== null || s.phase !== "watch" || !s.fair || ev.generation - s.fair.generation < 3) return null;
-      const kin = b.relativeIds().filter((id) => b.zoneOf(id) === s.place && !b.isMine(id) && !b.isOther(id));
+      if (what !== null || s.phase !== "watch" || since(s, ev) < 3) return null;
+      const kin = b.relativeIds().filter((id) => b.zoneOf(id) === s.place);
       return kin.length ? { id: Math.max(...kin) } : null;
     },
   },
-  /** The family clearly bigger than last generation, after a follow (so it is not the families' first burst). */
+  /** The line clearly bigger than last generation, after a follow (so it is not the families' first burst). */
   grow: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.group.count - ev.group.before >= 4 && ev.group.count >= 1.2 * ev.group.before },
   /** The family clearly smaller than last generation, but not gone. */
   shrink: { families: FROM_WEBBED, policies: ["passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
@@ -223,7 +196,7 @@ const MOMENT = {
   choice: { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "choice" && s.options.length >= 2 },
   /** The first follow: once the child follows, the prediction journal asks its first question. */
   prediction: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => { if (what !== "day" || s.choices.length !== 0) return null; const g = followable(s); return g ? { id: g.id } : null; } },
-  /** The second follow: "Since your last choice" shows the first prediction beside what happened. */
+  /** The second follow: "Since your last choice" shows the line and its relatives, and the first prediction beside what happened. */
   "prediction-result": { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => { if (what !== "day" || s.choices.length !== 1) return null; const g = followable(s); return g ? { id: g.id } : null; } },
   /** A visit to the water's edge, mid-story: the camera flies there and the narration sums it up (playtest). */
   habitat: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 2 } },
@@ -237,26 +210,19 @@ const MOMENT = {
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** The same ending's second step (scope decision 62): "Your idea", the sentence half built. */
   "ending-idea": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
-  /** Its third step: the idea checked against the table, with the clue and the last fair test. */
+  /** Its third step: the idea checked against the table, with the clue and the last choice's line beside its relatives. */
   "ending-check": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** Its last step: the reveal, the traits, the story's history, the Field Guide and the story card. */
   "ending-reveal": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /** The story card made from that ending (scope decision 62), shown over the page to look at. */
   "story-card": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
-  /** A fair test showed what the table says: "You discovered: …" in the narration (scope decision 62). */
+  /** A follow's result went the table's way: "You discovered: …" in the narration (scope decisions 62 and 68). */
   discovery: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && { text: s.lastGuess.text } },
-  /** The Field Guide, open mid-story after a few follows (scope decision 62): two, as a line rarely has more (scope decision 66). */
+  /** The Field Guide, open mid-story after a few follows (scope decision 62). */
   guide: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length >= 2 },
   /**
-   * An ending where the line died out after a follow: it leads with the fair test (scope decision 37). A line is
-   * small, so it can die out (scope decision 66): in seed 13 a line dies out at generation 12, which also gives
-   * "another-family"; "nearly-over" opens in seed 7, whose line dies out at generation 33 (17 generations left), and
-   * "in-trouble" in seed 72.
-   */
-  extinct: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && s.choices.length > 0 },
-  /**
-   * A fair test on a trait that doesn't matter in its place (a "~" or a neutral trait), followed like any other: who
-   * made it came out "About the same.", and the world waits for a guess why (scope decision 65).
+   * A line on a trait that doesn't matter in its place (a "~" or a neutral trait), followed like any other: it is
+   * doing about as well as its relatives, and the world waits for a guess why (scope decisions 65 and 68).
    */
   same: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.same && { text: s.lastGuess.text } },
   /**
@@ -264,67 +230,49 @@ const MOMENT = {
    * lives in the high leaves, away from your line.", with only "Keep looking".
    */
   away: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => s.choices.length > 0 && explained("away")(s, ev, b, what) },
-  /** A glowing baby with the way back from a direction the family took (scope decision 59): "Your family already chose sleeker bodies." */
+  /** A glowing baby with the way back from a direction the line took (scope decision 59): "Your line already chose sleeker bodies." */
   back: { families: FROM_OTHERS, policies: ["wise", "active"], at: explained("back") },
   /**
-   * A fair test showed the way the family went hurting, and a baby with the way back glows: its card offers it with
-   * the reason (scope decision 59), "Chunkier bodies are doing better up here. Go back?"
+   * The line clearly died off the way it went, and a baby with the way back glows: its card offers it with the
+   * reason (scope decision 59), "Chunkier bodies are doing better up here. Go back?"
    */
   "go-back": {
     families: FROM_OTHERS,
-    policies: ["unwise"],
+    policies: ["unwise", "active"],
     at: (s, ev, b, what) => {
       if (what !== "day" || !s.followOpen || s.inDanger) return null;
       const g = s.glowing.find((x) => s.followable(x) && s.goesBack(x) && x.since === s.watchT);
       return g ? { id: g.id } : null;
     },
   },
-  /** A real move of the family, told as it happens (scope decision 59): "Some of your animals are moving to the water's edge." */
+  /** A real move of the line, told as it happens (scope decision 59): "Some of your animals are moving to the water's edge." */
   moving: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && !!s.moved && { zone: s.moved.zone, main: s.moved.main } },
-  /** "Your family so far" with two or more chosen traits, one of them faded (scope decision 59). */
+  /** "Your line so far" with two or more chosen traits, one of them faded, with why (scope decisions 59 and 68). */
   "so-far": {
     families: FROM_OTHERS,
     policies: ["active", "unwise"],
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
   },
   /**
-   * The family died out with 25 or more generations of the story left, and the child taps "Try another family":
-   * the same world as it is now, the camera on a family with a future (scope decision 59).
-   */
-  "another-family": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && !nearlyOver(ev.generation, s.length) },
-  /**
-   * Then a tap on a family that an observer run shows dying out soon: "This family is in trouble already. Try
-   * another!" The moments page opens it in seed 72, where families with no future are left when the first line dies
-   * out (generation 8). With fewer than 25 generations left, the child would first tap "Keep going anyway".
-   */
-  "in-trouble": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && ev.generation < 60 },
-  /**
-   * The family died out with fewer than 25 generations of the story left, and the child, at the reveal, taps
-   * "Try another family": "This world is nearly over. Start a new world?" (scope decision 64).
-   */
-  "nearly-over": { families: FROM_OTHERS, policies: ["unwise", "active"], at: (s, ev, b, what) => what === "ended" && s.outcome === "died" && nearlyOver(ev.generation, s.length) },
-  /**
-   * A change with its reason from the table (scope decision 60): the family grew or shrank, and the log says why,
-   * "Webbed feet push through water." then "But long legs drag in the water.", with "Helping here / Hurting here" shown.
+   * A change with its reason from the table (scope decision 60), when no follow's verdict is told instead: the line
+   * grew or shrank, and the log says why, "Webbed feet push through water." then "But long legs drag in the water.",
+   * with "Helping here / Hurting here" shown.
    */
   reason: {
     families: FROM_OTHERS,
     policies: ["active", "passive"],
-    at: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8) return null; const r = s.changeReasons(ev); return r.length >= 2 && { lines: r }; },
-    relaxed: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8) return null; const r = s.changeReasons(ev); return r.length >= 1 && s.reasons.helping.length + s.reasons.hurting.length > 0 && { lines: r }; },
+    at: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8 || s.verdict(ev)) return null; const r = s.changeReasons(ev); return r.length >= 2 && { lines: r }; },
+    relaxed: (s, ev, b, what) => { if (what !== null || s.phase !== "watch" || ev.generation < 8 || s.verdict(ev)) return null; const r = s.changeReasons(ev); return r.length >= 1 && s.reasons.helping.length + s.reasons.hurting.length > 0 && { lines: r }; },
   },
-  /** A fair test's result, and the world waits for a guess (scope decision 60): "Why are the ones with bigger eyes doing better?" */
-  why: { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && !s.lastGuess.same && { text: s.lastGuess.text } },
+  /** A follow's result goes the table's way, and the world waits for a guess (scope decisions 60 and 68): "Why is your line with bigger eyes growing?" */
+  why: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && !s.lastGuess.same && !s.lastGuess.died && { text: s.lastGuess.text } },
   /** The same, after the child's guess: why, from the table. */
-  "why-answer": { families: FROM_OTHERS, policies: ["active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why are/.test(s.lastGuess.text) && !s.lastGuess.same && { text: s.lastGuess.text } },
-  /**
-   * A sudden drop of the family or line, mostly crowded out, that one trait explains: "Why is your line shrinking?"
-   * Most sudden drops have no such trait; in seed 13 one comes at generation 23 (scope decision 66).
-   */
-  "why-drop": { families: FROM_OTHERS, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === "guess" && /^Why is/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
+  "why-answer": { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === "guess" && !!s.lastGuess.discovery && !s.lastGuess.same && !s.lastGuess.died && { text: s.lastGuess.text } },
+  /** A sudden drop of the family or line, mostly crowded out, that one trait explains: "Why is your line shrinking?" */
+  "why-drop": { families: FROM_OTHERS, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === "guess" && /shrinking\?$/.test(s.lastGuess.text) && { text: s.lastGuess.text } },
   /** "Your animals, on average", opened from the living portrait, with the family tree strip (scope decision 61). */
   average: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length >= 2 && s.familyTree().nodes.length >= 4 },
-  /** A member of your family with a new trait, for its creature card. */
+  /** A member of your line with a new trait, for its creature card. */
   card: {
     families: FROM_OTHERS,
     policies: ["passive"],
@@ -375,8 +323,6 @@ async function findStory(game, moment, relaxed = false) {
         const hit = at(story, ev, bridge, what);
         if (hit) return found(hit, null);
         if (what === "choice") continue;
-        // A spread that reached a fair test's size starts the test by itself, as in the game.
-        if (what === "spread-ready") { story.follow(story.lastSpread, false); continue; }
         // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes).
         const q = story.phase === "watch" ? story.guessNow(ev) : null;
         if (q) {
@@ -392,8 +338,7 @@ async function findStory(game, moment, relaxed = false) {
           const act = policy(story);
           if (act) {
             actions.push({ generation: ev.generation, day, ...act });
-            const g = story.glowFor(act.id);
-            if (act.kind === "follow") story.follow(g, false); else story.trySpread(g);
+            story.follow(story.glowFor(act.id), false);
           }
         }
         if (n % 4 === 0) await frame(); // keep the page alive
@@ -429,7 +374,7 @@ function act(game, a) {
     G.pick(o, false, performance.now());
     G.followChoice(o, false);
   } else {
-    // "Follow" on the glowing newborn's card: a fair test right away, or a fast-forward to see if it spreads.
+    // "Follow animals with …" on the glowing newborn's card.
     const g = s.glowFor(a.id);
     if (!g) return;
     G.followFromMap(g);
@@ -457,14 +402,8 @@ async function playTo(game, plan) {
     G.generation(last ? t0 - (plan.day ?? 0) * 1000 : t0 - 60000);
     G.clock = hold;
     if (last && plan.day === null) break;
+    if (G.backing) G.backNow(); // a line that died out: its last animals have faded long ago, and its "Why?" comes
     if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); } // the child guesses, and reads why
-    if (G.since || G.journal) {
-      // A spread reached a fair test's size and the test starts by itself: the panels go on as the child would.
-      await frame();
-      if (G.since) G.closeSince();
-      if (G.journal) answer(G);
-      G.clock = hold;
-    }
     if (G.story.phase === "choice") {
       await frame(); // the backup panel opens, then the child takes the option
       for (const a of plan.actions) if (a.kind === "push" && due(a)) act(G, a);
@@ -546,7 +485,8 @@ export async function goToMoment(game, moment) {
   // A moment at a generation shows the day's babies at once; one during a day keeps the day's hour.
   if (plan.day === null) G.revealAll(performance.now());
   G.clock = (plan.day ?? 0) * 1000;
-  if (plan.day === null) G.logTimer = 0; // at a generation, its line shows now (playing forward took only a moment)
+  // At a generation, its line shows now (playing forward took only a moment); the fast-forward's counter stays up.
+  if (plan.day === null && moment !== "rising" && moment !== "slowdown") G.logTimer = 0;
   if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); } // no mist on a moment deep in a story
   const glowOf = (id) => G.story.glowFor(id);
   // A guess the last generation asked belongs to its own moments; the others show what they are about.
@@ -562,10 +502,9 @@ export async function goToMoment(game, moment) {
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
   } else if (moment === "joining") {
-    // The child follows the glowing newborn: the ones already theirs light up, then the others walk in.
+    // The child follows the glowing newborn: the line's animals with its trait light up, counted, and the counter starts.
     const g = glowOf(plan.hit.id);
     if (g) { G.followFromMap(g); if (G.since) G.closeSince(); }
-    lookAtGroup(G);
   } else if (moment === "edge-arrow") {
     // The camera looks away from the baby, toward the middle of the world: an arrow at the edge points back to it.
     const a = G.herd.animals.get(plan.hit.id);
@@ -574,12 +513,26 @@ export async function goToMoment(game, moment) {
       lookAt(G, a.x < G.world.W / 2 ? a.x + away : a.x - away, a.y);
       G.exploring = true;
     }
-  } else if (moment === "spreading") {
-    // The world fast-forwards, the counter rising; the camera stays where the child tapped the newborn.
-    const a = G.herd.animals.get(plan.hit.id);
-    if (a) lookAt(G, a.x, a.y); else lookAtGroup(G);
-  } else if (moment === "grow" || moment === "shrink" || moment === "fizzled" || moment === "danger" || moment === "fairtest" ||
-    moment === "moving" || moment === "so-far" || moment === "reason") {
+  } else if (moment === "rising" || moment === "slowdown") {
+    // The fast-forward holds the whole line in view; at its end, the camera goes back to the story's zoom on the line.
+    const tw = G.camTween, zw = G.zoomTween;
+    if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "line-dies" || moment === "died-why" || moment === "back-line") {
+    // The line's last animals fade, the camera on them; then its "Why?"; then back to the line before.
+    const tw = G.camTween;
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+    if (moment !== "line-dies" && G.backing) G.backNow();
+    if (moment === "back-line" && G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); G.logTimer = 0; G.pumpLog(0); }
+    if (moment === "back-line") lookAtGroup(G);
+  } else if (moment === "compare") {
+    // The line and "Your relatives here": on a phone the slim bar opens to show them.
+    lookAtGroup(G);
+    if (G.compact.matches) G.setHud(true);
+  } else if (moment === "growing" || moment === "dying") {
+    // The line growing, or dying off one by one with the camera on each: its verdict and reason in the narration.
+    if (moment === "growing") lookAtGroup(G);
+  } else if (moment === "grow" || moment === "shrink" || moment === "moving" || moment === "so-far" || moment === "reason") {
     lookAtGroup(G);
     // The reason's line comes first, so it is the one on screen.
     if (moment === "reason") G.logQueue = [plan.hit.lines[0], ...G.logQueue.filter((l) => l !== plan.hit.lines[0])];
@@ -595,7 +548,7 @@ export async function goToMoment(game, moment) {
   } else if (moment === "choice") {
     lookAtGroup(G, 0.3); // as the panel itself frames it
   } else if (moment === "prediction" || moment === "prediction-result") {
-    // The child follows the glowing newborn: the first question, or the last fair test beside the prediction.
+    // The child follows the glowing newborn: the first question, or the line since the last choice beside the prediction.
     const g = glowOf(plan.hit.id);
     if (g) G.followFromMap(g);
     lookAtGroup(G, 0.3);
@@ -610,10 +563,10 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
+  } else if (moment === "ending" || moment.startsWith("ending-") || moment === "story-card") {
     G.endingAt = null;
     G.showEnding();
-    if (moment !== "ending" && moment !== "extinct") {
+    if (moment !== "ending") {
       // The child builds the idea the table would give: the family's biggest helper (or hurter) where it lived.
       const t = truthOf(G.story), trait = G.story.outcome === "survived" ? t.helper ?? t.hurter : t.hurter ?? t.helper;
       G.setEndingStep(1);
@@ -621,9 +574,7 @@ export async function goToMoment(game, moment) {
       if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
       G.ideaChanged();
       if (moment !== "ending-idea") G.answerIdea();
-      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.setEndingStep(3);
-      // At the reveal, "Try another family" with few generations left asks first.
-      if (moment === "nearly-over") G.anotherFamily();
+      if (moment === "ending-reveal" || moment === "story-card") G.setEndingStep(3);
       if (moment === "story-card") {
         const s = G.story, canvas = await storyCard(doc, {
           name: s.name, noun: s.noun, title: G.endingTitleEl.textContent, tree: s.familyTree(), chips: s.chips.map((c) => ({ words: chipWords(c.v.group), faded: !!c.faded })),
@@ -652,19 +603,6 @@ export async function goToMoment(game, moment) {
   } else if (moment === "why" || moment === "why-answer" || moment === "why-drop" || moment === "same") {
     lookAtGroup(G, 0.3);
     if (moment === "why-answer" && G.guess) G.answerGuess(G.guess.question.options.find((o) => !o.right) ?? G.guess.question.options[0]);
-  } else if (moment === "another-family" || moment === "in-trouble") {
-    // The ending, then "Try another family" ("Keep going anyway" when few generations are left): the world as it is
-    // now, and a family with a future to tap.
-    G.endingAt = null;
-    G.showEnding();
-    await new Promise((resolve) => { G.anotherFamily(moment === "in-trouble"); setTimeout(resolve, 120); });
-    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
-    if (moment === "in-trouble") {
-      const doomed = G.bridge.livingIds().find((id) => !G.hasFuture(id));
-      const a = doomed === undefined ? null : G.herd.animals.get(doomed);
-      if (a) { lookAt(G, a.x, a.y); G.tapFamily(a); plan.hit = { id: a.id }; }
-      else plan.hit = { none: "every family has a future" };
-    }
   } else if (moment === "card" || moment === "blocked" || moment === "away" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
@@ -680,7 +618,7 @@ export async function goToMoment(game, moment) {
  * @typedef {Object} Action what the child did
  * @property {number} generation the generation whose day it was (or, for a push, the one the panel opened after)
  * @property {null|number} day seconds into that watched day (null for a push)
- * @property {"follow"|"spread"|"push"} kind "follow" on a glowing newborn's card started a fair test right away, or a spread
+ * @property {"follow"|"push"} kind "follow" on a glowing newborn's card, or the option taken on the backup panel
  * @property {number} [id] the glowing newborn tapped
  * @property {string} [trait] @property {number} [dir] the option taken on the backup panel
  */

@@ -9,15 +9,16 @@
  * canvas as plain events.
  *
  * The child follows a family (families.js), then a line (scope decisions 66
- * and 67): each follow narrows the line to its animals with the chosen
+ * to 68): each follow narrows the line to its animals with the chosen
  * variation in its place, and from then on a baby joins the line when a
- * parent is in it and it inherited the variation. The rest of the old line in
- * its place, and the line's babies that didn't inherit it, are the child's
- * relatives, each marked with the follow that made them relatives, so a
- * follow that didn't make it can give the previous line back. The family
- * grows by babies whose mother is in it (a pair's two babies have one mother
- * each: the first joins parent A's family, the second parent B's, scope
- * decision 58). Following is observer state only and cannot change the biology.
+ * parent is in it and it inherited that variation (the latest one only). The
+ * rest of the old line in its place, and the line's babies that didn't
+ * inherit it, are the child's relatives, each marked with the follow that made
+ * them relatives, so a line that dies out can give the previous line back.
+ * The family grows by babies whose mother is in it (a pair's two babies have
+ * one mother each: the first joins parent A's family, the second parent B's,
+ * scope decision 58). Following is observer state only and cannot change the
+ * biology.
  */
 
 import {
@@ -57,15 +58,8 @@ export class Bridge {
      * line's babies that didn't inherit its variation, and their babies; each with the follow that made it a relative
      */
     this.relatives = new Map();
-    /**
-     * @type {null|{mine:Set<number>, theirs:Set<number>, line:Set<number>}} the latest fair test: its twins with the
-     * variation and without it, still alive (who made it), and the side with it with its babies since
-     */
-    this.test = null;
-    /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
+       /** @type {Map<number, {trait:string, up:boolean}>} each living animal's trait that is new at birth */
     this.newAtBirth = new Map();
-    /** "inherit": a baby joins the line only if it inherited the line's variation (scope decision 67); "all": any baby of the line, for comparison */
-    this.lineBabies = "inherit";
   }
 
   /**
@@ -118,7 +112,6 @@ export class Bridge {
     for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
     this.follow = { roots: [...roots], members, v: null };
     this.relatives = new Map();
-    this.test = null;
     return this.follow;
   }
 
@@ -131,11 +124,10 @@ export class Bridge {
    * one's now.
    * @param {number[]} ids the carriers followed, in the line's place
    * @param {number} zone the line's place
-   * @param {null|import("./cohorts.js").Variation} [v] the variation followed; null keeps decision 66's rule, where
-   *   every baby of the line joins it through its mother
-   * @param {number} [mark] this follow's number (1 for the first)
+   * @param {import("./cohorts.js").Variation} v the variation followed
+   * @param {number} mark this follow's number (1 for the first)
    */
-  narrowTo(ids, zone, v = null, mark = 0) {
+  narrowTo(ids, zone, v, mark) {
     const keep = new Set(ids);
     for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.set(id, mark);
     for (const id of keep) this.relatives.delete(id);
@@ -144,10 +136,11 @@ export class Bridge {
   }
 
   /**
-   * A follow didn't make it ("Back to your line", scope decision 67): the
-   * relatives it made, the rest of the previous line and its babies since,
-   * are the line again, with the previous line's variation (none for a family).
-   * @param {number} mark the follow that didn't make it
+   * A followed line died out ("Back to your line", scope decision 68): the
+   * relatives its follow made, the rest of the previous line and its babies
+   * since, are the line again, with the previous line's variation (none for a
+   * family).
+   * @param {number} mark the follow whose line died out
    * @param {null|import("./cohorts.js").Variation} v the previous line's variation
    * @returns {Set<number>} the line now (empty when none of them is alive)
    */
@@ -159,22 +152,22 @@ export class Bridge {
     return members;
   }
 
-  /** A new story in this world: no line, relatives or fair test until the child taps a family. */
+  /** A new story in this world: no line or relatives until the child taps a family. */
   unfollow() {
     this.follow = null;
     this.relatives = new Map();
-    this.test = null;
   }
 
   /**
-   * Who won't make it next generation. Classroom survival draws nothing (scope
+   * Who won't make it next generation, and why: "maximum_age" (old age) or
+   * "least_suited" (crowded out). Classroom survival draws nothing (scope
    * decision 55), so this is exactly who the next step will take; reading it
    * changes nothing.
-   * @returns {Set<number>}
+   * @returns {Map<number, string>}
    */
   dyingNext() {
     const snapshot = this.state.currentIndividuals.slice().sort((a, b) => a.id - b.id);
-    return new Set(whoDoesNotMakeIt(snapshot, classroomConfig).keys());
+    return whoDoesNotMakeIt(snapshot, classroomConfig);
   }
 
   /** One of the child's relatives: the rest of a line the child narrowed from, or a baby of one. */
@@ -185,29 +178,9 @@ export class Bridge {
   /** The line's animals living in this place. */
   followedIn(zone) { let n = 0; if (this.follow) for (const id of this.follow.members) if (this.zoneOf(id) === zone) n++; return n; }
 
-  /**
-   * A fair test inside the family: two groups of twins tracked beside it,
-   * counted by who made it (scope decision 65): they lose their dead and
-   * never gain babies. The side with the variation is also followed with its
-   * babies (by mother), for the predictions. The family itself stays as it is.
-   * @param {number[]} mine yours with the variation @param {number[]} theirs their twins without it
-   */
-  startTest(mine, theirs) {
-    this.test = { mine: new Set(mine), theirs: new Set(theirs), line: new Set(mine) };
-    return this.test;
-  }
-
-  /** In the child's family. */
+  /** In the child's family, or line. */
   isFollowed(id) { return !!this.follow && this.follow.members.has(id); }
   followedIds() { return this.follow ? [...this.follow.members] : []; }
-  /** A twin in the fair test's group with the variation ("yours with …"), still alive. */
-  isMine(id) { return !!this.test && this.test.mine.has(id); }
-  mineIds() { return this.test ? [...this.test.mine] : []; }
-  /** A twin in the fair test's group without it, still alive. */
-  isOther(id) { return !!this.test && this.test.theirs.has(id); }
-  otherIds() { return this.test ? [...this.test.theirs] : []; }
-  /** The side with the variation and its babies since the test began. */
-  withLineIds() { return this.test ? [...this.test.line] : []; }
 
   /** The family's living members with their body genomes and habitats. */
   followedAnimals() {
@@ -272,29 +245,17 @@ export class Bridge {
     }
     if (g % 10 === 0) for (const id of this.newAtBirth.keys()) if (!this.byId.has(id)) this.newAtBirth.delete(id);
 
-    // The fair test's twins only lose their dead: who made it (scope decision 65). The side with the variation
-    // with its babies changes the same way as the family.
-    let test = null;
-    if (this.test) {
-      const change = (set, babies) => {
-        const before = set.size;
-        if (babies) for (const b of births) if (set.has(b.motherId)) set.add(b.childId);
-        for (const d of deaths) set.delete(d.id);
-        return { count: set.size, before };
-      };
-      test = { mine: change(this.test.mine, false), theirs: change(this.test.theirs, false), line: change(this.test.line, true) };
-    }
     // Relatives (scope decision 67): a baby of the line that didn't inherit its variation, marked with the latest
     // follow, and a baby of a relative, marked like the parent nearest the line. They lose their dead.
     const f = this.follow;
     if (!f?.v) {
-      // Decision 66's rule: a relative's baby joins the relatives through its mother.
+      // Back with the family (scope decision 68): a relative's baby joins the relatives through its mother.
       for (const b of births) if (this.relatives.has(b.motherId)) this.relatives.set(b.childId, this.relatives.get(b.motherId));
     } else {
       for (const b of births) {
         const kid = this.byId.get(b.childId);
         const fromLine = f.members.has(b.parentAId) || f.members.has(b.parentBId);
-        if (fromLine && kid && (this.lineBabies === "all" || carries(kid.bodyGenome, f.v))) continue; // it joins the line (updateGroup)
+        if (fromLine && kid && carries(kid.bodyGenome, f.v)) continue; // it joins the line (updateGroup)
         const marks = [this.relatives.get(b.parentAId), this.relatives.get(b.parentBId)].filter((m) => m !== undefined);
         if (fromLine) marks.push(f.mark);
         if (marks.length) this.relatives.set(b.childId, Math.max(...marks));
@@ -307,7 +268,6 @@ export class Bridge {
       deaths,
       mutations,
       group: this.updateGroup(births, deaths, mutations, g),
-      test,
       observerErrors: result.observerErrors,
     };
   }
@@ -321,7 +281,7 @@ export class Bridge {
     const born = births.filter((b) => {
       if (!f.v) return f.members.has(b.motherId);
       const kid = this.byId.get(b.childId);
-      return (f.members.has(b.parentAId) || f.members.has(b.parentBId)) && !!kid && (this.lineBabies === "all" || carries(kid.bodyGenome, f.v));
+      return (f.members.has(b.parentAId) || f.members.has(b.parentBId)) && !!kid && carries(kid.bodyGenome, f.v);
     }).map((b) => b.childId);
     const gone = deaths.filter((d) => f.members.has(d.id)).map((d) => d.id);
     for (const id of born) f.members.add(id);
@@ -355,9 +315,7 @@ export class Bridge {
  *   records, with the parent whose family each baby joins
  * @property {Array<{id:number, cause:string}>} deaths engine death events
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
- * @property {null|GroupEvents} group what happened to the child's family (null when there is none)
- * @property {null|{mine:{count:number, before:number}, theirs:{count:number, before:number}}} test the fair test's
- *   two groups (null before a follow)
+ * @property {null|GroupEvents} group what happened to the child's family or line (null when there is none)
  * @property {ReadonlyArray<Object>} observerErrors
  *
  * @typedef {Object} GroupEvents

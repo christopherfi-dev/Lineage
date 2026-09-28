@@ -545,7 +545,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   border-radius: 18px; background: #FCEBD8; box-shadow: inset 0 0 0 2px #EDB98A;
   font-family: Petrona, Georgia, serif; font-size: 20px; line-height: 1.25; color: #5B3414; text-wrap: balance;
 }
-/* ---- The fair test: yours and the others here, side by side, as counts with bars. ---- */
+/* ---- Your line and your relatives here (scope decision 67), side by side, as counts with bars. ---- */
 .fair-board, #ending-fair-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 #since-body .count, #choice-since .count, #ending-fair-rows .count {
   display: flex; align-items: flex-end; gap: 14px; min-width: 0; padding: 12px 16px 14px; border-radius: 18px; white-space: normal;
@@ -588,7 +588,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #since.open #since-body > .count { animation-delay: .25s; }
 #since.open #since-body > .count ~ .count { animation-delay: .45s; }
 
-/* The ending's last fair test: the same scoreboard. */
+/* The ending's last choice: its line and its relatives here, the same way. */
 #ending-fair[hidden] { display: none; }
 #ending-fair-rows { padding: 12px; border-radius: 20px; background: #EFE5CE; }
 #ending-fair-rows .heading { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; padding: 0 4px; font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 600; }
@@ -608,12 +608,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #ending.died #reveal { background: #E9E6EE; color: #33384C; box-shadow: 0 0 0 2px rgba(110, 120, 160, .35); }
 #ending.died #reveal-why { color: #474C60; }
 
-/* ---- Will it spread? The counter rises like something growing; the world leans warm while it runs. ---- */
+/* ---- The fast-forward after a follow (scope decision 67): the counter rises like something growing; the world leans warm while it runs. ---- */
 #stage::after {
   content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
   background: radial-gradient(ellipse 120% 90% at 50% 55%, transparent 55%, rgba(255, 196, 96, .28) 100%);
 }
-#stage.spreading::after { opacity: 1; animation: spreadBreathe 2s ease-in-out infinite alternate; }
+#stage.rising::after { opacity: 1; animation: spreadBreathe 2s ease-in-out infinite alternate; }
 @keyframes spreadBreathe { from { opacity: .65; } to { opacity: 1; } }
 #logbar #log.spread {
   padding: 8px 10px 8px 20px; border-radius: 999px;
@@ -626,7 +626,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   35% { transform: scale(1.045); box-shadow: 0 0 0 3px rgba(255, 226, 160, .95), 0 0 46px rgba(255, 206, 110, .75); }
   100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 214, 138, .55), 0 0 30px rgba(255, 196, 96, .35); }
 }
-/* It disappeared / didn't spread: the glow lets go softly, a little cooler, with no alarm. */
+/* A gentle line: the glow lets go softly, a little cooler, with no alarm. */
 #logbar #log.gentle { padding: 8px 10px 8px 20px; border-radius: 999px; background: rgba(34, 40, 52, .32); box-shadow: 0 0 0 1.5px rgba(210, 222, 240, .45); color: #F1F4FA; animation: gentleIn 1.4s ease both; }
 @keyframes gentleIn { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: none; } }
 /* Wait! Your group is getting very small: warm and clear, the camera already on them. */
@@ -716,7 +716,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   font-size: 13.5px; font-weight: 600; color: #4A4C3E; transition: opacity .6s ease;
 }
 #why-here[hidden] { display: none; }
-#stage.arriving #why-here, #stage.panel-up #why-here { opacity: 0; pointer-events: none; }
+#stage.arriving #why-here, #stage.panel-up #why-here, #why-here.crowded { opacity: 0; pointer-events: none; }
 #why-here p { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; }
 #why-here .help::before, #why-here .hurt::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin-right: 2px; border-radius: 50%; }
 #why-here .help::before { background: #3E8E5B; }

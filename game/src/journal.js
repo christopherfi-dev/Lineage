@@ -10,8 +10,9 @@
 
 import { TRAITS, PLACE_EFFECTS } from "./engine.js";
 import { TRAIT_WORDS, isNeutral } from "./variations.js";
-import { ZONE_AT, shortGroup, withLabel, twinsLabel, othersLabel } from "./narration.js";
+import { ZONE_AT, shortGroup, lineWithLabel, RELATIVES_HERE } from "./narration.js";
 import { whyLine } from "./why.js";
+import { better } from "./groups.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
 export const PREDICT_AFTER = [1, 4, 7, 10, 13];
@@ -19,12 +20,12 @@ export const PREDICT_AFTER = [1, 4, 7, 10, 13];
 export const JOURNAL_SECONDS = 15;
 
 /**
- * The question types, taking turns by prediction: your animals with the
- * variation, then the fair test (scope decision 35). The old "ones not chosen" and "where" types went with the
- * groups they were about: no group is made from an option not chosen, and a
- * fair test's groups start in one habitat.
+ * The question types, taking turns by prediction (scope decisions 35 and
+ * 68): your line with the variation, then your line against your relatives
+ * there. The old "ones not chosen", "where" and fair-test types went with the
+ * groups they were about.
  */
-const CYCLE = ["mine", "fair"];
+const CYCLE = ["line", "relatives"];
 
 /**
  * What a trait does for survival in a habitat, from the engine's Classroom
@@ -105,25 +106,25 @@ function growOptions(trait, dir, zone) {
 }
 
 /**
- * The fair-test question's options (scope decision 35): which side will do
- * better, the family's animals with the variation or without it (scope
- * decision 59), with the reasonable answer first.
+ * The line-against-relatives question's options (scope decision 68): which
+ * will do better, the child's line with the variation or their relatives
+ * there, with the reasonable answer first.
  * @param {import("./cohorts.js").Variation} v the variation followed
- * @param {number} zone the place of the test
+ * @param {number} zone the line's place
  */
-function fairOptions(v, zone) {
-  const words = v.group, options = [], them = PLURAL.has(v.trait) ? "them" : "it";
+function relativesOptions(v, zone) {
+  const words = v.group, options = [];
   if (noMatter(v.t, zone)) {
     options.push({ text: `About the same. ${cap(words)} won't matter.`, outcome: "same", reasonable: true });
-    options.push({ text: `With ${them}. ${cap(words)} will help them.`, outcome: "mine", tag: "matters" });
+    options.push({ text: `Your line. ${cap(words)} will help them.`, outcome: "line", tag: "matters" });
   } else {
     const helps = v.dir * netEffect(v.t, zone) > 0;
     options.push(helps ?
-      { text: `With ${them}. ${whyLine(v.t, zone)}`, outcome: "mine", reasonable: true } :
-      { text: `Without ${them}. ${whyLine(v.t, zone)}`, outcome: "theirs", reasonable: true });
+      { text: `Your line. ${whyLine(v.t, zone)}`, outcome: "line", reasonable: true } :
+      { text: `Your relatives. ${whyLine(v.t, zone)}`, outcome: "relatives", reasonable: true });
   }
-  options.push({ text: `With ${them}, because I picked them.`, outcome: "mine", tag: "chose" });
-  options.push({ text: `With ${them}. ${needLine(v.trait, v.dir)}`, outcome: "mine", tag: "need" });
+  options.push({ text: "Your line, because I picked them.", outcome: "line", tag: "chose" });
+  options.push({ text: `Your line. ${needLine(v.trait, v.dir)}`, outcome: "line", tag: "need" });
   if (options.length < 4 && !noMatter(v.t, zone)) options.push({ text: "About the same. It's all luck.", outcome: "same", tag: "luck" });
   return options;
 }
@@ -133,30 +134,23 @@ function fairOptions(v, zone) {
 /**
  * The question right after a follow, from the story's real state.
  * @param {import("./story.js").Story} story just after the child's follow
- * @param {import("./bridge.js").Bridge} bridge
  * @param {{v:import("./cohorts.js").Variation}} chosen what the child followed
  * @param {number} slot which prediction of the story this is: 0 for the first
  * @returns {Question}
  */
-export function questionFor(story, bridge, chosen, slot) {
-  const v = chosen.v, zone = story.fair.zone, words = shortGroup(v.group);
-  const fits = { mine: true, fair: bridge.otherIds().length > 0 };
+export function questionFor(story, chosen, slot) {
+  const c = story.choices[story.choices.length - 1], v = chosen.v, zone = c.zone, words = shortGroup(v.group);
+  const fits = { line: true, relatives: c.relativesAtChoice > 0 };
   const start = CYCLE[slot % CYCLE.length];
   const type = [start, ...CYCLE.filter((x) => x !== start)].find((x) => fits[x]);
   // The question names the trait and the place (scope decision 60): "Some of your animals now have longer back
   // legs. They live in the high leaves. What will happen?"
   const has = `Some of your animals now have ${words}. They live ${ZONE_AT[zone]}.`;
-  if (type === "mine") {
-    return {
-      type, text: `${has} What will happen?`,
-      options: growOptions(v.trait, v.dir, zone),
-      subject: { v, then: story.mine.then },
-    };
-  }
+  if (type === "line") return { type, text: `${has} What will happen?`, options: growOptions(v.trait, v.dir, zone), subject: { c, name: story.name } };
   return {
-    type, text: `${has} Which will do better?`,
-    options: fairOptions(v, zone),
-    subject: { v, mine: story.mine.then, theirs: story.theirs.then },
+    type, text: `${has} Which will do better, your line or your relatives?`,
+    options: relativesOptions(v, zone),
+    subject: { c, name: story.name },
   };
 }
 
@@ -165,37 +159,36 @@ export function questionFor(story, bridge, chosen, slot) {
 const went = (then, now) => (now === 0 ? "died" : now > then ? "grow" : now < then ? "shrink" : "same");
 const THOUGHT = { grow: "would grow", shrink: "would shrink", same: "would stay the same" };
 const HAPPENED = { grow: "grew", shrink: "shrank", same: "stayed the same", died: "died out" };
-const THOUGHT_FAIR = { mine: "You thought the ones with it would do better.", theirs: "You thought the ones without would do better.", same: "You thought they'd do about the same." };
-const HAPPENED_FAIR = { mine: "The ones with it did better.", theirs: "The ones without did better.", same: "They did about the same." };
+const THOUGHT_KIN = { line: "You thought your line would do better.", relatives: "You thought your relatives would do better.", same: "You thought they'd do about the same." };
+const HAPPENED_KIN = { line: "Your line did better.", relatives: "Your relatives did better.", same: "They did about the same." };
 
 /**
- * What really happened since the prediction, as count rows and short lines.
- * Called at the next "Since your last choice" panel, or at the ending, while
- * the groups it is about are still the ones followed.
+ * What really happened since the prediction's follow, as count rows and short
+ * lines: its line, and for the second type its relatives there, when the
+ * line was replaced by the next follow, died out, or the story ended; else
+ * now. Called at the next "Since your last choice" panel, or at the ending.
  * @param {Prediction} p
  * @param {import("./story.js").Story} story
  * @returns {Result}
  */
 export function resultOf(p, story) {
-  const q = p.question, a = p.answer, lines = [], reasonable = q.options.find((o) => o.reasonable);
+  const q = p.question, a = p.answer, c = q.subject.c, lines = [], reasonable = q.options.find((o) => o.reasonable);
+  const line = { then: c.sizeAtChoice, now: c.sizeAtEnd ?? story.family.now };
+  const kin = { then: c.relativesAtChoice, now: c.relativesAtEnd ?? story.bridge.relativesIn(c.zone) };
+  const label = lineWithLabel(c.group, q.subject.name);
   let rows, came;
-  if (q.type === "mine") {
-    // Grow or shrink: the side with the variation with its babies since (scope decision 65).
-    const mine = story.withLine.now, actual = went(q.subject.then, mine);
-    rows = [{ label: withLabel(q.subject.v.group), then: q.subject.then, now: mine, mine: true }];
+  if (q.type === "line") {
+    const actual = went(line.then, line.now);
+    rows = [{ label, ...line, kin: false }];
     lines.push(a.outcome === "nomatter" ?
       `You thought ${a.words} wouldn't matter. It didn't.` :
       `You thought it ${THOUGHT[a.outcome]}. It ${HAPPENED[actual]}.`);
     came = reasonable.outcome === "nomatter" || reasonable.outcome === actual;
   } else {
-    // Which did better: the fair test's twins, who made it, at its result (scope decision 65), or now if it had none yet.
-    const r = story.choices[story.choices.length - 1]?.result, mine = r ? r.mine : story.mine.now, theirs = r ? r.theirs : story.theirs.now;
-    const actual = r?.same ? "same" : mine > theirs ? "mine" : theirs > mine ? "theirs" : "same";
-    rows = [
-      { label: twinsLabel(q.subject.mine, q.subject.v.group), then: q.subject.mine, now: mine, mine: true, madeIt: true },
-      { label: othersLabel(q.subject.theirs), then: q.subject.theirs, now: theirs, mine: false, madeIt: true },
-    ];
-    lines.push(THOUGHT_FAIR[a.outcome], mine + theirs === 0 ? "None of them made it." : HAPPENED_FAIR[actual]);
+    // Which did better: by how much each grew (groups.js), so a small line and many relatives compare.
+    const b = better(line, kin), actual = b > 0 ? "line" : b < 0 ? "relatives" : "same";
+    rows = [{ label, ...line, kin: false }, { label: RELATIVES_HERE, ...kin, kin: true }];
+    lines.push(THOUGHT_KIN[a.outcome], line.now + kin.now === 0 ? "Both died out." : HAPPENED_KIN[actual]);
     came = reasonable.outcome === actual;
   }
   if (a.tag === "need") lines.push(NEED_LINE);
@@ -206,16 +199,16 @@ export function resultOf(p, story) {
 /**
  * @typedef {Object} Answer
  * @property {string} text what the option says
- * @property {"grow"|"shrink"|"same"|"nomatter"|"mine"|"theirs"} outcome what it predicts
+ * @property {"grow"|"shrink"|"same"|"nomatter"|"line"|"relatives"} outcome what it predicts
  * @property {boolean} [reasonable] the one reasonable answer
  * @property {"chose"|"need"|"same"|"matters"|"luck"} [tag] which misconception it is
  * @property {string} [words] the trait, for "won't matter"
  *
  * @typedef {Object} Question
- * @property {"mine"|"fair"} type
+ * @property {"line"|"relatives"} type
  * @property {string} text
  * @property {Answer[]} options the reasonable answer first (shown in a random order)
- * @property {Object} subject what to measure later
+ * @property {{c:import("./story.js").Choice, name:null|string}} subject the follow it is about, and the family's name
  *
  * @typedef {Object} Prediction
  * @property {Question} question
@@ -224,7 +217,7 @@ export function resultOf(p, story) {
  * @property {null|Result} result filled in at the next follow, or at the ending
  *
  * @typedef {Object} Result
- * @property {Array<{label:string, then:number, now:number, mine:boolean}>} rows
+ * @property {Array<{label:string, then:number, now:number, kin:boolean}>} rows the line, and its relatives there
  * @property {string[]} lines "You thought it would grow. It grew." and, after a misconception, one more
  * @property {boolean} came whether the reasonable answer is what happened
  */
