@@ -28,13 +28,13 @@ import { isNeutral } from "./variations.js";
 import { FIRST_MAMMALS } from "./reveal.js";
 import { TRAIT_INDEX } from "./engine.js";
 import { netEffect, PREDICT_AFTER } from "./journal.js";
-import { OTHER_TRAITS } from "./narration.js";
+import { OTHER_TRAITS, fillingLine } from "./narration.js";
 import { storyCard } from "./storycard.js";
 import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "choose-place", "moving", "arrived",
+  "arrival", "naming", "choose-place", "moving", "arrived", "filling",
   "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
   "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
   "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
@@ -135,6 +135,8 @@ const MOMENT = {
     places: [2, 0],
     at: (s, ev, b, what) => what === "arrived" && { zone: s.home.zone, counts: s.home.counts.slice(), outcome: s.home.outcome },
   },
+  /** The line's place has filled up: "It's getting full. The best swimmers are winning." (scope decision 70). */
+  filling: { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => s.fillingNow && { zone: s.home.zone, what } },
   /** Mid-story, just before a generation passes, with a group big enough to see. */
   generation: { families: FROM_OTHERS, policies: ["active", "passive"], at: midStory },
   /** A newborn with a new variation lights up: the only one glowing. */
@@ -221,13 +223,17 @@ const MOMENT = {
     at: (s, ev, b, what) => what === null && s.phase === "watch" && since(s, ev) >= 3 && s.family.now >= 5 && s.relativesHere.now >= 5 &&
       { line: [s.family.then, s.family.now], relatives: [s.relativesHere.then, s.relativesHere.now] },
   },
-  /** An animal of another family in your line's place, three generations or more after a follow: its card sums up its family beside yours (playtest). */
+  /**
+   * An animal of another family in your line's place, three generations or more after a follow: its card sums up its
+   * family beside yours (playtest), and, for a group living there before your line came, once the place is full, "They
+   * got here first. Now webbed feet are starting to matter." (scope decision 70).
+   */
   "other-card": {
     families: FROM_OTHERS,
     policies: ["active", "passive"],
     at: (s, ev, b, what) => {
-      if (what !== null || s.phase !== "watch" || since(s, ev) < 3) return null;
-      const near = b.livingIds().filter((id) => !b.isFollowed(id) && !b.isRelative(id) && b.zoneOf(id) === s.place);
+      if (what !== null || s.phase !== "watch" || since(s, ev) < 3 || !s.full) return null;
+      const near = b.livingIds().filter((id) => s.gotHereFirst(id));
       return near.length ? { id: Math.max(...near) } : null;
     },
   },
@@ -643,6 +649,13 @@ export async function goToMoment(game, moment) {
     if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
     if (moment === "arrived") { G.logTimer = 0; G.pumpLog(0); } // "Back to real time. Watch your line." on screen
+  } else if (moment === "filling") {
+    // The place filling up is said first, the camera on the line.
+    const line = fillingLine(plan.hit.zone);
+    G.logQueue = [line, ...G.logQueue.filter((l) => l !== line)];
+    G.logTimer = 0;
+    G.pumpLog(0);
+    lookAtGroup(G);
   } else if (moment === "rising" || moment === "slowdown") {
     // The fast-forward holds the whole line in view; at its end, the camera goes back to the story's zoom on the line.
     const tw = G.camTween, zw = G.zoomTween;

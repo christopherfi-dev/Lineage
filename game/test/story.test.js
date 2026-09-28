@@ -469,14 +469,14 @@ test("next generation's deaths and their causes are known before it runs: Classr
   }
 });
 
-test("the first choice's lines are short, with no percentages, even with the longest family name", async () => {
+test("the first choice's lines, and the new home's, are short, with no percentages, even with the longest family name", async () => {
   const N = await import("../src/narration.js");
   const { MOMENTS } = await import("../src/moments.js");
   const { readFileSync } = await import("node:fs");
-  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE];
+  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE, N.LOTS_OF_ROOM];
   for (const zone of [0, 1, 2]) {
     lines.push(N.homeLine(19, zone, name), N.homeCounter(zone, [2, 5, 11, 20], "reached", name), N.homeCounter(zone, [3, 7, 12, 16, 18, 19], "cap", name),
-      N.homeGoneLine(zone, 2, name), N.PLACE_LABELS[zone]);
+      N.homeGoneLine(zone, 2, name), N.PLACE_LABELS[zone], N.fillingLine(zone), N.firstHereLine(zone));
   }
   for (const line of lines) {
     const words = line.split(/\s+/).filter((w) => /\p{L}|\d/u.test(w)).length;
@@ -489,4 +489,77 @@ test("the first choice's lines are short, with no percentages, even with the lon
   const page = readFileSync(new URL("../moments.html", import.meta.url), "utf8");
   const linked = [...page.matchAll(/data-moment="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual([...linked].sort(), [...MOMENTS].sort());
+});
+
+test("a new home with plenty of room says so; once some living there are crowded out it is full, told once; groups there before the line got there first", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  let told = 0, first = 0;
+  for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true });
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (!story.placeCards()[2]) story.afterGeneration(bridge.step());
+    const home = story.choosePlace(2);
+    // The water's edge right after the first babies: few live there, so its pairs have more babies.
+    assert.equal(home.roomy, true);
+    assert.equal(home.roomy, bridge.roomyIn(2));
+    assert.equal(story.full, false);
+    let fillings = 0;
+    while (story.phase !== "ended" && bridge.generation < 16) {
+      const zones = new Map(bridge.livingIds().map((id) => [id, bridge.zoneOf(id)]));
+      const ev = bridge.step();
+      for (const d of ev.deaths) assert.equal(d.zone, zones.get(d.id), "each death says where it lived");
+      const wasFull = story.full;
+      story.afterGeneration(ev);
+      if (!wasFull && story.full) {
+        assert.equal(story.fullAt, ev.generation);
+        assert.ok(ev.deaths.some((d) => d.cause === "least_suited" && d.zone === 2), "full: some there were crowded out");
+      }
+      if (story.fillingNow) { fillings++; assert.equal(story.phase, "watch"); assert.ok(story.full); }
+      // Another family's animals living at the water's edge since the child chose it got there first; the line and the
+      // relatives never did. (The line soon takes in the whole place: a baby there with a parent in it joins.)
+      for (const id of bridge.livingIds()) {
+        const mine = bridge.isFollowed(id) || bridge.isRelative(id), key = bridge.families.founder.get(id);
+        if (mine || bridge.zoneOf(id) !== 2) { assert.equal(story.gotHereFirst(id), false); continue; }
+        const at = story.firstIn.get(key)?.[2];
+        assert.equal(story.gotHereFirst(id), key !== story.ownFounding && at !== null && at <= home.generation);
+        if (story.gotHereFirst(id)) first++;
+      }
+      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        const g = story.glowing.find((x) => story.followable(x));
+        if (g && story.quiet >= 40 && !story.inDanger) story.follow(g, false);
+      }
+    }
+    assert.ok(story.full, "the water's edge fills up within 16 generations");
+    assert.equal(fillings, 1, "told once");
+    told++;
+  }
+  assert.equal(told, 3);
+  assert.ok(first > 0, "some groups at the water's edge got there first");
+});
+
+test("while nobody touches the iPad, a newborn's chime comes at most once in IDLE_CHIME_GAP seconds, and quieter", async () => {
+  const { Sound, IDLE_CHIME_GAP, IDLE_LEVEL } = await import("../src/sound.js");
+  let now = 0;
+  const calls = [], idles = [];
+  const sound = new Sound({ muted: false });
+  sound.ctx = { state: "running", get currentTime() { return now; } };
+  sound.graph = { chime: () => calls.push(now), setIdle: (idle) => idles.push(idle) };
+  // Someone is playing: every chime plays.
+  for (let k = 0; k < 5; k++) { sound.chime(); now += 4; }
+  assert.equal(calls.length, 5);
+  // Nobody is: at most one every IDLE_CHIME_GAP seconds.
+  sound.setIdle(true);
+  calls.length = 0;
+  for (let k = 0; k < 60; k++) { sound.chime(); now += 4; }
+  assert.equal(calls.length, Math.ceil((60 * 4) / (Math.ceil(IDLE_CHIME_GAP / 4) * 4)));
+  for (let i = 1; i < calls.length; i++) assert.ok(calls[i] - calls[i - 1] >= IDLE_CHIME_GAP);
+  // A touch: back to usual.
+  sound.setIdle(false);
+  calls.length = 0;
+  sound.chime(); now += 1; sound.chime();
+  assert.equal(calls.length, 2);
+  assert.deepEqual(idles, [true, false]);
+  assert.ok(IDLE_LEVEL > 0 && IDLE_LEVEL < 1);
 });

@@ -249,6 +249,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   background: linear-gradient(90deg, #FFE7B2, #FFF4DA 80%); box-shadow: 0 0 0 1.5px rgba(232, 184, 92, .6);
 }
 #card-group .same { font-style: italic; color: #585A4A; }
+/* Another group that lived in your line's place before your line came, once it is full (scope decision 70). */
+#card-group .first { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.25; color: #3E4436; }
 /* While the choice panel is up, the card sits in the room above it, wide (scope decision 23). */
 #card.above {
   left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 860px; margin-left: auto;

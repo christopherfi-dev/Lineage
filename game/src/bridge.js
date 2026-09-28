@@ -23,6 +23,7 @@
 
 import {
   advanceClassroomGeneration,
+  babiesPerPair,
   createAncestorWorld,
   createWebbedDemoWorld,
   classroomConfig,
@@ -98,6 +99,12 @@ export class Bridge {
   }
 
   zoneCounts() { return zoneBinCounts(this.state.currentIndividuals); }
+
+  /**
+   * This place has plenty of room: a pair living there would have more babies, since there is more food (the engine's
+   * own rule, scope decision 70).
+   */
+  roomyIn(zone) { return babiesPerPair(this.zoneCounts()[zone], zone, classroomConfig) > classroomConfig.offspringPerPair; }
 
   /* ================= following (observer state only) ================= */
 
@@ -239,6 +246,8 @@ export class Bridge {
    */
   step() {
     if (isExtinct(this.state)) return null;
+    // Where each animal lived before this generation, so each death says where it happened (scope decision 70).
+    const zoneBefore = new Map(this.state.currentIndividuals.map((i) => [i.id, currentZoneBinIndex(i)]));
     advanceClassroomGeneration(this.state, classroomConfig);
     this.index();
 
@@ -253,7 +262,7 @@ export class Bridge {
     });
     const deaths = this.state.deathEvents
       .filter((e) => e.generation === g)
-      .map((e) => ({ id: e.individualId, cause: e.cause }));
+      .map((e) => ({ id: e.individualId, cause: e.cause, zone: zoneBefore.get(e.individualId) ?? -1 }));
     const mutations = this.state.bodyMutationEvents
       .filter((e) => e.generation === g)
       .map((e) => ({
@@ -343,7 +352,7 @@ export class Bridge {
  * @property {number} generation
  * @property {Array<{childId:number, parentAId:number, parentBId:number, motherId:number}>} births engine birth
  *   records, with the parent whose family each baby joins
- * @property {Array<{id:number, cause:string}>} deaths engine death events
+ * @property {Array<{id:number, cause:string, zone:number}>} deaths engine death events, with the place each lived in
  * @property {Array<{childId:number, trait:string, before:number, after:number, delta:number}>} mutations engine body-mutation events
  * @property {null|GroupEvents} group what happened to the child's family or line (null when there is none)
  * @property {ReadonlyArray<Object>} observerErrors

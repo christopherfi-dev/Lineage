@@ -209,6 +209,17 @@ export class Story {
     this.homeTries = [];
     /** @type {null|Home} the place choice whose line just died out, for the page to say so */
     this.homeGone = null;
+    /** the line's place is full: some living there were crowded out since the child chose it (scope decision 70) */
+    this.full = false;
+    /** @type {null|number} the generation it first was */
+    this.fullAt = null;
+    /** the place filling up is told this generation, the first one watched since it filled */
+    this.fillingNow = false;
+    this.fillTold = false;
+    /** @type {Map<string|number, Array<null|number>>} by founding family, the generation it first had animals living in each place */
+    this.firstIn = new Map();
+    /** @type {null|string|number} the child's own founding family */
+    this.ownFounding = null;
     /** the generation of the world the story ends at, if the line lasts */
     this.length = length;
     /** whether this iPad's Field Guide already has an entry, by its key (reflection.js) */
@@ -384,6 +395,8 @@ export class Story {
     /** the animal the child tapped first: the family tree's first mother (scope decision 61) */
     this.firstId = id;
     this.startGeneration = this.bridge.generation;
+    this.ownFounding = this.bridge.families.founder.get(id) ?? null;
+    this.noteFirstIn();
     this.remember();
     this.phase = this.places ? "place" : "watch";
     this.sizeAtStart = this.lastAnimals.length;
@@ -427,11 +440,52 @@ export class Story {
   /**
    * After each engine generation.
    * @param {import("./bridge.js").GenerationEvents} ev
-   * @returns {"ended"|"rising"|"rise-done"|"back"|"choice"|null} what the story did
+   * @returns {"ended"|"rising"|"rise-done"|"back"|"choice"|"place"|"moving"|"arrived"|null} what the story did
    */
   afterGeneration(ev) {
+    const what = this.storyGeneration(ev);
+    // The line's place filled up (scope decision 70): told once, the first generation it is watched since.
+    this.fillingNow = false;
+    if (this.full && !this.fillTold && this.phase === "watch") { this.fillTold = true; this.fillingNow = true; }
+    return what;
+  }
+
+  /**
+   * When each founding family first had animals living in each place (scope decision 70): another group that was
+   * living in the line's place when the child chose it got there first.
+   */
+  noteFirstIn() {
+    const g = this.bridge.generation, founder = this.bridge.families.founder;
+    for (const id of this.bridge.livingIds()) {
+      const key = founder.get(id);
+      if (key === undefined) continue;
+      let at = this.firstIn.get(key);
+      if (!at) this.firstIn.set(key, (at = [null, null, null]));
+      const z = this.bridge.zoneOf(id);
+      if (z >= 0 && at[z] === null) at[z] = g;
+    }
+  }
+
+  /** Another group at the line's place was living there when the child chose it: it got there first (scope decision 70). */
+  gotHereFirst(id) {
+    const h = this.home;
+    if (!h || this.bridge.isFollowed(id) || this.bridge.isRelative(id) || this.bridge.zoneOf(id) !== h.zone) return false;
+    const key = this.bridge.families.founder.get(id);
+    const at = key === undefined || key === this.ownFounding ? null : this.firstIn.get(key)?.[h.zone] ?? null;
+    return at !== null && at <= h.generation;
+  }
+
+  /** One engine generation of the story (afterGeneration). */
+  storyGeneration(ev) {
     const g = ev.group;
+    if (g && this.running) this.noteFirstIn();
     if (!g || !this.running) return null;
+    // Some of the animals living in the line's place were crowded out: it is full, and who survives there depends on
+    // who suits it best (scope decision 70).
+    if (this.home && !this.full && ev.deaths.some((d) => d.cause === "least_suited" && d.zone === this.home.zone)) {
+      this.full = true;
+      this.fullAt = ev.generation;
+    }
     const seconds = this.fast ? FAST_SECONDS : this.generationSeconds;
     this.idle += seconds;
     if (!this.fast) this.quiet += seconds;
@@ -1010,7 +1064,11 @@ export class Story {
     const baby = shown !== undefined && this.isPlaceBaby(shown, zone) ? shown : card.id;
     this.bridge.narrowToPlace(ids, zone, HOME_MARK);
     const generation = this.bridge.generation;
-    this.home = { zone, id: baby, generation, mark: HOME_MARK, sizeAtChoice: ids.length, counts: [ids.length], outcome: null, until: null };
+    this.home = { zone, id: baby, generation, mark: HOME_MARK, sizeAtChoice: ids.length, counts: [ids.length], outcome: null, until: null,
+      roomy: this.bridge.roomyIn(zone) };
+    this.full = false;
+    this.fullAt = null;
+    this.fillTold = false;
     this.lineStart = ids.length;
     this.fresh = [];
     this.glowing = [];
@@ -1179,6 +1237,7 @@ export class Story {
  * @property {null|"reached"|"cap"|"gone"} outcome why its fast-forward stopped: PLACE_TO reached, PLACE_MAX generations, or
  *   the line died out during it @property {null|number} until the generation it stopped
  * @property {number} [goneAt] the generation its line died out, when it did
+ * @property {boolean} roomy the place had plenty of room when the child chose it: "Lots of room here!"
  *
  * @typedef {Object} Offer an option on the backup choice panel
  * @property {import("./cohorts.js").Variation} v @property {number} id the animal shown

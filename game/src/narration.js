@@ -162,6 +162,16 @@ export function homeCounter(zone, counts, stopped = null, name = null) {
   const end = !stopped ? "…" : stopped === "reached" ? "!" : ".";
   return `${capital(your("line", name))} ${PLACE_AT[zone]}: ${shown.map((k, i) => (i < last ? `${k}…` : `${k}${end}`)).join(" ")}`;
 }
+/** The line moves into a place with plenty of room: pairs there have more babies, since there is more food. */
+export const LOTS_OF_ROOM = "Lots of room here!";
+/** Who does best in each place, by its key traits in the table. */
+const WINNERS = ["The best climbers are winning.", "The fastest runners are winning.", "The best swimmers are winning."];
+/** The line's place is full: from now on, who survives there depends on who suits it best. */
+export const fillingLine = (zone) => `It's getting full. ${WINNERS[zone]}`;
+/** Each place's key trait in the table: its biggest help there. */
+const KEY_TRAITS = ["curved claws", "long back legs", "webbed feet"];
+/** On the card of another group that lived in the line's place before the line came: "…Now webbed feet are starting to matter." */
+export const firstHereLine = (zone) => `They got here first. Now ${KEY_TRAITS[zone]} are starting to matter.`;
 /** No fast-forward to the new home: the line has 20 or more there already. */
 export const WATCH_LINE = "Watch your line.";
 /** The last of a line in the chosen place, fading: "The last of your animals near the water are dying." */

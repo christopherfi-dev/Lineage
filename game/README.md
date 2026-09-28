@@ -73,7 +73,12 @@ A story takes a median 15.5 minutes, with a median of 6 follows and 5 traits add
    on a baby joins it only when it lives there too; the rest of the family are relatives. The
    world fast-forwards with a live counter, "Your Mossfoot line near the water: 2… 9… 40!", the
    camera holding the line in its new home, until about 20 live there (`PLACE_TO`, or
-   `PLACE_MAX` generations); then back to real time, the camera on the new home. The open ground
+   `PLACE_MAX` generations); then back to real time, the camera on the new home. A place with
+   plenty of room (under half of what it has room for, when its pairs have more babies) first says
+   "Lots of room here!". Once some living there are crowded out, the first watched generation says
+   "It's getting full. The best swimmers are winning." (climbers in the trees, runners on the
+   ground), and another group's card there says, when that group lived there before the line came,
+   "They got here first. Now webbed feet are starting to matter." The open ground
    usually has 20 of the family already: the line stays, with no fast-forward ("… 23!", "Watch
    your line."). The trait choices then happen in that place. The teacher demo has no place
    choice.
@@ -245,7 +250,10 @@ number is as it was.
   when a newborn glows, a note that rises with each count of the rising counter, a low tone for "In
   trouble", a falling tone as a followed line's last animals die, a warm chord for the reveal. Sound starts on the first tap;
   the button in the top-right corner turns it off and on, remembered on the device;
-  `?sound=off` starts muted.
+  `?sound=off` starts muted. **The idle sound** (scope decision 70): with nobody touching the
+  iPad for 45 s (`IDLE_MS`), the newborn chime, which had come as often as every 4 s while babies
+  lit up, comes at most once in 45 s; every cue and bed is at 0.4 of its level, and the birds
+  sing a third as often. A touch brings it back.
 - **Animals that move like animals** (`src/herd.js`): a small bob and nod with each step, now
   and then a flick of the tail, a pause to look one way and then the other, the head down while
   grazing. Babies still stay near their mothers. The motion has its own random numbers, so the
@@ -289,7 +297,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but the early endings: `extinct`, `another-family` and `nearly-over` (a 30-generation story) in seed 35, and `in-trouble` in seed 53. A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 5 (a 30-generation story). Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 

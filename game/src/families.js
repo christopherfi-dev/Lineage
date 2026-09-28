@@ -36,6 +36,8 @@ export class Families {
     this.born = new Map();
     /** @type {Array<{key:string, zone:number, ids:number[]}>} */
     this.founding = [];
+    /** id -> the key of the founding family its mother line comes from (who got to a place first, scope decision 70) */
+    this.founder = new Map();
 
     const zoneOf = new Map(founders.map((f) => [f.id, f.zone]));
     const groups = keepTogether.map((ids) => ids.filter((id) => zoneOf.has(id)));
@@ -52,7 +54,7 @@ export class Families {
       const key = `founding-${i}`;
       this.founding.push({ key, zone: zoneOf.get(ids[0]), ids });
       this.born.set(key, -1);
-      for (const id of ids) { this.mother.set(id, key); this.born.set(id, 0); }
+      for (const id of ids) { this.mother.set(id, key); this.born.set(id, 0); this.founder.set(id, key); }
     });
   }
 
@@ -60,6 +62,8 @@ export class Families {
   addBirth(childId, motherId, generation) {
     this.mother.set(childId, motherId);
     this.born.set(childId, generation);
+    const f = this.founder.get(motherId);
+    if (f !== undefined) this.founder.set(childId, f);
   }
 
   /** The ancestor `depth` generations back through the mother line, or the top of the line. */
@@ -123,6 +127,7 @@ export class Families {
       if (typeof id === "number" && g < generation - KEEP_GENERATIONS && !living.has(id)) {
         this.born.delete(id);
         this.mother.delete(id);
+        this.founder.delete(id);
       }
     }
   }

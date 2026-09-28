@@ -40,7 +40,8 @@ import {
   startLine, familyLabel, YOU_CHOSE, ZONE_AT,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
-  placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine,
+  placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
+  firstHereLine,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { explainGuess } from "./why.js";
@@ -54,7 +55,7 @@ import {
   familyNames, nameButton, NAME_QUESTION, NAME_PICKED, NAMING_SECONDS, TYPE_OWN, USE_MY_NAME, TYPE_PROMPT, MY_NAME_PROMPT,
   TRY_ANOTHER_NAME, NAME_MAX, typedName, myNameFamily, standoutWord, hasBlockedWord,
 } from "./names.js";
-import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG } from "./sound.js";
+import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG, IDLE_MS } from "./sound.js";
 import {
   PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
 } from "./journal.js";
@@ -289,6 +290,9 @@ export class Game {
     const asked = new URLSearchParams(globalThis.location?.search ?? "").get("sound");
     this.sound = new Sound({ muted: asked === "off" || stored === "off" });
     this.soundT = 0;
+    /** when the iPad was last touched: after IDLE_MS the sound is idle, quieter and rarer (scope decision 70) */
+    this.lastTouch = performance.now();
+    this.idleShown = false;
     this.muteEl = $("mute");
     this.showMute();
     /** @type {Map<string, () => void>} a sound for a log line, played when the line shows */
@@ -414,6 +418,8 @@ export class Game {
     this.joining = null;
     /** @type {null|{zone:number, main:boolean}} a move of the line during a fast-forward, told when it ends */
     this.moveToTell = null;
+    /** @type {null|number} the line's place filled up, still to be told (scope decision 70) */
+    this.fillToTell = null;
     /** @type {Array<{id:number, at:number}>} the line's animals dying now or soon, one by one: the camera stays on each (scope decision 67) */
     this.deathCam = [];
     this.deathCamOn = null;
@@ -516,6 +522,7 @@ export class Game {
     }
     const what = s.afterGeneration(ev);
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
+    if (s.fillingNow) this.fillToTell = s.home.zone; // the line's place filled up: told on arriving, or the next watched generation
     // See, guess, explain: at a follow's result the world waits for a guess (scope decision 60). A line that died out
     // gets its own right there, once its last animals have faded (scope decision 68). Only a new Field Guide discovery
     // is a guess; any other "Why?" is told as a line, with no guess (scope decision 69).
@@ -541,7 +548,8 @@ export class Game {
       const v = s.verdict(ev);
       const lines = s.told ? s.told : v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
         [...groupLines(ev.group, s.noun, [], s.name), ...(q ? [] : s.changeReasons(ev))];
-      this.say([...lines, ...this.moveLines(), ...this.glowLines()], true);
+      // The line's place has just filled up: said first, since it is why some die now (scope decision 70).
+      this.say([...this.fillingLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
     }
     this.updateHud();
     if (what === "back") this.backing.q = q;
@@ -596,6 +604,13 @@ export class Game {
     this.glowKey = key;
     this.herd.glowing = new Set(ids);
     return true;
+  }
+
+  /** The line's place filled up (scope decision 70), once: "It's getting full. The best swimmers are winning." */
+  fillingLines() {
+    const z = this.fillToTell;
+    this.fillToTell = null;
+    return z === null || z === undefined ? [] : [fillingLine(z)];
   }
 
   /** A real move of the family (scope decision 59), once: "Some of your animals are moving to the water's edge." */
@@ -955,11 +970,15 @@ export class Game {
     this.logMoods.set(counter, "spread");
     // Afterwards the story's own zoom, whatever the sheet framed the babies at.
     this.zoomBeforeFast = this.comfortZoom();
+    // A place with plenty of room (scope decision 70): its pairs have more babies, since there is more food.
+    const room = h.roomy ? [LOTS_OF_ROOM] : [];
     if (s.phase === "moving") {
-      this.say([homeLine(h.sizeAtChoice, zone, s.name), counter]);
+      this.say([homeLine(h.sizeAtChoice, zone, s.name), ...room, counter]);
+      // With room, the move waits for "Lots of room here!" to come up, then starts under it.
+      if (room.length) this.clock = -LOG_MS;
       this.holdLine();
     } else {
-      this.say([homeLine(h.sizeAtChoice, zone, s.name), counter, WATCH_LINE]);
+      this.say([homeLine(h.sizeAtChoice, zone, s.name), ...room, counter, WATCH_LINE]);
       this.zoomTo(this.zoomBeforeFast);
       this.zoomBeforeFast = null;
       this.centerOnGroup();
@@ -987,8 +1006,10 @@ export class Game {
    * their own pace, and the camera goes back to the story's zoom on the new home.
    */
   arrived() {
-    this.homeCounterNow(this.story.home.outcome);
-    this.logQueue = [SLOW_DOWN];
+    const s = this.story;
+    this.homeCounterNow(s.home.outcome);
+    // Full already: "It's getting full. The best swimmers are winning." (scope decision 70).
+    this.logQueue = [SLOW_DOWN, ...this.fillingLines()];
     if (!this.exploring) this.zoomTo(this.zoomBeforeFast ?? this.comfortZoom());
     this.zoomBeforeFast = null;
     this.centerOnGroup();
@@ -2157,13 +2178,15 @@ export class Game {
     const rows = [{ label: kin ? RELATIVES_HERE : ITS_FAMILY, then: f.then, now: f.now, color: kin ? KIN_COLOR : PLAIN_COLOR },
       { label: kin ? familyLabel(s.name, s.noun) : yoursLabel(s.name), then: s.mark.family, now: s.family.now, color: MINE_COLOR }];
     const doing = doingLine(better(rows[0], rows[1]), s.choices.length > 0);
+    // A group living in the line's place since before the child chose it, once the place is full (scope decision 70).
+    const first = !kin && s.full && s.gotHereFirst(id) ? firstHereLine(s.home.zone) : null;
     const group = f.ids.map((i) => this.bridge.animal(i));
     const diffs = differences(group, this.bridge.followedAnimals()).map((d) => thanYours(d.trait, d.dir));
     // A trait the group has that doesn't fit where most of it lives.
     const where = [0, 1, 2].map((z) => group.filter((a) => a.zone === z).length), home = where.indexOf(Math.max(...where));
     const m = group.length ? misfit(averageOf(group.map((a) => a.genome)).map((a) => a.mean), home) : null;
     const fit = m ? misfitLine(m, home, true) : null;
-    const key = JSON.stringify([id, rows.map((r) => [r.label, r.then, r.now]), doing, fit, diffs]);
+    const key = JSON.stringify([id, rows.map((r) => [r.label, r.then, r.now]), doing, first, fit, diffs]);
     if (key === this.groupKey) return;
     this.groupKey = key;
     const line = (text, cls) => {
@@ -2175,7 +2198,7 @@ export class Game {
     counts.append(...this.countRows(rows), speakerButton(doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" ")));
     const title = Object.assign(doc.createElement("div"), { className: "diff-title", textContent: DIFFERENT_TITLE });
     title.append(speakerButton(doc, () => `${DIFFERENT_TITLE}: ${(diffs.length ? diffs : [MUCH_LIKE_YOURS]).join(". ")}.`));
-    el.replaceChildren(counts, line(doing, "doing"), ...(fit ? [line(fit, "fit")] : []), title,
+    el.replaceChildren(counts, ...(first ? [line(first, "first")] : []), line(doing, "doing"), ...(fit ? [line(fit, "fit")] : []), title,
       ...(diffs.length ? diffs.map((d) => line(d, "diff")) : [line(MUCH_LIKE_YOURS, "same")]));
   }
 
@@ -2661,6 +2684,7 @@ export class Game {
 
     this.pumpLog(dt);
     this.updateLight(now, dt);
+    if (!this.idleShown && now - this.lastTouch > IDLE_MS) { this.idleShown = true; this.sound.setIdle(true); } // nobody is playing
     if ((this.soundT -= dt) <= 0) { this.soundT = SOUND_MS; if (this.sound.on) this.sound.update(this.habitatUnderCamera()); }
     if (this.zoomTween) {
       const tw = this.zoomTween;
@@ -2921,6 +2945,9 @@ export class Game {
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
     for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });
+    // A touch wakes the idle sound (scope decision 70).
+    const touched = () => { this.lastTouch = performance.now(); if (this.idleShown) { this.idleShown = false; this.sound.setIdle(false); } };
+    for (const type of ["pointerdown", "keydown", "wheel"]) this.doc.addEventListener(type, touched, { capture: true, passive: true });
     this.muteEl.addEventListener("click", () => this.toggleSound());
     this.doc.addEventListener("visibilitychange", () => this.sound.setHidden(this.doc.hidden));
     this.newWorldEl.addEventListener("click", () => this.newWorld());
