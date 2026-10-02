@@ -1,5 +1,7 @@
 # LINEAGE — the live build, moment by moment (after Step 5)
 
+**Round 5, Part 5 (scope decision 76):** `try-another-place` is new: after the win, "Try another place" brings the same family back in the same world, its name kept, at "Where will your … family live?" (1.5 s after every card has its baby). `ending-check`, `ending-reveal` and `story-card` are shot again: after a story with a place chosen, the ending's buttons are "Try another place" and "New world". The rest are Part 4's pictures.
+
 **Round 5, Part 4 (scope decision 75):** `chosen-by-place` is new: a trait that helps in the line's place rose in it without a follow, "Short legs: chosen by the water" as an outlined chip on "Your … line so far", and "The water is choosing too." (1.5 s). `win` and `ending` are shot again: "The water chose short legs, a strong tail and straighter claws too." in the celebration, and the place's chips under "You chose". The rest are Part 3's pictures.
 
 **Round 5, Part 3 (scope decision 74):** `collection` is new: after the win, the ending's last step shows the twelve cards, the animal the line just became "New!" with its picture, the rest mystery cards with their place's mark ("You've evolved 1 of 12.", 2.5 s). `win`, `still-changing` and `ending-reveal` are shot again: the real animal's card beside the line's drawing, and its picture in the reveal. The rest are Part 2's pictures.

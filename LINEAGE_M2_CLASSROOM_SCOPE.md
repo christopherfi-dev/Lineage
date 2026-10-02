@@ -784,6 +784,14 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - *Frame times (as decision 73): `chosen-by-place` 36.0 ms (206.4 with a 4× slower CPU) against main's `generation` 41.3 (209.4).*
    - *Checked: 29 game tests, 1 new (each place chip is a trait that helps there, the way it helps, never one the child followed, shown once; its lines short; a win with place chips says them). The lines read with the longest family name.*
 
+76. **"Try another place"** (2026-10-02, the architect's Round 5, Part 5; built by Claude Code).
+   - **What it does** (`main.js` `anotherPlace`). After the reveal (once the child gave an idea, like the other buttons), "Try another place" starts a new story in the same world from the same family: the same seed, run again to the generation the story began at, which the engine makes the same world (following never touches the biology; a test checks it), and the same first animal tapped. The family keeps its name, so there is no naming, and "Where will your … family live?" comes at once: Choice 1 again, to compare places, or to try the same place another way. No arrival mist. "New world" stays.
+   - **It takes the place of "Try another family in this world"** after any story with a place chosen, so the ending offers two ways on: "Try another place" and "New world". The teacher demo, which has no place choice, keeps "Try another family" (and its "This world is nearly over" question).
+   - **Moment:** new `try-another-place` (after the win in seed 13: the sheet again, "Where will your … family live?", once every card has its baby). `ending-check`, `ending-reveal` and `story-card` shot again with the new button.
+   - *Frame times (as decision 73): `try-another-place` 33.8 ms (176.1 with a 4× slower CPU) against main's `choose-place` 35.4 (163.3), the same sheet.*
+   - *Checked: 30 game tests, 1 new (the same seed run again to a story's last generation, with no one following, has the same animals with the same bodies as the world the story ran; and the story's first animal is there at its start, so the same family begins again, at the place choice).*
+   - **For the architect.** Bring back "Try another family" beside "Try another place", or keep two buttons?
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.

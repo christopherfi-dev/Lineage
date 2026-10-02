@@ -341,6 +341,7 @@ export class Game {
     this.logShownAt = 0;
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
+    this.anotherPlaceEl = /** @type {HTMLButtonElement} */ ($("another-place"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
     // "This world is nearly over. Start a new world?" (scope decision 64)
     this.nearlyEl = $("nearly-over");
@@ -715,7 +716,11 @@ export class Game {
    * The first tap: follow the family of the tapped animal's ancestor a few
    * generations back. The child names it first; then time starts.
    */
-  begin(animal) {
+  /**
+   * @param {any} animal the animal tapped
+   * @param {null|string} [name] the family's name already ("Try another place", scope decision 76): no naming then
+   */
+  begin(animal, name = null) {
     const f = this.story.begin(animal.id);
     this.collectionButtonEl.hidden = true;
     this.closeCollection(true);
@@ -730,7 +735,13 @@ export class Game {
     this.exploring = false; this.visiting = null; // the child chose this family: the camera goes to it
     this.centerOnGroup();
     this.updateHud();
-    this.openNaming();
+    if (!name) { this.openNaming(); return; }
+    // The same family again (scope decision 76): its name stays, and the first choice comes at once.
+    this.story.name = name;
+    this.setHomeLabel();
+    this.updateHud();
+    this.updatePortrait();
+    if (this.story.phase === "place") this.openPlace();
   }
 
   /* ================= naming the family (Step 5, names.js) ================= */
@@ -1835,7 +1846,11 @@ export class Game {
       collection: COLLECTION_TITLE }[name];
     this.stepCountEl.textContent = `${k + 1} of ${this.endingSteps.length}`;
     this.endingNextEl.hidden = name === "idea" || k === this.endingSteps.length - 1;
-    this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
+    // After a story with a place chosen, "Try another place" (scope decision 76); in the teacher demo, "Try another family".
+    const placed = !!(this.story.home ?? this.story.homeTries.length);
+    this.anotherPlaceEl.hidden = !this.ideaAnswered || !placed;
+    this.againEl.hidden = !this.ideaAnswered || placed;
+    this.newWorldEl.hidden = !this.ideaAnswered;
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
     if ((name === "reveal" && this.story.reveal) || (name === "result" && this.story.won)) this.sound.revealChord(0.4);
@@ -2067,15 +2082,40 @@ export class Game {
     });
   }
 
+  /**
+   * "Try another place" (scope decision 76): a new story in the same world, from the same family, with its name, and
+   * "Where will your … family live?" again, so the child can compare places (or try the same place another way). The
+   * world starts again where this story began: the same seed, run on to the same generation, which the engine makes
+   * the same world, since following never touches the biology.
+   */
+  anotherPlace(btn = this.anotherPlaceEl) {
+    const s = this.story, from = s.startGeneration, first = s.firstId, name = s.name;
+    this.busy(btn, "Going back…", () => {
+      this.endingEl.hidden = true;
+      const bridge = this.makeWorld(this.seed), herd = new Herd(this.world, 7919);
+      herd.placeFounders(bridge);
+      while (bridge.generation < from) {
+        const ev = bridge.step();
+        if (!ev) break;
+        herd.applyGeneration(ev, bridge, 0);
+      }
+      this.start(bridge, herd);
+      // No arrival: the family is chosen already, and the sheet comes at once.
+      if (this.arrival) { this.arrival.t0 = performance.now() - this.arrival.dur; this.endArrival(); }
+      const animal = this.herd.animals.get(first);
+      if (animal) this.begin(animal, name);
+    });
+  }
+
   /** "This world is nearly over. Start a new world?", with "New world" and a small "Keep going anyway", in place of the ending's buttons. */
   askNearlyOver() {
-    this.againEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
+    this.againEl.hidden = this.anotherPlaceEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
     this.nearlyEl.hidden = false;
   }
 
   /** The tapped button says what is happening, and the ending's buttons wait, while the page repaints; then it happens. */
   busy(btn, text, then) {
-    const label = btn.textContent, all = [this.againEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
+    const label = btn.textContent, all = [this.againEl, this.anotherPlaceEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
     btn.textContent = text;
     for (const b of all) b.disabled = true;
     setTimeout(() => {
@@ -3070,6 +3110,7 @@ export class Game {
     this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); this.closeCollection(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
+    this.anotherPlaceEl.addEventListener("click", () => this.anotherPlace());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
     for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });

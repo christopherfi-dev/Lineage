@@ -186,8 +186,9 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
     relatives here); and the reveal (the real animal the line became like, one of the
     collection's twelve, `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`: the free traits the child chose
     decide it first; then its traits, the predictions and choices, the Field Guide and the story
-    card). "Try another family" (the world
-    as it is now; at the story's end, the same seed from generation 0) and "New world".
+    card). "Try another place" (scope decision 76: the same family in the same world, its name
+    kept, choosing where to live again) and "New world"; the teacher demo keeps "Try another
+    family" (the world as it is now; at the story's end, the same seed from generation 0).
 11. **The collection** (scope decision 74, `src/collection.js`). The twelve animals a line can
     become, four to a row and a row for each place: one becomes "evolved" on this iPad when a line
     becomes it at the win, and its card shows its picture (`animals/<id>.jpg`), name and place mark;

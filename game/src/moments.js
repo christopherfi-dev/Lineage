@@ -41,7 +41,7 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "win", "still-changing", "collection", "chosen-by-place",
+  "win", "still-changing", "collection", "chosen-by-place", "try-another-place",
 ];
 
 /**
@@ -301,6 +301,11 @@ const MOMENT = {
     families: FROM_OTHERS, policies: ["active", "passive"],
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.placeChoseNow.length > 0 && { chosen: s.placeChoseNow.map((p) => p.t) },
   },
+  /**
+   * "Try another place" (scope decision 76): after the win, the same family again in the same world, its name kept,
+   * and "Where will your … family live?" again, once every card has a baby of the family.
+   */
+  "try-another-place": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
   /**
    * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
    * just became marked "New!", on a new iPad: "You've evolved 1 of 12."
@@ -758,6 +763,19 @@ export async function goToMoment(game, moment) {
     // The ending opens on its first step, the line's home (scope decision 73).
     G.endingAt = null;
     G.showEnding();
+  } else if (moment === "try-another-place") {
+    // The child gives an idea, then taps "Try another place": the sheet comes back once every card has its baby.
+    G.endingAt = null;
+    G.showEnding();
+    G.showStep("idea");
+    const t = truthOf(G.story);
+    G.ideaPicks.t.value = String(t.helper ?? t.hurter ?? 5);
+    G.ideaPicks.zone.value = String(t.zone);
+    G.ideaChanged();
+    G.answerIdea();
+    G.showStep("collection");
+    G.anotherPlace();
+    for (let k = 0; k < 600 && !(G.placing && G.placeCardEls.every((el) => el.baby !== null || el.hidden)); k++) await frame();
   } else if (moment === "collection") {
     // The story ended with the win as the game has it (its animal joined the collection): the ending's last step.
     G.endingAt = null;
