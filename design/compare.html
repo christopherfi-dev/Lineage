@@ -55,10 +55,10 @@
 </main>
 <script>
   // [file, title, note, before, new with]: a moment with no "before" picture was added with the look, the playtest
-  // fixes, the next round (Parts 1–6), Round 3, decisions 68 and 69, or Round 4. The "after" pictures are the latest
+  // fixes, the next round (Parts 1–6), Round 3, decisions 68 and 69, Round 4 or Round 5. The "after" pictures are the latest
   // round's, in the common-ancestor world (seed 13; "Go back?" in seed 1), and a whole line dying out early in the
   // teacher demo, where there is no place choice.
-  const R = "the next round", D = "decision 68", E = "decision 69", F = "Round 4";
+  const R = "the next round", D = "decision 68", E = "decision 69", F = "Round 4", G = "Round 5";
   const MOMENTS = [
     ["arrival", "Arrival", "After the morning mist has lifted, on a family with a future."],
     ["arrival-mist", "Arrival, in the mist", "New with the look: the camera drifts down into the leaves.", false],
@@ -66,6 +66,7 @@
     ["type-name", "Type your own name", "New with the next round: letters only, up to 12, the sheet at the top.", false, R],
     ["my-name", "Use my name", "New with the next round: “Mia” makes the Miapaddle family.", false, R],
     ["choose-place", "Where will your family live?", "New with Round 4: the first choice, a real baby of your family on each place's card, glowing on the map.", false, F],
+    ["stay", "Staying on the open ground", "New with Round 5: your family stays, where it is crowded already.", false, G],
     ["moving", "Moving", "New with Round 4: your line fills its new home in a fast-forward, with a live counter.", false, F],
     ["arrived", "A new home", "New with Round 4: about 20 of your line live there; back to real time, the camera on the new home.", false, F],
     ["filling", "Getting full", "New with Round 4: the new home has filled up, “It's getting full. The best swimmers are winning.”", false, F],

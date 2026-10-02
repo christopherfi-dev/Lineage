@@ -730,6 +730,14 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - **The early endings.** With a place chosen, no whole line died out in the 540 stories measured. The early-ending screens stay (item 7), but their moments open only in the teacher demo, and `in-trouble` is retired. Keep them this way?
      - **The open ground.** Choosing it is staying: no fast-forward (the counter says "23!" at once), never "Lots of room here!", and full from the start. Is that the ground's experience wanted?
      - **The line takes in its place.** A baby born in the place with a parent in the line joins it, so the groups that got there first last a median 7 generations after the choice (4 once the place is full). Keep?
+71. **The architect's answers to PR #29's six questions** (2026-10-02, the architect, after merging PR #29; Round 5, Part 0). Settles decision 70's "For the architect".
+   - **1. No following into another place.** Choice 1 is the only move, and blue stays in one place. Built so in decision 70: a baby of the line born elsewhere is a relative and can't be followed.
+   - **2. "Stays" as built is right:** the game's line, which lives only in the chosen place.
+   - **3. The water's edge at 90% is accepted** (helpful follows there grow the line in 90% of stories).
+   - **4. The early endings stay as they are:** the screens stay, their moments open in the teacher demo, and `in-trouble` stays retired.
+   - **5. Choosing the open ground gets its own moment** instead of the move's lines. "Your Mossfoot family stays on the open ground." then "It's crowded here already. The fastest runners will win." (`narration.js` `staysLine`, `CROWDED_GROUND`). A line of 20 or more there already has no fast-forward and no counter. In the rare story where fewer live there, the counter follows the two lines. The ground is never "Lots of room here!", and it is full from the start, so its filling up ("It's getting full. The fastest runners are winning.") is never told again (`story.js` `fillTold`). New moment `stay`: the sheet, with the open ground's card tapped.
+   - **6. The line keeps taking in its place:** a baby born there with a parent in the line joins it.
+   - *Checked: 24 game tests, 1 new (choosing the open ground marks its filling up as told, and nothing tells it again in the next 10 generations, for every founding family of seed 13); the lines test covers the two new lines (the longest 9 words, with the longest family name). The Classroom tests and M1's are untouched. Nothing drawn changed, so no frame time; the `stay` moment shot at all three sizes.*
 
 ## What the engine already gives you (do not rebuild these)
 

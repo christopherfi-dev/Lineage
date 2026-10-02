@@ -473,7 +473,7 @@ test("the first choice's lines, and the new home's, are short, with no percentag
   const N = await import("../src/narration.js");
   const { MOMENTS } = await import("../src/moments.js");
   const { readFileSync } = await import("node:fs");
-  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE, N.LOTS_OF_ROOM];
+  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE, N.LOTS_OF_ROOM, N.staysLine(name), N.CROWDED_GROUND];
   for (const zone of [0, 1, 2]) {
     lines.push(N.homeLine(19, zone, name), N.homeCounter(zone, [2, 5, 11, 20], "reached", name), N.homeCounter(zone, [3, 7, 12, 16, 18, 19], "cap", name),
       N.homeGoneLine(zone, 2, name), N.PLACE_LABELS[zone], N.fillingLine(zone), N.firstHereLine(zone));
@@ -485,6 +485,7 @@ test("the first choice's lines, and the new home's, are short, with no percentag
   }
   assert.equal(N.homeCounter(2, [2, 5, 11, 20], "reached", "Mossfoot"), "Your Mossfoot line near the water: 2… 5… 11… 20!");
   assert.equal(N.homeCounter(0, [2, 5], null), "Your line in the high trees: 2… 5…");
+  assert.equal(N.staysLine("Mossfoot"), "Your Mossfoot family stays on the open ground.");
   // Every moment has its link on the moments page, and every link is a moment.
   const page = readFileSync(new URL("../moments.html", import.meta.url), "utf8");
   const linked = [...page.matchAll(/data-moment="([^"]+)"/g)].map((m) => m[1]);
@@ -537,6 +538,23 @@ test("a new home with plenty of room says so; once some living there are crowded
   }
   assert.equal(told, 3);
   assert.ok(first > 0, "some groups at the water's edge got there first");
+});
+
+test("staying on the open ground says it is crowded already, so its filling up is never told again", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true });
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (!story.placeCards()[1]) story.afterGeneration(bridge.step());
+    const home = story.choosePlace(1);
+    assert.equal(home.roomy, false, "no lots of room on the ground");
+    assert.equal(story.fillTold, true);
+    for (let g = 0; g < 10 && story.phase !== "ended"; g++) {
+      story.afterGeneration(bridge.step());
+      assert.equal(story.fillingNow, false);
+    }
+  }
 });
 
 test("while nobody touches the iPad, a newborn's chime comes at most once in IDLE_CHIME_GAP seconds, and quieter", async () => {

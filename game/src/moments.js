@@ -34,7 +34,7 @@ import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "choose-place", "moving", "arrived", "filling",
+  "arrival", "naming", "choose-place", "stay", "moving", "arrived", "filling",
   "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
   "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
   "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
@@ -127,6 +127,16 @@ const MOMENT = {
     policies: ["passive"],
     places: [2, 0],
     at: (s, ev, b, what) => what === "moving" && s.home.counts.length >= 2 && { zone: s.home.zone, counts: s.home.counts.slice() },
+  },
+  /**
+   * Choosing the open ground is staying (scope decision 71): "Your Mossfoot family stays on the open ground." then "It's
+   * crowded here already. The fastest runners will win." Found at the sheet, where the child taps the ground's card.
+   */
+  stay: {
+    families: FROM_OTHERS,
+    policies: ["passive"],
+    places: [1],
+    at: (s, ev, b, what) => { const c = what === "place" ? s.placeCards() : []; return c.length && c.every(Boolean) && { cards: c.map((x) => x.id) }; },
   },
   /** About 20 of the line live in its new home: the counter's last number, and back to real time with the camera there. */
   arrived: {
@@ -643,6 +653,16 @@ export async function goToMoment(game, moment) {
     const tw = G.camTween, zw = G.zoomTween;
     if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "stay") {
+    // The child taps the open ground's card: staying, with its own two lines (scope decision 71).
+    const now = performance.now();
+    G.pickPlace(1, false, now);
+    G.placeChosen(1);
+    const tw = G.camTween, zw = G.zoomTween;
+    if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+    G.logTimer = 0;
+    G.pumpLog(0);
   } else if (moment === "moving" || moment === "arrived") {
     // The move holds the whole line in view in its new home; on arriving, the camera goes back to the story's zoom there.
     const tw = G.camTween, zw = G.zoomTween;

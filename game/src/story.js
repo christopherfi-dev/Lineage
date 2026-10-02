@@ -1068,7 +1068,8 @@ export class Story {
       roomy: this.bridge.roomyIn(zone) };
     this.full = false;
     this.fullAt = null;
-    this.fillTold = false;
+    // Staying on the open ground says it is crowded already (scope decision 71): its filling up isn't told again.
+    this.fillTold = zone === 1;
     this.lineStart = ids.length;
     this.fresh = [];
     this.glowing = [];

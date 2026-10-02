@@ -41,7 +41,7 @@ import {
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
   placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
-  firstHereLine,
+  firstHereLine, staysLine, CROWDED_GROUND,
 } from "./narration.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { explainGuess } from "./why.js";
@@ -972,7 +972,12 @@ export class Game {
     this.zoomBeforeFast = this.comfortZoom();
     // A place with plenty of room (scope decision 70): its pairs have more babies, since there is more food.
     const room = h.roomy ? [LOTS_OF_ROOM] : [];
-    if (s.phase === "moving") {
+    if (zone === 1) {
+      // Choosing the open ground is staying (scope decision 71): its own lines, and no "Lots of room here!".
+      this.say([staysLine(s.name), CROWDED_GROUND, ...(s.phase === "moving" ? [counter] : [])]);
+      if (s.phase === "moving") this.holdLine();
+      else { this.zoomTo(this.zoomBeforeFast); this.zoomBeforeFast = null; this.centerOnGroup(); }
+    } else if (s.phase === "moving") {
       this.say([homeLine(h.sizeAtChoice, zone, s.name), ...room, counter]);
       // With room, the move waits for "Lots of room here!" to come up, then starts under it.
       if (room.length) this.clock = -LOG_MS;

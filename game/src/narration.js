@@ -164,6 +164,12 @@ export function homeCounter(zone, counts, stopped = null, name = null) {
 }
 /** The line moves into a place with plenty of room: pairs there have more babies, since there is more food. */
 export const LOTS_OF_ROOM = "Lots of room here!";
+/**
+ * Choosing the open ground is staying (scope decision 71): its own lines instead of the move's, "Your Mossfoot family
+ * stays on the open ground." then the crowd it stays in.
+ */
+export const staysLine = (name = null) => `${capital(your("family", name))} stays on the open ground.`;
+export const CROWDED_GROUND = "It's crowded here already. The fastest runners will win.";
 /** Who does best in each place, by its key traits in the table. */
 const WINNERS = ["The best climbers are winning.", "The fastest runners are winning.", "The best swimmers are winning."];
 /** The line's place is full: from now on, who survives there depends on who suits it best. */
