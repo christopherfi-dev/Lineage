@@ -45,8 +45,9 @@ import {
   firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere,
 } from "./narration.js";
 import { resultFor } from "./win.js";
-import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf } from "./collection.js";
-import { speakerButton, isSpeaking } from "./speech.js";
+import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf, preloadPictures } from "./collection.js";
+import { Opening, OPENING_LINES } from "./opening.js";
+import { speakerButton, isSpeaking, speak } from "./speech.js";
 import { explainGuess } from "./why.js";
 import {
   IDEA_TRAITS, IDEA_OR, IDEA_DONE, CHECK_TITLE, REVEAL_TITLE, HAPPENED_TITLE, IDEA_TITLE, MY_IDEA, ideaSentence, cleanIdea, truthOf, checkIdea,
@@ -156,7 +157,7 @@ export class Game {
    * @param {{seed:number, makeWorld:(seed:number)=>Bridge, demo?:boolean, length?:number}} world how to make this world
    *   again, or another; the teacher demo (?demo=webbed) lets any family be picked; the story's length (?length=)
    */
-  constructor(doc, bridge, { seed, makeWorld, demo = false, length = STORY_GENERATIONS }) {
+  constructor(doc, bridge, { seed, makeWorld, demo = false, length = STORY_GENERATIONS, opening = true }) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.doc = doc;
     this.stage = $("stage");
@@ -209,6 +210,16 @@ export class Game {
     this.endingCollectionGridEl = $("ending-collection-grid");
     /** @type {null|string} the animal a line just became, new on this iPad: its card is marked "New!" */
     this.freshCard = null;
+    // The opening (scope decision 77): the cards before the first tap, the full one once a session, quick after.
+    this.openingEl = $("opening");
+    this.openingGridEl = $("opening-grid");
+    this.openingLineEls = [$("opening-line-1"), $("opening-line-2")];
+    /** @type {null|Opening} the opening's cards, while they play */
+    this.opening = null;
+    /** how many openings this page has played: the first is the full one */
+    this.openings = 0;
+    /** no opening: the moments ask for this, and play it themselves when it is theirs */
+    this.openingOff = !opening;
     this.resultLineEl = /** @type {HTMLCanvasElement} */ ($("result-line"));
     this.stepNameEl = $("ending-step-name");
     this.stepCountEl = $("ending-step-count");
@@ -358,6 +369,8 @@ export class Game {
     this.seed = seed;
     this.makeWorld = makeWorld;
     this.demo = demo;
+    // The collection's pictures, decoded while the arrival mist clears (scope decision 77).
+    if (!demo) preloadPictures();
     /** the generation every story in this page ends at, if its family lasts (?length=, scope decision 64) */
     this.storyLength = length;
     this.cam = { x: 0, y: 0 };
@@ -499,13 +512,14 @@ export class Game {
     /** @type {Set<number>} glowing babies the log named: only those get a caption on the map */
     this.namedBirths = new Set();
     this.endingEl.hidden = true;
+    this.stopOpening();
     this.mood = this.moodTarget = 0;
     this.dayPhase = 0;
     this.arrival = { t0: this.painted ? performance.now() : null, dur: this.painted ? RETURN_MS : ARRIVAL_MS };
     this.stage.classList.add("arriving");
     this.setHud(false); // a new story starts with the slim bar on a phone
-    this.showHint();
-    this.say([START_LINE]);
+    // With the opening, "Tap an animal to follow its family." waits until the cards have puffed away (scope decision 77).
+    if (!this.opens()) { this.showHint(); this.say([START_LINE]); } else { clearTimeout(this.hintT); this.hideHint(); this.say([]); this.showLine(""); }
     this.updateHud();
     // The camera opens on a family with a future, close enough to tap one of them: the first founding family
     // that has one, or in a world kept as it is, the biggest.
@@ -1985,6 +1999,65 @@ export class Game {
     }
   }
 
+  /* ================= the opening (scope decision 77) ================= */
+  /** Whether this story begins with the opening: not in the teacher demo, which has no collection, nor in a moment. */
+  opens() { return !this.demo && !this.openingOff; }
+
+  /**
+   * The opening: the twelve cards face down, "These are the animals you can become." and "How many can you
+   * discover?" (read aloud when the iPad lets sound play), each card flipping in turn with a quiet card sound, the
+   * ones not found yet settling as mystery cards, then a soft puff, and the game starts: "Tap an animal to follow its
+   * family." The full one the first time on this page, the quick one after. A tap skips to the end.
+   * @param {{seek?: number}} [opts] the moments: hold it `seek` seconds in, for a picture
+   */
+  playOpening({ seek } = {}) {
+    this.stopOpening();
+    const quick = this.openings > 0;
+    this.openings++;
+    for (const el of this.openingLineEls) { el.replaceChildren(); el.classList.remove("on"); }
+    this.openingEl.classList.remove("gone");
+    this.openingEl.hidden = false;
+    requestAnimationFrame(() => this.openingEl.classList.add("open"));
+    this.collectionButtonEl.hidden = true;
+    const line = (i) => {
+      const el = this.openingLineEls[i], text = OPENING_LINES[i];
+      el.replaceChildren(Object.assign(this.doc.createElement("span"), { className: "text", textContent: text }), speakerButton(this.doc, () => text));
+      el.classList.add("on");
+      if (!this.sound.muted && seek === undefined) speak(text);
+    };
+    this.opening = new Opening(this.doc, this.openingGridEl, {
+      quick,
+      onLine: line,
+      onFlip: () => this.sound.cardFlip(),
+      onPuff: () => this.sound.puff(),
+      onDone: () => this.openingDone(),
+    });
+    if (seek === undefined) this.opening.start();
+    else this.opening.seek(seek);
+  }
+
+  /** The cards are gone: the game starts. */
+  openingDone() {
+    if (this.opening?.hold) return; // a moment holds it still
+    this.openingEl.classList.add("gone");
+    clearTimeout(this.openingHideT);
+    this.openingHideT = setTimeout(() => { this.openingEl.hidden = true; this.openingEl.classList.remove("open", "gone"); }, 500);
+    this.opening = null;
+    if (this.story.phase !== "waiting") return;
+    this.collectionButtonEl.hidden = false;
+    this.showHint();
+    this.say([START_LINE]);
+  }
+
+  /** A new story, or a moment: no opening on screen. */
+  stopOpening() {
+    if (this.opening) { this.opening.done = true; this.opening.stop(); }
+    this.opening = null;
+    clearTimeout(this.openingHideT);
+    this.openingEl.hidden = true;
+    this.openingEl.classList.remove("open", "gone");
+  }
+
   /* ================= the collection (scope decision 74) ================= */
   /**
    * The twelve cards in a grid, a row for each place: the animals evolved on this iPad with their picture, the rest
@@ -2000,6 +2073,8 @@ export class Game {
   openCollection() {
     this.collectionTitle.set(COLLECTION_TITLE);
     this.fillCollection(this.collectionGridEl, this.collectionCount);
+    // The opening's flip, quick, and the cards stay (scope decision 77).
+    this.collectionFlip = new Opening(this.doc, this.collectionGridEl, { quick: true, puff: false, onFlip: () => this.sound.cardFlip() }).start();
     this.collectionOpen = true;
     clearTimeout(this.collectionHideT);
     this.collectionEl.hidden = false;
@@ -2100,10 +2175,10 @@ export class Game {
         herd.applyGeneration(ev, bridge, 0);
       }
       this.start(bridge, herd);
-      // No arrival: the family is chosen already, and the sheet comes at once.
-      if (this.arrival) { this.arrival.t0 = performance.now() - this.arrival.dur; this.endArrival(); }
       const animal = this.herd.animals.get(first);
       if (animal) this.begin(animal, name);
+      // No arrival and no opening: the family is chosen already, and the sheet comes at once.
+      if (this.arrival) { this.arrival.t0 = performance.now() - this.arrival.dur; this.endArrival(); }
     });
   }
 
@@ -2921,12 +2996,12 @@ export class Game {
     cls.toggle("night", L.night > 0.6);
   }
 
-  /** The mist has lifted: the panels and the one line come in. */
+  /** The mist has lifted: the panels and the one line come in; before the first tap, the opening's cards first. */
   endArrival() {
     this.arrival = null;
     this.zoomK = 1; this.zoom = this.zoomBase; this.camOff = 0; this.mist = 0;
     this.stage.classList.remove("arriving");
-    if (this.story.phase === "waiting") this.showHint();
+    if (this.story.phase === "waiting") { if (this.opens()) this.playOpening(); else this.showHint(); }
     this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
     this.logEl.style.animation = "lgIn .9s ease both";
   }
@@ -3014,7 +3089,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #place, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #place, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link, #opening, #collection")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -3054,7 +3129,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending, #opening, #collection")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -3102,6 +3177,8 @@ export class Game {
     this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
     this.guideButtonEl.addEventListener("click", () => this.openGuide());
     this.collectionButtonEl.addEventListener("click", () => this.openCollection());
+    this.openingEl.addEventListener("click", () => this.opening?.skip());
+    this.collectionGridEl.addEventListener("click", () => this.collectionFlip?.skip());
     this.doc.getElementById("collection-close").addEventListener("click", () => this.closeCollection());
     this.collectionEl.addEventListener("click", (e) => { if (e.target === this.collectionEl) this.closeCollection(); });
     this.doc.getElementById("guide-open").addEventListener("click", () => this.openGuide());
@@ -3282,9 +3359,10 @@ if (typeof document !== "undefined") {
       q.set("seed", String(seed));
       history.replaceState(null, "", `?${q}`);
     }
-    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture, length }); // for poking at the live engine from the console
-    // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.
+    // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state; a moment
+    // plays the opening only when it is its own.
     const moment = q.get("moment");
+    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture, length, opening: !moment }); // for poking at the live engine from the console
     if (moment) import("./moments.js").then((m) => m.goToMoment(globalThis.lineageGame, moment));
   });
 }

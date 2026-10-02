@@ -1,5 +1,7 @@
 # LINEAGE — the live build, moment by moment (after Step 5)
 
+**Round 5, Part 6 (scope decision 77):** `intro-flip`, `intro-found` and `intro-puff` are new: the opening, after the arrival mist and before the first tap, held still at 1.4 s (seven of the twelve cards turned, "These are the animals you can become."), at 4.0 s on an iPad that has evolved the koala, the cheetah and the seal (those three keep their picture, the rest are mystery cards, "How many can you discover?") and at 4.77 s (the cards puffing away). `arrival` stays the world after the mist, without the cards. The rest are Part 5's pictures.
+
 **Round 5, Part 5 (scope decision 76):** `try-another-place` is new: after the win, "Try another place" brings the same family back in the same world, its name kept, at "Where will your … family live?" (1.5 s after every card has its baby). `ending-check`, `ending-reveal` and `story-card` are shot again: after a story with a place chosen, the ending's buttons are "Try another place" and "New world". The rest are Part 4's pictures.
 
 **Round 5, Part 4 (scope decision 75):** `chosen-by-place` is new: a trait that helps in the line's place rose in it without a follow, "Short legs: chosen by the water" as an outlined chip on "Your … line so far", and "The water is choosing too." (1.5 s). `win` and `ending` are shot again: "The water chose short legs, a strong tail and straighter claws too." in the celebration, and the place's chips under "You chose". The rest are Part 3's pictures.

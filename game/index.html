@@ -171,6 +171,13 @@
     <div id="guide-grid"></div>
   </div>
 
+  <!-- The opening (scope decision 77): before the first tap, the twelve cards face down, then flipping one after another;
+       "How many can you discover?"; then they puff away. A tap skips to the end. -->
+  <div id="opening" hidden>
+    <div class="lines"><p id="opening-line-1"></p><p id="opening-line-2"></p></div>
+    <div id="opening-grid" class="cgrid"></div>
+  </div>
+
   <!-- The collection (scope decision 74): the twelve animals a line can become, evolved ones with their picture, the rest
        mystery cards. From its button on the start screen; the opening shows it too (scope decision 77). -->
   <button id="collection-button" type="button" aria-label="Your collection" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="11" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8 3.5h10.5a2 2 0 0 1 2 2V17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span id="collection-button-count"></span></button>

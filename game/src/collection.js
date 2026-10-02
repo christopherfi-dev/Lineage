@@ -88,6 +88,19 @@ export function placeMark(doc, zone) {
   return i;
 }
 
+/** The twelve pictures, fetched and decoded while the arrival mist clears, so the cards turn without waiting for them. */
+const decoded = [];
+export function preloadPictures() {
+  if (decoded.length || typeof Image === "undefined") return;
+  for (const a of GRID) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = pictureOf(a);
+    img.decode?.().catch(() => {}); // a missing picture shows as a clean card
+    decoded.push(img);
+  }
+}
+
 /**
  * One card: an evolved animal's picture, name and place mark, or a mystery card, a "?" with the place mark. The
  * front can be turned face down (`.down`) and flipped by the opening (scope decision 77).

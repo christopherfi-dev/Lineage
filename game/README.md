@@ -61,7 +61,12 @@ The rules are in `src/story.js`, with every number at the top of the file:
 
 A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "Why?" guesses, whichever place the child chooses first, measured with a simulated child (scope decision 70).
 
-1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
+1. **Time waits for the child.** After the arrival mist, the opening (scope decision 77,
+   `src/opening.js`): the collection's twelve cards face down, "These are the animals you can
+   become.", the cards flipping one after another with a quiet card sound, "How many can you
+   discover?", the ones not yet evolved on this iPad settling as mystery cards, then a soft puff,
+   and "Tap an animal to follow its family." (5.1 s the first time, 2.0 s for later stories in the
+   session; a tap skips it). The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
    generations back through the mother line, `src/families.js`), and names it.
    **"Where will your family live?"** (scope decision 70) is then the first choice: a card for
@@ -319,7 +324,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 5 (a 30-generation story). Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 5 (a 30-generation story). Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), `try-another-place` (76) and the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 

@@ -1002,12 +1002,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 }
 .ccard .back .mark { width: 38%; height: auto; aspect-ratio: 1; opacity: .75; }
 .ccard .pic { position: relative; flex: 1 1 auto; min-height: 0; background: #E8DFC8; }
-.ccard .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .5s ease, filter .5s ease; }
+.ccard .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .5s ease; }
 .ccard .pic .q { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 52px/1 Petrona, Georgia, serif; color: #B3A584; opacity: 0; transition: opacity .5s ease; }
 .ccard.mystery .pic { background: repeating-linear-gradient(45deg, #EFE6D0 0 9px, #EAE0C7 9px 18px); }
-.ccard.mystery .pic img { opacity: 0; filter: blur(6px) grayscale(1); }
+.ccard.mystery .pic img { opacity: 0; }
 .ccard.mystery .pic .q { opacity: 1; }
-.ccard.mystery.showing .pic img { opacity: 1; filter: none; }
+.ccard.mystery.showing .pic img { opacity: 1; }
 .ccard.mystery.showing .pic .q { opacity: 0; }
 .ccard .pic.missing { background: linear-gradient(160deg, #EFE6D0, #E3D7BA); }
 .ccard .label { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font: 700 14px/1.1 Karla, system-ui, sans-serif; color: #3A3B30; }
@@ -1043,3 +1043,47 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #ending-collection-count { font-size: 22px; }
 }
 @media (max-width: 599px) { .cgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---- The opening (scope decision 77): the cards face down, flipping one by one, then a soft puff of dust. ---- */
+#opening {
+  position: absolute; inset: 0; z-index: 64; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+  background: radial-gradient(ellipse at 50% 45%, rgba(40, 30, 14, .18), rgba(30, 24, 12, .5)); cursor: pointer;
+  opacity: 0; transition: opacity .35s ease;
+}
+#opening.open { opacity: 1; }
+#opening.gone { opacity: 0; transition-duration: .5s; }
+#opening[hidden] { display: none; }
+#opening .lines { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 84px; }
+#opening .lines p {
+  display: flex; align-items: center; margin: 0; padding: 4px 6px 4px 16px; border-radius: 99px; background: rgba(247, 240, 223, .92);
+  font-family: Petrona, Georgia, serif; font-size: 26px; font-weight: 600; color: #2A2B22; box-shadow: 0 6px 20px rgba(40, 28, 12, .25);
+  opacity: 0; transform: translateY(8px); transition: opacity .45s ease, transform .45s ease;
+}
+#opening .lines p.on { opacity: 1; transform: none; }
+#opening .lines p:empty { display: none; }
+#opening-grid { width: min(100%, 860px); }
+#opening .ccard .front { box-shadow: 0 0 0 1px #E3D6B8, 0 10px 26px rgba(30, 20, 8, .35); }
+.ccard .inner { transition-duration: var(--flip, .55s); }
+/* Each card on its own layer before it turns, so a flip only moves layers already drawn. */
+#opening .ccard .inner, #collection .ccard .inner { will-change: transform; }
+.cgrid.instant .ccard .inner, .cgrid.instant .ccard .pic img, .cgrid.instant .ccard .pic .q { transition: none !important; }
+/* The puff: each card shrinks into a little cloud of dust and is gone. */
+.cgrid.puffing .ccard { animation: puff .6s ease-in both; animation-delay: calc(var(--i, 0) * 25ms); }
+.cgrid.puffing .ccard::after {
+  content: ""; position: absolute; inset: -18%; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(circle at 30% 40%, rgba(236, 222, 190, .95) 0 6%, transparent 7%), radial-gradient(circle at 70% 35%, rgba(226, 210, 172, .9) 0 5%, transparent 6%),
+    radial-gradient(circle at 55% 70%, rgba(240, 228, 200, .9) 0 7%, transparent 8%), radial-gradient(circle at 22% 72%, rgba(222, 206, 168, .85) 0 4%, transparent 5%),
+    radial-gradient(circle at 82% 66%, rgba(236, 222, 190, .85) 0 5%, transparent 6%), radial-gradient(circle at 50% 50%, rgba(246, 238, 216, .7) 0 22%, transparent 40%);
+  animation: dust .6s ease-out both; animation-delay: calc(var(--i, 0) * 25ms);
+}
+@keyframes puff { 0% { transform: none; opacity: 1; filter: none; } 60% { opacity: .5; } 100% { transform: scale(.55) translateY(-10px); opacity: 0; filter: blur(4px); } }
+@keyframes dust { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.35); opacity: 0; } }
+.cgrid.puffing.instant .ccard, .cgrid.puffing.instant .ccard::after { animation-delay: calc(-1s * var(--seek, 0)); animation-play-state: paused; }
+@media (max-height: 599px) {
+  #opening { gap: 8px; }
+  #opening .lines { min-height: 64px; }
+  #opening .lines p { font-size: 18px; padding: 2px 4px 2px 12px; }
+  #opening-grid { max-width: 380px; }
+}
+@media (max-width: 599px) { #opening .lines p { font-size: 19px; } }

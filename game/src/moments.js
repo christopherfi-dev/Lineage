@@ -42,7 +42,17 @@ export const MOMENTS = [
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
   "win", "still-changing", "collection", "chosen-by-place", "try-another-place",
+  "intro-flip", "intro-found", "intro-puff",
 ];
+
+/**
+ * The opening's moments (scope decision 77), held still this many seconds in: the cards flipping one after another
+ * (seven up, five still down); settled, on an iPad that has found three animals already (koala, cheetah, seal); and
+ * puffing away.
+ */
+const INTRO_AT = { "intro-flip": 1.4, "intro-found": 4.0, "intro-puff": 4.77 };
+/** The animals the `intro-found` iPad has evolved already. */
+const INTRO_FOUND = ["koala", "cheetah", "seal"];
 
 /**
  * Founding families to try, in order; a world tries those it has (the
@@ -630,6 +640,21 @@ export async function goToMoment(game, moment) {
       if (G.naming) G.naming.goAt = Infinity; // the picked name stays up to be seen
     }
     globalThis.lineageMoment = { moment, seed: G.seed, family: 0, generation: G.bridge.generation, names: G.naming?.names ?? [], name: G.story.name };
+    return;
+  }
+  if (moment in INTRO_AT) { // the opening, after the mist and before the first tap
+    const G = game;
+    if (moment === "intro-found") {
+      try { localStorage.setItem("lineage.collection", JSON.stringify(INTRO_FOUND.map((id) => ({ id, when: new Date().toISOString(), name: null })))); } catch { /* storage blocked */ }
+    }
+    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+    // As in a game with the opening: no hint and no "Tap an animal…" until the cards have gone.
+    G.hintEl.style.transition = "none";
+    G.hideHint();
+    G.say([]);
+    G.showLine("");
+    G.playOpening({ seek: INTRO_AT[moment] });
+    globalThis.lineageMoment = { moment, seed: G.seed, generation: G.bridge.generation, at: INTRO_AT[moment] };
     return;
   }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
