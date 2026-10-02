@@ -128,10 +128,12 @@ const GUIDE_KEY = "lineage.fieldGuide", JOURNAL_KEY = "lineage.journal";
 /** The journal keeps this many stories, the newest. */
 export const JOURNAL_MAX = 200;
 
-function read(key, fallback) {
+/** A value kept in this iPad's own storage, or the fallback when there is none or storage is blocked. */
+export function read(key, fallback) {
   try { const v = globalThis.localStorage?.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 }
-function write(key, value) {
+/** Keep a value in this iPad's own storage; false when storage is blocked. */
+export function write(key, value) {
   try { if (!globalThis.localStorage) return false; globalThis.localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
 }
 

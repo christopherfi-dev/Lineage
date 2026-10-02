@@ -30,6 +30,7 @@ import {
 import { familySince, better, differences, placeNow, timeSplit, misfit } from "./groups.js";
 import { isGoodSeed, goodSeed, familiesWithAFuture } from "./seeds.js";
 import { TRAIT_WORDS, averageOf, comparedRows, plainRows } from "./variations.js";
+import { TRAITS } from "./engine.js";
 import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, lastPassed, madeIt, endingTitle, question, choicesHeading,
@@ -41,9 +42,12 @@ import {
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
   placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
-  firstHereLine,
+  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere,
 } from "./narration.js";
-import { speakerButton, isSpeaking } from "./speech.js";
+import { resultFor } from "./win.js";
+import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf, preloadPictures } from "./collection.js";
+import { Opening, OPENING_LINES } from "./opening.js";
+import { speakerButton, isSpeaking, speak } from "./speech.js";
 import { explainGuess } from "./why.js";
 import {
   IDEA_TRAITS, IDEA_OR, IDEA_DONE, CHECK_TITLE, REVEAL_TITLE, HAPPENED_TITLE, IDEA_TITLE, MY_IDEA, ideaSentence, cleanIdea, truthOf, checkIdea,
@@ -153,7 +157,7 @@ export class Game {
    * @param {{seed:number, makeWorld:(seed:number)=>Bridge, demo?:boolean, length?:number}} world how to make this world
    *   again, or another; the teacher demo (?demo=webbed) lets any family be picked; the story's length (?length=)
    */
-  constructor(doc, bridge, { seed, makeWorld, demo = false, length = STORY_GENERATIONS }) {
+  constructor(doc, bridge, { seed, makeWorld, demo = false, length = STORY_GENERATIONS, opening = true }) {
     const $ = (id) => /** @type {HTMLElement} */ (doc.getElementById(id));
     this.doc = doc;
     this.stage = $("stage");
@@ -190,8 +194,33 @@ export class Game {
     this.sinceBarEl = $("since-bar");
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
-    // The ending's four steps (scope decision 62).
-    this.stepEls = ["step-happened", "step-idea", "step-check", "step-reveal"].map($);
+    // The ending's steps (scope decision 62), after the line's home when it has one (scope decision 73).
+    this.stepEls = { result: $("step-result"), happened: $("step-happened"), idea: $("step-idea"), check: $("step-check"), reveal: $("step-reveal"),
+      collection: $("step-collection") };
+    /** @type {string[]} this ending's steps, in order, by name */
+    this.endingSteps = ["happened", "idea", "check", "reveal"];
+    this.resultLinesEl = $("result-lines");
+    this.resultCardEl = $("result-card");
+    this.revealPictureEl = /** @type {HTMLImageElement} */ ($("reveal-picture"));
+    // The collection (scope decision 74): its button on the start screen, its panel, and the ending's last step.
+    this.collectionButtonEl = /** @type {HTMLButtonElement} */ ($("collection-button"));
+    this.collectionButtonCountEl = $("collection-button-count");
+    this.collectionEl = $("collection");
+    this.collectionGridEl = $("collection-grid");
+    this.endingCollectionGridEl = $("ending-collection-grid");
+    /** @type {null|string} the animal a line just became, new on this iPad: its card is marked "New!" */
+    this.freshCard = null;
+    // The opening (scope decision 77): the cards before the first tap, the full one once a session, quick after.
+    this.openingEl = $("opening");
+    this.openingGridEl = $("opening-grid");
+    this.openingLineEls = [$("opening-line-1"), $("opening-line-2")];
+    /** @type {null|Opening} the opening's cards, while they play */
+    this.opening = null;
+    /** how many openings this page has played: the first is the full one */
+    this.openings = 0;
+    /** no opening: the moments ask for this, and play it themselves when it is theirs */
+    this.openingOff = !opening;
+    this.resultLineEl = /** @type {HTMLCanvasElement} */ ($("result-line"));
     this.stepNameEl = $("ending-step-name");
     this.stepCountEl = $("ending-step-count");
     this.endingNextEl = /** @type {HTMLButtonElement} */ ($("ending-next"));
@@ -255,6 +284,11 @@ export class Game {
     this.log = this.speakable(this.logEl);
     this.speakable(/** @type {HTMLElement} */ (this.choiceEl.querySelector("h2")));
     this.endingTitle = this.speakable(this.endingTitleEl);
+    this.resultTitle = this.speakable($("result-title"));
+    this.collectionTitle = this.speakable($("collection-title"));
+    this.collectionCount = this.speakable($("collection-count"));
+    this.endingCollectionCount = this.speakable($("ending-collection-count"));
+    for (const id of ["collection-credits", "ending-collection-credits"]) $(id).textContent = IMAGE_CREDITS;
     this.endingTraitsTitle = this.speakable(this.endingTraitsTitleEl, () => this.traitsSpoken);
     this.endingQuestion = this.speakable(this.endingQuestionEl);
     this.endingEvidence = this.speakable(this.endingEvidenceLineEl);
@@ -318,6 +352,7 @@ export class Game {
     this.logShownAt = 0;
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
+    this.anotherPlaceEl = /** @type {HTMLButtonElement} */ ($("another-place"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
     // "This world is nearly over. Start a new world?" (scope decision 64)
     this.nearlyEl = $("nearly-over");
@@ -334,6 +369,8 @@ export class Game {
     this.seed = seed;
     this.makeWorld = makeWorld;
     this.demo = demo;
+    // The collection's pictures, decoded while the arrival mist clears (scope decision 77).
+    if (!demo) preloadPictures();
     /** the generation every story in this page ends at, if its family lasts (?length=, scope decision 64) */
     this.storyLength = length;
     this.cam = { x: 0, y: 0 };
@@ -420,6 +457,8 @@ export class Game {
     this.moveToTell = null;
     /** @type {null|number} the line's place filled up, still to be told (scope decision 70) */
     this.fillToTell = null;
+    /** @type {import("./story.js").PlaceChip[]} traits the line's place just chose, still to be told (scope decision 75) */
+    this.placeToTell = [];
     /** @type {Array<{id:number, at:number}>} the line's animals dying now or soon, one by one: the camera stays on each (scope decision 67) */
     this.deathCam = [];
     this.deathCamOn = null;
@@ -453,6 +492,11 @@ export class Game {
     this.guideEl.classList.remove("open");
     this.guideEl.hidden = true;
     this.guideButtonEl.hidden = false;
+    // The collection's button, on the start screen until the first tap (scope decision 74).
+    this.closeCollection(true);
+    this.freshCard = null;
+    this.collectionButtonEl.hidden = false;
+    this.collectionButtonCountEl.textContent = `${collection().size}/${GRID.length}`;
     /** @type {Array<{question:string, answer:null|string, right:boolean}>} this story's tap-to-guess answers, for the journal */
     this.guesses = [];
     this.storyId = null;
@@ -468,13 +512,14 @@ export class Game {
     /** @type {Set<number>} glowing babies the log named: only those get a caption on the map */
     this.namedBirths = new Set();
     this.endingEl.hidden = true;
+    this.stopOpening();
     this.mood = this.moodTarget = 0;
     this.dayPhase = 0;
     this.arrival = { t0: this.painted ? performance.now() : null, dur: this.painted ? RETURN_MS : ARRIVAL_MS };
     this.stage.classList.add("arriving");
     this.setHud(false); // a new story starts with the slim bar on a phone
-    this.showHint();
-    this.say([START_LINE]);
+    // With the opening, "Tap an animal to follow its family." waits until the cards have puffed away (scope decision 77).
+    if (!this.opens()) { this.showHint(); this.say([START_LINE]); } else { clearTimeout(this.hintT); this.hideHint(); this.say([]); this.showLine(""); }
     this.updateHud();
     // The camera opens on a family with a future, close enough to tap one of them: the first founding family
     // that has one, or in a world kept as it is, the biggest.
@@ -523,6 +568,7 @@ export class Game {
     const what = s.afterGeneration(ev);
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
     if (s.fillingNow) this.fillToTell = s.home.zone; // the line's place filled up: told on arriving, or the next watched generation
+    if (s.placeChoseNow.length) this.placeToTell.push(...s.placeChoseNow); // the place chose a trait: told the next watched generation
     // See, guess, explain: at a follow's result the world waits for a guess (scope decision 60). A line that died out
     // gets its own right there, once its last animals have faded (scope decision 68). Only a new Field Guide discovery
     // is a guess; any other "Why?" is told as a line, with no guess (scope decision 69).
@@ -549,7 +595,7 @@ export class Game {
       const lines = s.told ? s.told : v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
         [...groupLines(ev.group, s.noun, [], s.name), ...(q ? [] : s.changeReasons(ev))];
       // The line's place has just filled up: said first, since it is why some die now (scope decision 70).
-      this.say([...this.fillingLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
+      this.say([...this.fillingLines(), ...this.placeLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
     }
     this.updateHud();
     if (what === "back") this.backing.q = q;
@@ -613,6 +659,16 @@ export class Game {
     return z === null || z === undefined ? [] : [fillingLine(z)];
   }
 
+  /**
+   * The line's place chose a trait the child didn't follow (scope decision 75), once, as its chip first shows: "The
+   * water is choosing too." "Strong tails are winning here."
+   */
+  placeLines() {
+    const chosen = this.placeToTell.filter((p) => this.story.placeChips.includes(p));
+    this.placeToTell = [];
+    return chosen.length ? [placeChoosing(chosen[0].zone), winningHere(chosen.map((p) => ({ trait: TRAITS[p.t], dir: p.dir })))] : [];
+  }
+
   /** A real move of the family (scope decision 59), once: "Some of your animals are moving to the water's edge." */
   moveLines() {
     const m = this.moveToTell, s = this.story;
@@ -674,8 +730,14 @@ export class Game {
    * The first tap: follow the family of the tapped animal's ancestor a few
    * generations back. The child names it first; then time starts.
    */
-  begin(animal) {
+  /**
+   * @param {any} animal the animal tapped
+   * @param {null|string} [name] the family's name already ("Try another place", scope decision 76): no naming then
+   */
+  begin(animal, name = null) {
     const f = this.story.begin(animal.id);
+    this.collectionButtonEl.hidden = true;
+    this.closeCollection(true);
     this.syncGroups();
     this.herd.following = true;
     this.clock = 0;
@@ -687,7 +749,13 @@ export class Game {
     this.exploring = false; this.visiting = null; // the child chose this family: the camera goes to it
     this.centerOnGroup();
     this.updateHud();
-    this.openNaming();
+    if (!name) { this.openNaming(); return; }
+    // The same family again (scope decision 76): its name stays, and the first choice comes at once.
+    this.story.name = name;
+    this.setHomeLabel();
+    this.updateHud();
+    this.updatePortrait();
+    if (this.story.phase === "place") this.openPlace();
   }
 
   /* ================= naming the family (Step 5, names.js) ================= */
@@ -972,7 +1040,12 @@ export class Game {
     this.zoomBeforeFast = this.comfortZoom();
     // A place with plenty of room (scope decision 70): its pairs have more babies, since there is more food.
     const room = h.roomy ? [LOTS_OF_ROOM] : [];
-    if (s.phase === "moving") {
+    if (zone === 1) {
+      // Choosing the open ground is staying (scope decision 71): its own lines, and no "Lots of room here!".
+      this.say([staysLine(s.name), CROWDED_GROUND, ...(s.phase === "moving" ? [counter] : [])]);
+      if (s.phase === "moving") this.holdLine();
+      else { this.zoomTo(this.zoomBeforeFast); this.zoomBeforeFast = null; this.centerOnGroup(); }
+    } else if (s.phase === "moving") {
       this.say([homeLine(h.sizeAtChoice, zone, s.name), ...room, counter]);
       // With room, the move waits for "Lots of room here!" to come up, then starts under it.
       if (room.length) this.clock = -LOG_MS;
@@ -1185,7 +1258,8 @@ export class Game {
     const left = c.left;
     this.choiceBarEl.style.width = `${(100 * left / (CHOICE_SECONDS * 1000)).toFixed(1)}%`;
     if (left === 0) {
-      const options = this.story.options;
+      // Time ran out: one of the options that help there, at random, never one that hurts (scope decision 73).
+      const options = this.story.options.filter((o) => this.story.helps(o.v));
       this.pick(options[Math.floor(Math.random() * options.length)], true, now);
     }
   }
@@ -1607,7 +1681,9 @@ export class Game {
   /** The group died out, or the story reached its last generation. A moment, then the reflection screen. */
   storyEnded() {
     const s = this.story;
-    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : madeIt(s.noun, s.name)]);
+    // The animal the line became at the win joins this iPad's collection (scope decision 74).
+    if (s.won && collect(s.reveal.animal, s.name)) this.freshCard = s.reveal.animal.id;
+    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : s.won ? fitsHome(s.name) : madeIt(s.noun, s.name)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
   }
@@ -1628,6 +1704,29 @@ export class Game {
     this.closeAverage();
     this.ideaAnswered = false;
     this.idea = null;
+    // 0. The line's home (scope decision 73): the win's celebration, or "still changing" at the story's last generation.
+    // An early ending has none.
+    const fit = resultFor(s);
+    this.endingSteps = [...(fit ? ["result"] : []), "happened", "idea", "check", "reveal", "collection"];
+    this.endingEl.classList.toggle("won", !!fit?.won);
+    // The real animal's card beside the line: evolved now, or what it looks most like so far (scope decision 74).
+    const animal = s.reveal?.animal;
+    this.resultCardEl.replaceChildren(...(fit && animal?.id ? [cardEl(doc, animal, { found: true })] : []));
+    this.revealPictureEl.hidden = !animal?.id;
+    if (animal?.id) this.revealPictureEl.src = pictureOf(animal);
+    // The last step: the collection, the animal just evolved marked new (scope decision 74).
+    this.fillCollection(this.endingCollectionGridEl, this.endingCollectionCount);
+    if (fit) {
+      this.resultTitle.set(fit.title);
+      const n = fit.lines.length;
+      this.resultLinesEl.replaceChildren(...fit.lines.map((line, i) => {
+        const kind = i === 0 && fit.won ? "became" : line.startsWith("Did you know?") ? "fact" : fit.won && i >= n - 2 ? "fits" : "";
+        const p = Object.assign(doc.createElement("p"), { className: kind });
+        p.style.setProperty("--i", String(i));
+        p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: line }), speakerButton(doc, () => line));
+        return p;
+      }));
+    }
     // 1. What happened. The family's actual average body at the start and at the end (the last members alive),
     // drawn, never a list of choices (scope decision 20).
     this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun, s.name));
@@ -1653,7 +1752,14 @@ export class Game {
         ...picked.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: c.words })),
         speakerButton(doc, () => `${YOU_CHOSE} ${chips.join(", ")}.`));
     }
-    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []));
+    // And what the place chose, in its own style (scope decision 75).
+    const byPlace = s.placeChips.map((p) => chosenChip(TRAITS[p.t], p.dir, p.zone));
+    const placeRow = Object.assign(doc.createElement("div"), { className: "chips" });
+    if (byPlace.length) {
+      placeRow.append(...s.placeChips.map((p, i) => Object.assign(doc.createElement("span"), { className: `chip chosen z${p.zone}`, textContent: byPlace[i] })),
+        speakerButton(doc, () => `${byPlace.join(". ")}.`));
+    }
+    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []), ...(byPlace.length ? [placeRow] : []));
     // 2. Your idea.
     this.endingQuestion.set(question(s.outcome, s.noun, s.name));
     this.buildIdea(s);
@@ -1714,13 +1820,14 @@ export class Game {
       li.append(this.predictionBlock(p, p.question.text));
       return li;
     }));
-    // The real-animal reveal on every ending (scope decisions 10 and 40, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
-    // the family's actual average traits and main habitat when the story ended, never its choices.
+    // The real-animal reveal on every ending (scope decisions 10, 40 and 72, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
+    // the line's actual traits and main place when the story ended, and the free traits the child chose.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       const died = s.outcome === "died";
       this.revealLine.set(namedReveal(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name));
-      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" "));
+      // Then the free traits it shares with the real animal (scope decision 72).
+      this.revealWhy.set([...(died ? s.reveal.whyPast : s.reveal.why), ...s.reveal.like].join(" "));
       this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
         const p = Object.assign(doc.createElement("p"), { className: "fact" });
         p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: fact }), speakerButton(doc, () => fact));
@@ -1736,22 +1843,35 @@ export class Game {
     this.endingEl.classList.add("show");
     paintCreature(this.endingStartEl, began, { seed: s.startGeneration + 1, habitat: placeOf(s.startAnimals) });
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
+    if (fit) paintCreature(this.resultLineEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
     this.renderTree(this.endingTreeEl, tree);
     this.endingTreeSaid = this.treeSaid;
   }
 
-  /** Show one step of the ending: Next goes on, but "Your idea" goes on only once it is given (its own button). */
+  /**
+   * Show one step of the ending, by its place in this ending's steps: Next goes on, but "Your idea" goes on only once
+   * it is given (its own button).
+   */
   setEndingStep(k) {
     this.endingStep = k;
-    this.stepEls.forEach((el, i) => { el.hidden = i !== k; });
-    this.stepNameEl.textContent = [HAPPENED_TITLE, IDEA_TITLE, CHECK_TITLE, REVEAL_TITLE][k];
-    this.stepCountEl.textContent = `${k + 1} of 4`;
-    this.endingNextEl.hidden = k === 1 || k === 3;
-    this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
+    const name = this.endingSteps[k];
+    for (const [step, el] of Object.entries(this.stepEls)) el.hidden = step !== name;
+    this.stepNameEl.textContent = { result: RESULT_STEP, happened: HAPPENED_TITLE, idea: IDEA_TITLE, check: CHECK_TITLE, reveal: REVEAL_TITLE,
+      collection: COLLECTION_TITLE }[name];
+    this.stepCountEl.textContent = `${k + 1} of ${this.endingSteps.length}`;
+    this.endingNextEl.hidden = name === "idea" || k === this.endingSteps.length - 1;
+    // After a story with a place chosen, "Try another place" (scope decision 76); in the teacher demo, "Try another family".
+    const placed = !!(this.story.home ?? this.story.homeTries.length);
+    this.anotherPlaceEl.hidden = !this.ideaAnswered || !placed;
+    this.againEl.hidden = !this.ideaAnswered || placed;
+    this.newWorldEl.hidden = !this.ideaAnswered;
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
-    if (k === 3 && this.story.reveal) this.sound.revealChord(0.4);
+    if ((name === "reveal" && this.story.reveal) || (name === "result" && this.story.won)) this.sound.revealChord(0.4);
   }
+
+  /** Show the ending's step with this name ("result", "happened", "idea", "check" or "reveal"). */
+  showStep(name) { this.setEndingStep(Math.max(0, this.endingSteps.indexOf(name))); }
 
   /**
    * "Your idea": "My animals [did / didn't] survive because their [trait]
@@ -1828,7 +1948,7 @@ export class Game {
       return p;
     }));
     this.keepStory(check);
-    this.setEndingStep(2);
+    this.showStep("check");
   }
 
   /** The story, kept in this iPad's own journal for the teacher (reflection.js; nothing leaves the iPad). */
@@ -1837,7 +1957,7 @@ export class Game {
     this.storyId = this.storyId ?? Date.now();
     keepInJournal({
       id: this.storyId, when: new Date().toISOString(), name: s.name, seed: this.seed,
-      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, lasted: s.lasted,
+      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, won: s.won, lasted: s.lasted,
       choices: s.choices.map((c) => `${c.group}${c.byChance ? " (picked at random)" : ""}`),
       idea: this.idea.sentence, typed: this.idea.typed, check: check.lines, right: check.right,
       reveal: s.reveal?.animal.name ?? null,
@@ -1877,6 +1997,97 @@ export class Game {
       button.disabled = false;
       button.textContent = label;
     }
+  }
+
+  /* ================= the opening (scope decision 77) ================= */
+  /** Whether this story begins with the opening: not in the teacher demo, which has no collection, nor in a moment. */
+  opens() { return !this.demo && !this.openingOff; }
+
+  /**
+   * The opening: the twelve cards face down, "These are the animals you can become." and "How many can you
+   * discover?" (read aloud when the iPad lets sound play), each card flipping in turn with a quiet card sound, the
+   * ones not found yet settling as mystery cards, then a soft puff, and the game starts: "Tap an animal to follow its
+   * family." The full one the first time on this page, the quick one after. A tap skips to the end.
+   * @param {{seek?: number}} [opts] the moments: hold it `seek` seconds in, for a picture
+   */
+  playOpening({ seek } = {}) {
+    this.stopOpening();
+    const quick = this.openings > 0;
+    this.openings++;
+    for (const el of this.openingLineEls) { el.replaceChildren(); el.classList.remove("on"); }
+    this.openingEl.classList.remove("gone");
+    this.openingEl.hidden = false;
+    requestAnimationFrame(() => this.openingEl.classList.add("open"));
+    this.collectionButtonEl.hidden = true;
+    const line = (i) => {
+      const el = this.openingLineEls[i], text = OPENING_LINES[i];
+      el.replaceChildren(Object.assign(this.doc.createElement("span"), { className: "text", textContent: text }), speakerButton(this.doc, () => text));
+      el.classList.add("on");
+      if (!this.sound.muted && seek === undefined) speak(text);
+    };
+    this.opening = new Opening(this.doc, this.openingGridEl, {
+      quick,
+      onLine: line,
+      onFlip: () => this.sound.cardFlip(),
+      onPuff: () => this.sound.puff(),
+      onDone: () => this.openingDone(),
+    });
+    if (seek === undefined) this.opening.start();
+    else this.opening.seek(seek);
+  }
+
+  /** The cards are gone: the game starts. */
+  openingDone() {
+    if (this.opening?.hold) return; // a moment holds it still
+    this.openingEl.classList.add("gone");
+    clearTimeout(this.openingHideT);
+    this.openingHideT = setTimeout(() => { this.openingEl.hidden = true; this.openingEl.classList.remove("open", "gone"); }, 500);
+    this.opening = null;
+    if (this.story.phase !== "waiting") return;
+    this.collectionButtonEl.hidden = false;
+    this.showHint();
+    this.say([START_LINE]);
+  }
+
+  /** A new story, or a moment: no opening on screen. */
+  stopOpening() {
+    if (this.opening) { this.opening.done = true; this.opening.stop(); }
+    this.opening = null;
+    clearTimeout(this.openingHideT);
+    this.openingEl.hidden = true;
+    this.openingEl.classList.remove("open", "gone");
+  }
+
+  /* ================= the collection (scope decision 74) ================= */
+  /**
+   * The twelve cards in a grid, a row for each place: the animals evolved on this iPad with their picture, the rest
+   * mystery cards; the one a line just became marked "New!". And "You've evolved 5 of 12." above them.
+   */
+  fillCollection(gridEl, countLine) {
+    const found = collection();
+    gridEl.replaceChildren(...GRID.map((a) => cardEl(this.doc, a, { found: found.has(a.id), isNew: a.id === this.freshCard })));
+    countLine.set(evolvedLine(found.size));
+  }
+
+  /** From its button on the start screen: the collection, over the world, which waits. */
+  openCollection() {
+    this.collectionTitle.set(COLLECTION_TITLE);
+    this.fillCollection(this.collectionGridEl, this.collectionCount);
+    // The opening's flip, quick, and the cards stay (scope decision 77).
+    this.collectionFlip = new Opening(this.doc, this.collectionGridEl, { quick: true, puff: false, onFlip: () => this.sound.cardFlip() }).start();
+    this.collectionOpen = true;
+    clearTimeout(this.collectionHideT);
+    this.collectionEl.hidden = false;
+    requestAnimationFrame(() => this.collectionEl.classList.add("open"));
+  }
+
+  closeCollection(now = false) {
+    if (!this.collectionOpen && !now) return;
+    this.collectionOpen = false;
+    this.collectionEl.classList.remove("open");
+    clearTimeout(this.collectionHideT);
+    if (now) this.collectionEl.hidden = true;
+    else this.collectionHideT = setTimeout(() => { if (!this.collectionOpen) this.collectionEl.hidden = true; }, 380);
   }
 
   /* ================= the Field Guide (scope decision 62) ================= */
@@ -1946,15 +2157,40 @@ export class Game {
     });
   }
 
+  /**
+   * "Try another place" (scope decision 76): a new story in the same world, from the same family, with its name, and
+   * "Where will your … family live?" again, so the child can compare places (or try the same place another way). The
+   * world starts again where this story began: the same seed, run on to the same generation, which the engine makes
+   * the same world, since following never touches the biology.
+   */
+  anotherPlace(btn = this.anotherPlaceEl) {
+    const s = this.story, from = s.startGeneration, first = s.firstId, name = s.name;
+    this.busy(btn, "Going back…", () => {
+      this.endingEl.hidden = true;
+      const bridge = this.makeWorld(this.seed), herd = new Herd(this.world, 7919);
+      herd.placeFounders(bridge);
+      while (bridge.generation < from) {
+        const ev = bridge.step();
+        if (!ev) break;
+        herd.applyGeneration(ev, bridge, 0);
+      }
+      this.start(bridge, herd);
+      const animal = this.herd.animals.get(first);
+      if (animal) this.begin(animal, name);
+      // No arrival and no opening: the family is chosen already, and the sheet comes at once.
+      if (this.arrival) { this.arrival.t0 = performance.now() - this.arrival.dur; this.endArrival(); }
+    });
+  }
+
   /** "This world is nearly over. Start a new world?", with "New world" and a small "Keep going anyway", in place of the ending's buttons. */
   askNearlyOver() {
-    this.againEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
+    this.againEl.hidden = this.anotherPlaceEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
     this.nearlyEl.hidden = false;
   }
 
   /** The tapped button says what is happening, and the ending's buttons wait, while the page repaints; then it happens. */
   busy(btn, text, then) {
-    const label = btn.textContent, all = [this.againEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
+    const label = btn.textContent, all = [this.againEl, this.anotherPlaceEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
     btn.textContent = text;
     for (const b of all) b.disabled = true;
     setTimeout(() => {
@@ -2001,7 +2237,7 @@ export class Game {
     if (rowEls.length) rowEls[0].append(speakerButton(this.doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" ")));
     this.othersEl.replaceChildren(...rowEls);
     this.othersEl.hidden = !rows.length;
-    this.showSoFar(following && !dying ? s.chips : [], following && !dying ? s.home : null);
+    this.showSoFar(following && !dying ? s.chips : [], following && !dying ? s.home : null, following && !dying ? s.placeChips : []);
     this.showWhyHere(following && !dying ? s.reasons : null);
     if (!s.running) this.barEl.style.width = "0%";
   }
@@ -2048,8 +2284,8 @@ export class Game {
    * the order chosen; a faded one greys out, with its reason as a line below.
    * @param {import("./story.js").Chip[]} chips
    */
-  showSoFar(chips, home = null) {
-    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}`;
+  showSoFar(chips, home = null, placeChips = []) {
+    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}:${placeChips.map((p) => p.t).join(",")}`;
     if (key === this.soFarKey) return;
     this.soFarKey = key;
     const doc = this.doc, el = this.soFarEl;
@@ -2057,12 +2293,15 @@ export class Game {
     if (!chips.length && !home) { el.replaceChildren(); return; }
     const faded = chips.filter((c) => c.faded).map((c) => fadedLine(c.v.group, c.faded));
     const words = soFarTitle(this.story.name, this.story.noun);
-    // The place the child chose comes first (scope decision 70), then each chosen trait.
-    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []), ...chips.map((c) => ({ words: chipWords(c.v.group), faded: c.faded }))];
+    // The place the child chose comes first (scope decision 70), then each chosen trait, then what the place chose
+    // (scope decision 75), in their own style.
+    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []), ...chips.map((c) => ({ words: chipWords(c.v.group), faded: c.faded })),
+      ...placeChips.map((p) => ({ words: chosenChip(TRAITS[p.t], p.dir, p.zone), faded: null, zone: p.zone }))];
     const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: words });
     title.append(speakerButton(doc, () => `${words}: ${all.map((c) => c.words).join(", ")}.`));
     const row = Object.assign(doc.createElement("div"), { className: "chips" });
-    row.append(...all.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: c.words })));
+    row.append(...all.map((c) => Object.assign(doc.createElement("span"), {
+      className: c.faded ? "chip faded" : c.zone !== undefined ? `chip chosen z${c.zone}` : "chip", textContent: c.words })));
     el.replaceChildren(title, row, ...faded.map((t) => {
       const p = Object.assign(doc.createElement("p"), { className: "faded-line" });
       p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: t }), speakerButton(doc, () => t));
@@ -2716,7 +2955,8 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.placing || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.placing || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen ||
+      this.collectionOpen) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -2756,12 +2996,12 @@ export class Game {
     cls.toggle("night", L.night > 0.6);
   }
 
-  /** The mist has lifted: the panels and the one line come in. */
+  /** The mist has lifted: the panels and the one line come in; before the first tap, the opening's cards first. */
   endArrival() {
     this.arrival = null;
     this.zoomK = 1; this.zoom = this.zoomBase; this.camOff = 0; this.mist = 0;
     this.stage.classList.remove("arriving");
-    if (this.story.phase === "waiting") this.showHint();
+    if (this.story.phase === "waiting") { if (this.opens()) this.playOpening(); else this.showHint(); }
     this.logEl.style.animation = "none"; void this.logEl.offsetWidth;
     this.logEl.style.animation = "lgIn .9s ease both";
   }
@@ -2849,7 +3089,7 @@ export class Game {
     const s = this.stage;
     this.ptrs = new Map();
     s.addEventListener("pointerdown", (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #place, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("button, #hud, #card, #choice, #place, #since, #journal, #naming, #guess, #why-here, #average, #guide, #ending, #bloom, #log.link, #opening, #collection")) return;
       s.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.ptrs.size === 1) {
@@ -2889,7 +3129,7 @@ export class Game {
     s.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending")) return;
+      if (/** @type {HTMLElement} */ (e.target).closest("#hud, #card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending, #opening, #collection")) return;
       this.zoomAround(this.zoomBase * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     }, { passive: false });
     // Safari's own pinch would zoom the whole page, panels and all.
@@ -2932,16 +3172,22 @@ export class Game {
     this.doc.getElementById("naming-back").addEventListener("click", () => this.stopTyping());
     this.portraitEl.addEventListener("click", () => this.openAverage());
     // The ending's steps, the idea, the Field Guide and the story card (scope decision 62).
-    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(3, this.endingStep + 1)));
+    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(this.endingSteps.length - 1, this.endingStep + 1)));
     this.ideaDoneEl.addEventListener("click", () => this.answerIdea());
     this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
     this.guideButtonEl.addEventListener("click", () => this.openGuide());
+    this.collectionButtonEl.addEventListener("click", () => this.openCollection());
+    this.openingEl.addEventListener("click", () => this.opening?.skip());
+    this.collectionGridEl.addEventListener("click", () => this.collectionFlip?.skip());
+    this.doc.getElementById("collection-close").addEventListener("click", () => this.closeCollection());
+    this.collectionEl.addEventListener("click", (e) => { if (e.target === this.collectionEl) this.closeCollection(); });
     this.doc.getElementById("guide-open").addEventListener("click", () => this.openGuide());
     this.doc.getElementById("guide-close").addEventListener("click", () => this.closeGuide());
     this.doc.getElementById("card-save").addEventListener("click", () => this.saveCard());
     this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
-    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); } });
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); this.closeCollection(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
+    this.anotherPlaceEl.addEventListener("click", () => this.anotherPlace());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
     for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });
@@ -3113,9 +3359,10 @@ if (typeof document !== "undefined") {
       q.set("seed", String(seed));
       history.replaceState(null, "", `?${q}`);
     }
-    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture, length }); // for poking at the live engine from the console
-    // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state.
+    // Design shortcuts (design/current/README.md): ?moment=ending jumps to that moment in a real game state; a moment
+    // plays the opening only when it is its own.
     const moment = q.get("moment");
+    globalThis.lineageGame = new Game(document, makeWorld(seed), { seed, makeWorld, demo: !!fixture, length, opening: !moment }); // for poking at the live engine from the console
     if (moment) import("./moments.js").then((m) => m.goToMoment(globalThis.lineageGame, moment));
   });
 }

@@ -10,8 +10,10 @@
 <!--
   My Journal (scope decision 62): for the teacher, every story told on this
   iPad, newest first, read from this iPad's own storage (localStorage,
-  "lineage.journal"). Nothing is sent anywhere: this page makes no network
-  call, and clearing it only clears this iPad.
+  "lineage.journal"), and the collection of animals evolved here (scope
+  decision 74, "lineage.collection"). Nothing is sent anywhere: this page
+  makes no network call, and clearing it only clears this iPad. "Start fresh"
+  clears the journal, the Field Guide and the collection, for a new child.
 -->
 <style>
   * { box-sizing: border-box; }
@@ -33,6 +35,10 @@
   dd { margin: 0; }
   ul { margin: 0; padding-left: 18px; }
   .empty { padding: 24px; border-radius: 18px; background: #FBF6EA; text-align: center; color: #6E6750; }
+  .collection { margin: 0 0 18px; padding: 16px 20px; border-radius: 18px; background: #FBF6EA; box-shadow: 0 2px 10px rgba(45, 38, 20, .15); }
+  .collection h2 { margin: 0 0 6px; font: 600 23px/1.2 Petrona, Georgia, serif; }
+  .collection ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; margin: 6px 0 0; padding-left: 20px; }
+  .collection .none { margin: 0; color: #6E6750; }
   @media print { body { background: #fff; } .bar { display: none; } article { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; } }
 </style>
 </head>
@@ -44,13 +50,30 @@
     <a href="./">Back to the game</a>
     <button type="button" id="print">Print</button>
     <button type="button" id="clear" class="clear">Clear this journal</button>
+    <button type="button" id="fresh" class="clear">Start fresh</button>
   </div>
+  <section class="collection" id="collection"></section>
   <div id="stories"></div>
 </main>
 <script>
   // Read only this iPad's own storage; every value is shown as text, never as HTML.
-  const KEY = "lineage.journal";
-  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } };
+  const KEY = "lineage.journal", GUIDE = "lineage.fieldGuide", COLLECTION = "lineage.collection";
+  const readKey = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
+  const read = () => readKey(KEY);
+  // The collection's twelve animals, a row for each place (game/src/reveal.js), and those evolved on this iPad.
+  const GRID = [["squirrel", "Squirrel"], ["sloth", "Sloth"], ["koala", "Koala"], ["slow-loris", "Slow loris"], ["hare", "Hare"], ["arctic-fox", "Arctic fox"],
+    ["cheetah", "Cheetah"], ["jerboa", "Jerboa"], ["river-otter", "River otter"], ["seal", "Seal"], ["beaver", "Beaver"], ["platypus", "Platypus"]];
+  function renderCollection() {
+    const box = document.getElementById("collection"), found = readKey(COLLECTION).filter((x) => x && GRID.some(([id]) => id === x.id));
+    box.replaceChildren(el("h2", "", `The collection: ${found.length} of ${GRID.length} evolved on this iPad`));
+    if (!found.length) { box.append(el("p", "none", "None yet. An animal joins once a child's line becomes it.")); return; }
+    const ol = el("ol");
+    for (const x of found) {
+      const name = GRID.find(([id]) => id === x.id)[1], when = new Date(x.when);
+      ol.append(el("li", "", `${name}${x.name ? `, the ${x.name} family` : ""}${isNaN(when) ? "" : `, ${when.toLocaleDateString()}`}`));
+    }
+    box.append(ol);
+  }
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   function render() {
     const list = read(), box = document.getElementById("stories");
@@ -60,7 +83,7 @@
       const a = el("article");
       const when = new Date(s.when);
       a.append(el("h2", "", s.name ? `The ${s.name} family` : "A family with no name"));
-      a.append(el("p", "meta", `${isNaN(when) ? "" : when.toLocaleString()} · world ${s.seed} · generations ${s.from}–${s.to} · ${s.outcome === "died" ? `died out after ${s.lasted}` : `survived ${s.lasted}`}`));
+      a.append(el("p", "meta", `${isNaN(when) ? "" : when.toLocaleString()} · world ${s.seed} · generations ${s.from}–${s.to} · ${s.outcome === "died" ? `died out after ${s.lasted}` : s.won ? `fit its home after ${s.lasted}` : `survived ${s.lasted}`}`));
       a.append(el("p", "idea", `“${s.idea}”${s.typed ? " (typed)" : ""}`));
       a.append(el("p", `check${s.right ? " right" : ""}`, (s.check || []).join(" ")));
       const dl = el("dl");
@@ -79,7 +102,15 @@
     try { localStorage.setItem(KEY, "[]"); } catch { /* storage blocked */ }
     render();
   });
+  // Start fresh, for a new child: the journal, the Field Guide and the collection on this iPad.
+  document.getElementById("fresh").addEventListener("click", () => {
+    if (!confirm("Start fresh? This clears this iPad's journal, Field Guide and collection. It can't be undone.")) return;
+    try { for (const key of [KEY, GUIDE, COLLECTION]) localStorage.setItem(key, "[]"); } catch { /* storage blocked */ }
+    render();
+    renderCollection();
+  });
   render();
+  renderCollection();
 </script>
 </body>
 </html>

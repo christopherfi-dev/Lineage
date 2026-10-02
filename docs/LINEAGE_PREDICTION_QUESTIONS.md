@@ -44,13 +44,15 @@ It comes from the engine's Classroom table (scope decision 55): each trait helps
 |---|---|---|---|
 | Webbed feet | ✗ | ~ | ✓ |
 | Curved claws | ✓ | ~ | ✗ |
-| Thick fur | ~ | ✓ | ✗ |
-| Long back legs | ✓ | ✓ | ✗ |
-| Strong tail | ✗ | ✗ | ✓ |
-| Big eyes | ~ | ✓ | ✗ |
+| Thick fur | ~ | ~ | ~ |
+| Long back legs | ~ | ✓ | ✗ |
+| Strong tail | ~ | ~ | ✓ |
+| Big eyes | ~ | ✓ | ~ |
 | Sleek body | ✗ | ~ | ✓ |
 
 The neutral traits (coat, ear tips, tail tip) have no effect anywhere.
+
+*2026-10-02, Round 5 (scope decision 72): six cells are "~" now, where real animals of the place have the trait both ways (`docs/LINEAGE_WHY.md`): thick fur on open ground and at the water's edge, long back legs and a strong tail in the high leaves, a strong tail on open ground, big eyes at the water's edge. The examples below with those cells are from before.*
 
 The reasonable answer for each type, with the reason for the fair test's place:
 

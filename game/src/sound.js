@@ -233,6 +233,16 @@ export class SoundGraph {
     this.note({ freq: 659.3, to: 392, glide: 0.9, type: "sine", gain: 0.05, attack: 0.05, hold: 0.2, release: 1.1, lowpass: 2000 });
   }
 
+  /** A card of the opening turns over (scope decision 77): a quiet, short tick. */
+  cardFlip() {
+    this.note({ freq: 1150, to: 820, glide: 0.06, type: "triangle", gain: 0.022, attack: 0.004, release: 0.09, lowpass: 3200 });
+  }
+
+  /** The opening's cards puff away: a soft, low breath. */
+  puff() {
+    this.note({ freq: 330, to: 140, glide: 0.45, type: "sine", gain: 0.035, attack: 0.05, release: 0.55, lowpass: 900 });
+  }
+
   /** The reveal: a warm chord that swells in and fades slowly. */
   revealChord(delay = 0) {
     const at = this.ctx.currentTime + delay;
@@ -320,6 +330,8 @@ export class Sound {
   waitTone() { if (this.on) this.graph.waitTone(); }
   goneTone() { if (this.on) this.graph.goneTone(); }
   revealChord(delay) { if (this.on) this.graph.revealChord(delay); }
+  cardFlip() { if (this.on) this.graph.cardFlip(); }
+  puff() { if (this.on) this.graph.puff(); }
 }
 
 /** The mute button's two faces: a speaker with waves, and with a cross. */
