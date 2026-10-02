@@ -41,7 +41,7 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "win", "still-changing",
+  "win", "still-changing", "collection",
 ];
 
 /**
@@ -292,6 +292,11 @@ const MOMENT = {
     families: FROM_OTHERS, policies: ["passive", "active"],
     at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.won && !!s.home,
   },
+  /**
+   * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
+   * just became marked "New!", on a new iPad: "You've evolved 1 of 12."
+   */
+  collection: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /**
@@ -744,6 +749,11 @@ export async function goToMoment(game, moment) {
     // The ending opens on its first step, the line's home (scope decision 73).
     G.endingAt = null;
     G.showEnding();
+  } else if (moment === "collection") {
+    // The story ended with the win as the game has it (its animal joined the collection): the ending's last step.
+    G.endingAt = null;
+    G.showEnding();
+    G.showStep("collection");
   } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();

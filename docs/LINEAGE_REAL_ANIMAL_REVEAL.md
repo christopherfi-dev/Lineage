@@ -8,7 +8,7 @@ Principle: each "why" line only credits what the engine actually rewards in that
 
 ## The collection: 12 animals (a 4 × 3 grid)
 
-What every line in a place gets (the required traits) and what tells its animals apart (the free and neutral traits). An animal's **signature** is one or two free traits: a line with either becomes it. Its **profile** is every free or neutral trait that sets it apart, true of the real animal; it settles a tie. Each animal's picture is `game/animals/<id>.jpg` (Part 6).
+What every line in a place gets (the required traits) and what tells its animals apart (the free and neutral traits). An animal's **signature** is one or two free traits: a line with either becomes it. Its **profile** is every free or neutral trait that sets it apart, true of the real animal; it settles a tie. Each animal's picture is `game/animals/<id>.jpg` (scope decision 74), cropped from Marc's originals in `design/animals/`.
 
 | Place | Required (every line there) | Free (the child's follows decide) |
 |---|---|---|

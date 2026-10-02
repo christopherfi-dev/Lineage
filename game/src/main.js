@@ -44,6 +44,7 @@ import {
   firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP,
 } from "./narration.js";
 import { resultFor } from "./win.js";
+import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf } from "./collection.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { explainGuess } from "./why.js";
 import {
@@ -192,10 +193,21 @@ export class Game {
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
     // The ending's steps (scope decision 62), after the line's home when it has one (scope decision 73).
-    this.stepEls = { result: $("step-result"), happened: $("step-happened"), idea: $("step-idea"), check: $("step-check"), reveal: $("step-reveal") };
+    this.stepEls = { result: $("step-result"), happened: $("step-happened"), idea: $("step-idea"), check: $("step-check"), reveal: $("step-reveal"),
+      collection: $("step-collection") };
     /** @type {string[]} this ending's steps, in order, by name */
     this.endingSteps = ["happened", "idea", "check", "reveal"];
     this.resultLinesEl = $("result-lines");
+    this.resultCardEl = $("result-card");
+    this.revealPictureEl = /** @type {HTMLImageElement} */ ($("reveal-picture"));
+    // The collection (scope decision 74): its button on the start screen, its panel, and the ending's last step.
+    this.collectionButtonEl = /** @type {HTMLButtonElement} */ ($("collection-button"));
+    this.collectionButtonCountEl = $("collection-button-count");
+    this.collectionEl = $("collection");
+    this.collectionGridEl = $("collection-grid");
+    this.endingCollectionGridEl = $("ending-collection-grid");
+    /** @type {null|string} the animal a line just became, new on this iPad: its card is marked "New!" */
+    this.freshCard = null;
     this.resultLineEl = /** @type {HTMLCanvasElement} */ ($("result-line"));
     this.stepNameEl = $("ending-step-name");
     this.stepCountEl = $("ending-step-count");
@@ -261,6 +273,10 @@ export class Game {
     this.speakable(/** @type {HTMLElement} */ (this.choiceEl.querySelector("h2")));
     this.endingTitle = this.speakable(this.endingTitleEl);
     this.resultTitle = this.speakable($("result-title"));
+    this.collectionTitle = this.speakable($("collection-title"));
+    this.collectionCount = this.speakable($("collection-count"));
+    this.endingCollectionCount = this.speakable($("ending-collection-count"));
+    for (const id of ["collection-credits", "ending-collection-credits"]) $(id).textContent = IMAGE_CREDITS;
     this.endingTraitsTitle = this.speakable(this.endingTraitsTitleEl, () => this.traitsSpoken);
     this.endingQuestion = this.speakable(this.endingQuestionEl);
     this.endingEvidence = this.speakable(this.endingEvidenceLineEl);
@@ -459,6 +475,11 @@ export class Game {
     this.guideEl.classList.remove("open");
     this.guideEl.hidden = true;
     this.guideButtonEl.hidden = false;
+    // The collection's button, on the start screen until the first tap (scope decision 74).
+    this.closeCollection(true);
+    this.freshCard = null;
+    this.collectionButtonEl.hidden = false;
+    this.collectionButtonCountEl.textContent = `${collection().size}/${GRID.length}`;
     /** @type {Array<{question:string, answer:null|string, right:boolean}>} this story's tap-to-guess answers, for the journal */
     this.guesses = [];
     this.storyId = null;
@@ -682,6 +703,8 @@ export class Game {
    */
   begin(animal) {
     const f = this.story.begin(animal.id);
+    this.collectionButtonEl.hidden = true;
+    this.closeCollection(true);
     this.syncGroups();
     this.herd.following = true;
     this.clock = 0;
@@ -1619,6 +1642,8 @@ export class Game {
   /** The group died out, or the story reached its last generation. A moment, then the reflection screen. */
   storyEnded() {
     const s = this.story;
+    // The animal the line became at the win joins this iPad's collection (scope decision 74).
+    if (s.won && collect(s.reveal.animal, s.name)) this.freshCard = s.reveal.animal.id;
     this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : s.won ? fitsHome(s.name) : madeIt(s.noun, s.name)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
@@ -1643,8 +1668,15 @@ export class Game {
     // 0. The line's home (scope decision 73): the win's celebration, or "still changing" at the story's last generation.
     // An early ending has none.
     const fit = resultFor(s);
-    this.endingSteps = [...(fit ? ["result"] : []), "happened", "idea", "check", "reveal"];
+    this.endingSteps = [...(fit ? ["result"] : []), "happened", "idea", "check", "reveal", "collection"];
     this.endingEl.classList.toggle("won", !!fit?.won);
+    // The real animal's card beside the line: evolved now, or what it looks most like so far (scope decision 74).
+    const animal = s.reveal?.animal;
+    this.resultCardEl.replaceChildren(...(fit && animal?.id ? [cardEl(doc, animal, { found: true })] : []));
+    this.revealPictureEl.hidden = !animal?.id;
+    if (animal?.id) this.revealPictureEl.src = pictureOf(animal);
+    // The last step: the collection, the animal just evolved marked new (scope decision 74).
+    this.fillCollection(this.endingCollectionGridEl, this.endingCollectionCount);
     if (fit) {
       this.resultTitle.set(fit.title);
       const n = fit.lines.length;
@@ -1778,9 +1810,10 @@ export class Game {
     this.endingStep = k;
     const name = this.endingSteps[k];
     for (const [step, el] of Object.entries(this.stepEls)) el.hidden = step !== name;
-    this.stepNameEl.textContent = { result: RESULT_STEP, happened: HAPPENED_TITLE, idea: IDEA_TITLE, check: CHECK_TITLE, reveal: REVEAL_TITLE }[name];
+    this.stepNameEl.textContent = { result: RESULT_STEP, happened: HAPPENED_TITLE, idea: IDEA_TITLE, check: CHECK_TITLE, reveal: REVEAL_TITLE,
+      collection: COLLECTION_TITLE }[name];
     this.stepCountEl.textContent = `${k + 1} of ${this.endingSteps.length}`;
-    this.endingNextEl.hidden = name === "idea" || name === "reveal";
+    this.endingNextEl.hidden = name === "idea" || k === this.endingSteps.length - 1;
     this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
@@ -1914,6 +1947,36 @@ export class Game {
       button.disabled = false;
       button.textContent = label;
     }
+  }
+
+  /* ================= the collection (scope decision 74) ================= */
+  /**
+   * The twelve cards in a grid, a row for each place: the animals evolved on this iPad with their picture, the rest
+   * mystery cards; the one a line just became marked "New!". And "You've evolved 5 of 12." above them.
+   */
+  fillCollection(gridEl, countLine) {
+    const found = collection();
+    gridEl.replaceChildren(...GRID.map((a) => cardEl(this.doc, a, { found: found.has(a.id), isNew: a.id === this.freshCard })));
+    countLine.set(evolvedLine(found.size));
+  }
+
+  /** From its button on the start screen: the collection, over the world, which waits. */
+  openCollection() {
+    this.collectionTitle.set(COLLECTION_TITLE);
+    this.fillCollection(this.collectionGridEl, this.collectionCount);
+    this.collectionOpen = true;
+    clearTimeout(this.collectionHideT);
+    this.collectionEl.hidden = false;
+    requestAnimationFrame(() => this.collectionEl.classList.add("open"));
+  }
+
+  closeCollection(now = false) {
+    if (!this.collectionOpen && !now) return;
+    this.collectionOpen = false;
+    this.collectionEl.classList.remove("open");
+    clearTimeout(this.collectionHideT);
+    if (now) this.collectionEl.hidden = true;
+    else this.collectionHideT = setTimeout(() => { if (!this.collectionOpen) this.collectionEl.hidden = true; }, 380);
   }
 
   /* ================= the Field Guide (scope decision 62) ================= */
@@ -2753,7 +2816,8 @@ export class Game {
     const z = this.zoomGoal(), canIn = z < ZOOM_MAX - 1e-3, canOut = z > this.zoomMin() + 1e-3;
     if (canIn !== this.canZoomIn) { this.canZoomIn = canIn; this.zoomInEl.disabled = !canIn; }
     if (canOut !== this.canZoomOut) { this.canZoomOut = canOut; this.zoomOutEl.disabled = !canOut; }
-    const panel = !!(this.choice || this.placing || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen) || !this.endingEl.hidden;
+    const panel = !!(this.choice || this.placing || this.since || this.journal || this.naming || this.guess || this.averageOpen || this.guideOpen ||
+      this.collectionOpen) || !this.endingEl.hidden;
     if (panel !== this.panelUp) { this.panelUp = panel; this.stage.classList.toggle("panel-up", panel); }
   }
 
@@ -2973,11 +3037,14 @@ export class Game {
     this.ideaDoneEl.addEventListener("click", () => this.answerIdea());
     this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
     this.guideButtonEl.addEventListener("click", () => this.openGuide());
+    this.collectionButtonEl.addEventListener("click", () => this.openCollection());
+    this.doc.getElementById("collection-close").addEventListener("click", () => this.closeCollection());
+    this.collectionEl.addEventListener("click", (e) => { if (e.target === this.collectionEl) this.closeCollection(); });
     this.doc.getElementById("guide-open").addEventListener("click", () => this.openGuide());
     this.doc.getElementById("guide-close").addEventListener("click", () => this.closeGuide());
     this.doc.getElementById("card-save").addEventListener("click", () => this.saveCard());
     this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
-    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); } });
+    this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); this.closeCollection(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();

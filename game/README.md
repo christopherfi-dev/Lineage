@@ -185,10 +185,16 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
     decide it first; then its traits, the predictions and choices, the Field Guide and the story
     card). "Try another family" (the world
     as it is now; at the story's end, the same seed from generation 0) and "New world".
-11. **Read-aloud.** Every child-facing line has a small speaker (`speechSynthesis`,
+11. **The collection** (scope decision 74, `src/collection.js`). The twelve animals a line can
+    become, four to a row and a row for each place: one becomes "evolved" on this iPad when a line
+    becomes it at the win, and its card shows its picture (`animals/<id>.jpg`), name and place mark;
+    the rest are mystery cards. "You've evolved 5 of 12." It is the ending's last step, with the new
+    one marked "New!", and opens from a button on the start screen. It stays on this iPad; the
+    teacher's "Start fresh" on the journal page clears it with the journal and the Field Guide.
+12. **Read-aloud.** Every child-facing line has a small speaker (`speechSynthesis`,
     `src/speech.js`, a calm voice at rate 0.85). "20 → 31" is read as "from 20 to 31". Lines stay
     under about 12 words. Every panel's timer stands still while anything is being read aloud.
-12. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
+13. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
     any animal opens its card; the world keeps running behind it. It shows whose the animal is
     ("In your Mossfoot line", "One of your relatives", "Not in your line"), its drawing, where it
     spends its time, a gentle line when a trait doesn't fit there, its ten traits in plain words,
@@ -196,7 +202,7 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
     up its family (for a relative: your relatives here) beside your line, how it is doing against
     yours, and up to three differences (scope decision 51). If the animal passes away while its
     card is open, the card stays and says so.
-13. **The prediction journal** (Step 6, scope decisions 25, 28–31 and 68, `src/journal.js`). After
+14. **The prediction journal** (Step 6, scope decisions 25, 28–31 and 68, `src/journal.js`). After
     the child's 1st, 4th, 7th, 10th and 13th follow, before the fast-forward, one question, in
     turn: "What will happen?" (your line with the trait) or "Which will do better, your line or
     your relatives?". Three or four answers, from `docs/LINEAGE_PREDICTION_QUESTIONS.md`: one

@@ -171,6 +171,18 @@
     <div id="guide-grid"></div>
   </div>
 
+  <!-- The collection (scope decision 74): the twelve animals a line can become, evolved ones with their picture, the rest
+       mystery cards. From its button on the start screen; the opening shows it too (scope decision 77). -->
+  <button id="collection-button" type="button" aria-label="Your collection" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="11" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8 3.5h10.5a2 2 0 0 1 2 2V17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span id="collection-button-count"></span></button>
+  <div id="collection" hidden>
+    <div class="panel">
+      <div class="head"><h2 id="collection-title"></h2><button id="collection-close" type="button" aria-label="Close">&times;</button></div>
+      <p id="collection-count"></p>
+      <div id="collection-grid" class="cgrid"></div>
+      <p class="credits" id="collection-credits"></p>
+    </div>
+  </div>
+
   <!-- Every ending is a reflection in short steps with Next (scope decision 62): what happened, your idea, check my idea, the reveal. -->
   <div id="ending" hidden>
     <div class="card">
@@ -180,7 +192,11 @@
       <section class="step" id="step-result" hidden>
         <h2 id="result-title"></h2>
         <div class="result-body">
-          <figure id="result-figure"><canvas id="result-line"></canvas></figure>
+          <div class="result-pics">
+            <figure id="result-figure"><canvas id="result-line"></canvas></figure>
+            <!-- The real animal's card beside the line (scope decision 74). -->
+            <div id="result-card"></div>
+          </div>
           <div id="result-lines"></div>
         </div>
       </section>
@@ -222,6 +238,7 @@
       <!-- 4. The reveal: the real animal the family became like (scope decisions 10 and 40), its traits and the story's history. -->
       <section class="step" id="step-reveal" hidden>
         <div id="reveal" hidden>
+          <img id="reveal-picture" alt="" hidden>
           <p id="reveal-line"></p>
           <p id="reveal-why"></p>
           <!-- "Did you know?" facts about the real animal, each with a speaker (scope decision 46). -->
@@ -243,6 +260,12 @@
           <button id="card-save" type="button"></button>
           <a id="journal-link" href="./journal.html" target="_blank" rel="noopener"></a>
         </div>
+      </section>
+      <!-- 5. The collection (scope decision 74): the animal just evolved, new on this iPad, among the twelve. -->
+      <section class="step" id="step-collection" hidden>
+        <h2 id="ending-collection-count"></h2>
+        <div id="ending-collection-grid" class="cgrid"></div>
+        <p class="credits" id="ending-collection-credits"></p>
       </section>
       <div class="buttons">
         <button id="ending-next" type="button">Next</button>
