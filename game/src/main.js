@@ -41,8 +41,9 @@ import {
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
   placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
-  firstHereLine, staysLine, CROWDED_GROUND,
+  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP,
 } from "./narration.js";
+import { resultFor } from "./win.js";
 import { speakerButton, isSpeaking } from "./speech.js";
 import { explainGuess } from "./why.js";
 import {
@@ -190,8 +191,12 @@ export class Game {
     this.sinceBarEl = $("since-bar");
     this.endingFairEl = $("ending-fair");
     this.endingFairRowsEl = $("ending-fair-rows");
-    // The ending's four steps (scope decision 62).
-    this.stepEls = ["step-happened", "step-idea", "step-check", "step-reveal"].map($);
+    // The ending's steps (scope decision 62), after the line's home when it has one (scope decision 73).
+    this.stepEls = { result: $("step-result"), happened: $("step-happened"), idea: $("step-idea"), check: $("step-check"), reveal: $("step-reveal") };
+    /** @type {string[]} this ending's steps, in order, by name */
+    this.endingSteps = ["happened", "idea", "check", "reveal"];
+    this.resultLinesEl = $("result-lines");
+    this.resultLineEl = /** @type {HTMLCanvasElement} */ ($("result-line"));
     this.stepNameEl = $("ending-step-name");
     this.stepCountEl = $("ending-step-count");
     this.endingNextEl = /** @type {HTMLButtonElement} */ ($("ending-next"));
@@ -255,6 +260,7 @@ export class Game {
     this.log = this.speakable(this.logEl);
     this.speakable(/** @type {HTMLElement} */ (this.choiceEl.querySelector("h2")));
     this.endingTitle = this.speakable(this.endingTitleEl);
+    this.resultTitle = this.speakable($("result-title"));
     this.endingTraitsTitle = this.speakable(this.endingTraitsTitleEl, () => this.traitsSpoken);
     this.endingQuestion = this.speakable(this.endingQuestionEl);
     this.endingEvidence = this.speakable(this.endingEvidenceLineEl);
@@ -1190,7 +1196,8 @@ export class Game {
     const left = c.left;
     this.choiceBarEl.style.width = `${(100 * left / (CHOICE_SECONDS * 1000)).toFixed(1)}%`;
     if (left === 0) {
-      const options = this.story.options;
+      // Time ran out: one of the options that help there, at random, never one that hurts (scope decision 73).
+      const options = this.story.options.filter((o) => this.story.helps(o.v));
       this.pick(options[Math.floor(Math.random() * options.length)], true, now);
     }
   }
@@ -1612,7 +1619,7 @@ export class Game {
   /** The group died out, or the story reached its last generation. A moment, then the reflection screen. */
   storyEnded() {
     const s = this.story;
-    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : madeIt(s.noun, s.name)]);
+    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : s.won ? fitsHome(s.name) : madeIt(s.noun, s.name)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
   }
@@ -1633,6 +1640,22 @@ export class Game {
     this.closeAverage();
     this.ideaAnswered = false;
     this.idea = null;
+    // 0. The line's home (scope decision 73): the win's celebration, or "still changing" at the story's last generation.
+    // An early ending has none.
+    const fit = resultFor(s);
+    this.endingSteps = [...(fit ? ["result"] : []), "happened", "idea", "check", "reveal"];
+    this.endingEl.classList.toggle("won", !!fit?.won);
+    if (fit) {
+      this.resultTitle.set(fit.title);
+      const n = fit.lines.length;
+      this.resultLinesEl.replaceChildren(...fit.lines.map((line, i) => {
+        const kind = i === 0 && fit.won ? "became" : line.startsWith("Did you know?") ? "fact" : fit.won && i >= n - 2 ? "fits" : "";
+        const p = Object.assign(doc.createElement("p"), { className: kind });
+        p.style.setProperty("--i", String(i));
+        p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: line }), speakerButton(doc, () => line));
+        return p;
+      }));
+    }
     // 1. What happened. The family's actual average body at the start and at the end (the last members alive),
     // drawn, never a list of choices (scope decision 20).
     this.endingTitle.set(endingTitle(s.outcome, s.lasted, s.noun, s.name));
@@ -1742,22 +1765,30 @@ export class Game {
     this.endingEl.classList.add("show");
     paintCreature(this.endingStartEl, began, { seed: s.startGeneration + 1, habitat: placeOf(s.startAnimals) });
     paintCreature(this.endingAnimalEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
+    if (fit) paintCreature(this.resultLineEl, average, { seed: s.startGeneration + 1, habitat: s.mainZone });
     this.renderTree(this.endingTreeEl, tree);
     this.endingTreeSaid = this.treeSaid;
   }
 
-  /** Show one step of the ending: Next goes on, but "Your idea" goes on only once it is given (its own button). */
+  /**
+   * Show one step of the ending, by its place in this ending's steps: Next goes on, but "Your idea" goes on only once
+   * it is given (its own button).
+   */
   setEndingStep(k) {
     this.endingStep = k;
-    this.stepEls.forEach((el, i) => { el.hidden = i !== k; });
-    this.stepNameEl.textContent = [HAPPENED_TITLE, IDEA_TITLE, CHECK_TITLE, REVEAL_TITLE][k];
-    this.stepCountEl.textContent = `${k + 1} of 4`;
-    this.endingNextEl.hidden = k === 1 || k === 3;
+    const name = this.endingSteps[k];
+    for (const [step, el] of Object.entries(this.stepEls)) el.hidden = step !== name;
+    this.stepNameEl.textContent = { result: RESULT_STEP, happened: HAPPENED_TITLE, idea: IDEA_TITLE, check: CHECK_TITLE, reveal: REVEAL_TITLE }[name];
+    this.stepCountEl.textContent = `${k + 1} of ${this.endingSteps.length}`;
+    this.endingNextEl.hidden = name === "idea" || name === "reveal";
     this.againEl.hidden = this.newWorldEl.hidden = !this.ideaAnswered;
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
-    if (k === 3 && this.story.reveal) this.sound.revealChord(0.4);
+    if ((name === "reveal" && this.story.reveal) || (name === "result" && this.story.won)) this.sound.revealChord(0.4);
   }
+
+  /** Show the ending's step with this name ("result", "happened", "idea", "check" or "reveal"). */
+  showStep(name) { this.setEndingStep(Math.max(0, this.endingSteps.indexOf(name))); }
 
   /**
    * "Your idea": "My animals [did / didn't] survive because their [trait]
@@ -1834,7 +1865,7 @@ export class Game {
       return p;
     }));
     this.keepStory(check);
-    this.setEndingStep(2);
+    this.showStep("check");
   }
 
   /** The story, kept in this iPad's own journal for the teacher (reflection.js; nothing leaves the iPad). */
@@ -1843,7 +1874,7 @@ export class Game {
     this.storyId = this.storyId ?? Date.now();
     keepInJournal({
       id: this.storyId, when: new Date().toISOString(), name: s.name, seed: this.seed,
-      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, lasted: s.lasted,
+      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, won: s.won, lasted: s.lasted,
       choices: s.choices.map((c) => `${c.group}${c.byChance ? " (picked at random)" : ""}`),
       idea: this.idea.sentence, typed: this.idea.typed, check: check.lines, right: check.right,
       reveal: s.reveal?.animal.name ?? null,
@@ -2938,7 +2969,7 @@ export class Game {
     this.doc.getElementById("naming-back").addEventListener("click", () => this.stopTyping());
     this.portraitEl.addEventListener("click", () => this.openAverage());
     // The ending's steps, the idea, the Field Guide and the story card (scope decision 62).
-    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(3, this.endingStep + 1)));
+    this.endingNextEl.addEventListener("click", () => this.setEndingStep(Math.min(this.endingSteps.length - 1, this.endingStep + 1)));
     this.ideaDoneEl.addEventListener("click", () => this.answerIdea());
     this.ideaOwnEl.addEventListener("input", () => this.ideaChanged());
     this.guideButtonEl.addEventListener("click", () => this.openGuide());

@@ -86,9 +86,15 @@ test("the family tree strip is the chain of followed babies, the ancestors in be
   const before = story.familyTree();
   assert.equal(before.line, false);
   assert.equal(before.nodes[before.nodes.length - 1].id, story.firstId);
+  // Two follows: of a glowing baby, or on the backup panel (which opens only with an option that helps: scope decision 73).
   while (story.phase !== "ended" && story.choices.length < 2) {
     if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
     story.afterGeneration(bridge.step());
+    for (let k = 0; k < 40 && story.phase === "watch" && story.choices.length < 2; k++) {
+      story.advance(0.5);
+      const g = story.glowing.find((x) => story.followable(x));
+      if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+    }
   }
   assert.equal(story.choices.length, 2);
   const tree = story.familyTree();

@@ -168,8 +168,15 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
    113 animals, growing. Many have webbed feet." (scope decision 53). After a visit, a flight to
    a baby or a drag, the camera stays where the child put it until "Back to my …"; a follow
    still takes it to the line.
-10. **Endings** (scope decision 62). The story ends at the story's length ("Your Mossfoot line
-    survived 50 generations.") or when the whole line is gone. Four steps with Next: what happened
+10. **Endings** (scope decisions 62 and 73). The story ends with the win, when the line fits its
+    home (in its place, every trait the place requires at its helpful end, so no helpful variation
+    is left: "Your Mossfoot line fits its home!"), at the story's length ("Your Mossfoot line
+    survived 50 generations."), or when the whole line is gone. After the win, the first step
+    celebrates: "You did it!", "Your Mossfoot line became swimmers, like a river otter.", what the
+    child followed and why it helped, the animal's "Did you know?", and "Your Mossfoot line fits the
+    water's edge now." "Almost any new change would make things worse." At the story's length short
+    of it: "Your Mossfoot line is still changing." "Keep going next time?" and the animal it looks
+    most like so far. Then four steps with Next: what happened
     (the start and the end drawn, the line baby by baby, the line and its relatives here, the
     traits chosen); your idea (a sentence to build, or your own words); check my idea (against the
     table, with a clue, the same trait in two places, and "Your last choice": its line beside its

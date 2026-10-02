@@ -400,3 +400,29 @@ export const namedReveal = (line, name = null) => (name ? line.replace(/^Your an
 
 /** "Back to my family", with the family's name once it has one: "Back to my Mossfoot family". */
 export const homeLabel = (noun, name = null) => `Back to my ${name ? `${name} ` : ""}${noun}`;
+
+/* ================= the win (scope decision 73) ================= */
+
+/** The places, as a line fits one: "Your Mossfoot line fits the water's edge now." */
+export const ZONE_THE = ["the high leaves", "the open ground", "the water's edge"];
+/** The ending's first step, once the line fits its home: its title. */
+export const WIN_TITLE = "You did it!";
+/** Above the ending's first step, won or not. */
+export const RESULT_STEP = "Your line's home";
+/** Said in the world as the line fits its home, before the celebration. */
+export const fitsHome = (name = null) => `${capital(your("line", name))} fits its home!`;
+/** The celebration's last two lines: "Your Mossfoot line fits the water's edge now." */
+export const fitsNow = (zone, name = null) => `${capital(your("line", name))} fits ${ZONE_THE[zone]} now.`;
+export const ANY_CHANGE_WORSE = "Almost any new change would make things worse.";
+/** "a river otter", "an arctic fox" (reveal.js animals). */
+export const anAnimal = (animal) => { const n = animal.name.toLowerCase(); return `${/^[aeiou]/.test(n) ? "an" : "a"} ${n}`; };
+/** "Your Mossfoot line became swimmers, like a river otter." */
+export const becameLine = (animal, name = null) => `${capital(your("line", name))} became ${animal.became}, like ${anAnimal(animal)}.`;
+const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+/** "You followed more webbing and sleeker bodies." (the chips' words, at most three) */
+export const followedLine = (groups) => `You followed ${andList(groups.map(shortGroup))}.`;
+/** At the story's last generation, short of the win: the ending's first step. */
+export const stillChanging = (name = null) => `${capital(your("line", name))} is still changing.`;
+export const KEEP_GOING = "Keep going next time?";
+/** "Your Mossfoot line looks most like a river otter so far." */
+export const resembleLine = (animal, name = null) => `${capital(your("line", name))} looks most like ${anAnimal(animal)} so far.`;

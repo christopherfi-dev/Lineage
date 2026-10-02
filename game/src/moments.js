@@ -41,6 +41,7 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
+  "win", "still-changing",
 ];
 
 /**
@@ -278,6 +279,19 @@ const MOMENT = {
   leaves: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 0 } },
   /** The whole map, zoomed out: the places' names and the borders between them (scope decision 63). */
   map: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) },
+  /**
+   * The win (scope decision 73): the line fits its home, and the ending's first step celebrates it: "You did it!", the
+   * animal the line became, what the child followed and why, the animal's "Did you know?", and that it fits now.
+   */
+  win: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
+  /**
+   * At the story's last generation short of the win (scope decision 73): "Your … line is still changing." "Keep going
+   * next time?" and the animal it looks most like. Found in a short story (the shots ask for 20 generations).
+   */
+  "still-changing": {
+    families: FROM_OTHERS, policies: ["passive", "active"],
+    at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.won && !!s.home,
+  },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /**
@@ -726,18 +740,23 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "win" || moment === "still-changing") {
+    // The ending opens on its first step, the line's home (scope decision 73).
+    G.endingAt = null;
+    G.showEnding();
   } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();
+    if (moment === "ending") G.showStep("happened");
     if (moment !== "ending" && moment !== "extinct") {
       // The child builds the idea the table would give: the family's biggest helper (or hurter) where it lived.
       const t = truthOf(G.story), trait = G.story.outcome === "survived" ? t.helper ?? t.hurter : t.hurter ?? t.helper;
-      G.setEndingStep(1);
+      G.showStep("idea");
       G.ideaPicks.t.value = String(trait ?? 5);
       if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
       G.ideaChanged();
       if (moment !== "ending-idea") G.answerIdea();
-      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.setEndingStep(3);
+      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.showStep("reveal");
       // At the reveal, "Try another family" with few generations left asks first (scope decision 64).
       if (moment === "nearly-over") G.anotherFamily();
       if (moment === "story-card") {

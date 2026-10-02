@@ -74,8 +74,8 @@
  * Nothing here touches the biology. Following is observer state only.
  */
 
-import { averageOf, carries, formOf } from "./variations.js";
-import { variationEffect, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
+import { APART, averageOf, carries, formOf } from "./variations.js";
+import { variationEffect, effectIn, reasonsIn, guessFor, but, whyLine, shortfall } from "./why.js";
 import { CLUE_FROM, census, evidenceFor, sameTraitClue } from "./evidence.js";
 import { babyLabel, diedQuestion, growingQuestion, dyingQuestion, sameQuestion, OTHER_TRAITS, growingLine, dyingOffLine, sameLine, PLACE_LABELS } from "./narration.js";
 import { GAP, revealFor } from "./reveal.js";
@@ -136,6 +136,11 @@ export const PLACE_TO = 20;
 export const PLACE_MAX = 4;
 /** The relatives the place choice makes carry this mark; a follow after it counts from the next one (bridge.js). */
 export const HOME_MARK = 1;
+/**
+ * The win needs a line of at least this many in its place (scope decision 73). 1: any line that fits its home wins,
+ * as the architect defined it. Measured at 6 and 10 too, for the architect: fewer stories win, and later.
+ */
+export const WIN_FROM = 1;
 /** The child's line this small or smaller keeps any follow from starting (scope decision 44). */
 export const DANGER_SIZE = 5;
 /** A glowing baby is never replaced by a newer one before it has glowed this long (seconds of watching). */
@@ -194,15 +199,15 @@ export class Story {
   /**
    * @param {import("./bridge.js").Bridge} bridge
    * @param {{homeOf?:(id:number)=>null|{x:number,y:number}, length?:number, known?:(key:string)=>boolean, places?:boolean,
-   *   generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean, lookahead?:false|"crowded"}} [opts]
+   *   generationSeconds?:number, glowGenerations?:number, onePerVariation?:boolean, lookahead?:false|"crowded", winFrom?:number}} [opts]
    *   where each animal's home spot is (herd.js); the generation the story ends at (storyLength); whether this
    *   iPad's Field Guide already has an entry (reflection.js; none by default, like a new iPad); whether the
    *   story's first choice is where the family will live (scope decision 70); "crowded" only for
    *   measuring the look-ahead of scope decision 68, which the game doesn't use; the others only for measuring other
-   *   values of GENERATION_SECONDS and GLOW_GENERATIONS
+   *   values of GENERATION_SECONDS and GLOW_GENERATIONS, and of WIN_FROM
    */
   constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, known = () => false, places = false, generationSeconds = GENERATION_SECONDS,
-    glowGenerations = GLOW_GENERATIONS, onePerVariation = true, lookahead = false } = {}) {
+    glowGenerations = GLOW_GENERATIONS, onePerVariation = true, lookahead = false, winFrom = WIN_FROM } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the story's first choice is where the family will live (scope decision 70) */
@@ -242,6 +247,7 @@ export class Story {
     this.generationSeconds = generationSeconds;
     this.glowGenerations = glowGenerations;
     this.onePerVariation = onePerVariation;
+    this.winFrom = winFrom;
     /** @type {"waiting"|"place"|"moving"|"watch"|"rise"|"choice"|"ended"} */
     this.phase = "waiting";
     /** @type {null|Rise} the fast-forward after a follow, while the followed trait's count in the line rises (scope decision 67) */
@@ -272,6 +278,8 @@ export class Story {
     this.endGeneration = null;
     /** @type {null|"died"|"survived"} */
     this.outcome = null;
+    /** the line fits its home: the story ended with the win (scope decision 73), its outcome "survived" */
+    this.won = false;
     /** how many carriers the latest follow narrowed the line to, or how many the line was when the child came back to it */
     this.lineStart = 0;
     /** @type {null|number} how many relatives the child had when the story ended */
@@ -509,16 +517,19 @@ export class Story {
     this.noticeMoves(mainBefore);
     this.checkHurt();
     this.updateChips();
+    // The win (scope decision 73): the line fits its home, so no helpful variation is left there. Checked first.
+    if (this.home && (this.phase === "watch" || this.phase === "rise") && this.fitsHome()) return this.end("survived", ev.generation, true);
     if (ev.generation >= this.length) return this.end("survived", ev.generation);
     // Before the place choice, the world runs on to the family's babies: nothing glows (scope decision 70).
     if (this.phase === "place") return "place";
     this.updateGlow(ev);
     if (this.phase === "moving") return this.moveGeneration(g.count);
     if (this.phase === "rise") return this.riseGeneration(g.count);
-    // The push: nothing followed for a while, so a choice panel opens as a backup (never while the line is very small).
+    // The push: nothing followed for a while, so a choice panel opens as a backup (never while the line is very small),
+    // and only with an option that helps there: no more forced bad choices (scope decision 73).
     if (this.canFollow && this.idle >= PUSH_SECONDS && !this.inDanger) {
       const options = this.pushOptions();
-      if (options.length) {
+      if (options.some((o) => this.helps(o.v))) {
         this.options = options;
         this.phase = "choice";
         return "choice";
@@ -936,21 +947,43 @@ export class Story {
   /**
    * The backup choice panel's options: only variations that can be followed
    * (scope decisions 58, 59 and 65), glowing ones first, then others the line
-   * has spread in its place. One per trait.
+   * has spread in its place. One per trait, at most PUSH_OPTIONS, and one of
+   * them helps there whenever one of these does (scope decision 73: the panel
+   * opens only with one).
    * @returns {Offer[]}
    */
   pushOptions() {
-    const out = [];
-    const add = (x) => {
-      if (out.length < PUSH_OPTIONS && !out.some((o) => o.v.trait === x.v.trait)) out.push({ v: x.v, id: this.anchorFor(x), zone: x.zone });
-    };
+    const all = [];
+    const add = (x) => { if (!all.some((o) => o.v.trait === x.v.trait)) all.push({ v: x.v, id: this.anchorFor(x), zone: x.zone }); };
     for (const g of this.glowing) if (this.followable(g)) add(g);
     const here = this.lastAnimals.filter((a) => a.zone === this.place);
     for (const x of familyVariations(here, this.place)) {
       const v = this.standsOut(x.v, x.id);
       if (v && this.followable({ ...x, v })) add({ ...x, v });
     }
+    const out = all.slice(0, PUSH_OPTIONS), helpful = all.find((o) => this.helps(o.v));
+    if (helpful && !out.some((o) => this.helps(o.v))) out[out.length - 1] = helpful;
     return out;
+  }
+
+  /** This variation helps in the line's place (scope decision 73). */
+  helps(v) { return variationEffect(v.t, v.dir, this.testZone()) > 0; }
+
+  /**
+   * The line fits its home (scope decision 73): in its place, its median for
+   * every trait the place requires is within APART of the helpful end. So no
+   * helpful variation is left to find there: a variation is APART past the
+   * line's usual, and a trait can't go past its end.
+   */
+  fitsHome() {
+    if (!this.home) return false;
+    const zone = this.home.zone, here = this.lastAnimals.filter((a) => a.zone === zone);
+    if (!here.length || here.length < this.winFrom) return false;
+    const form = formOf(here.map((a) => a.genome));
+    return form.every((f, t) => {
+      const e = effectIn(t, zone);
+      return e > 0 ? f.median > 1 - APART : e < 0 ? f.median < APART : true;
+    });
   }
 
   /** The animal a follow starts from: this one if it is among the line's carriers, else the first of them. */
@@ -1217,10 +1250,15 @@ export class Story {
     }
   }
 
-  end(outcome, generation) {
+  /**
+   * @param {"died"|"survived"} outcome @param {number} generation
+   * @param {boolean} [won] the line fits its home (scope decision 73)
+   */
+  end(outcome, generation, won = false) {
     this.closeChoice();
     this.phase = "ended";
     this.outcome = outcome;
+    this.won = won;
     this.endGeneration = generation;
     this.relativesAtEnd = this.bridge.relatives.size;
     this.relativesHereAtEnd = this.bridge.relativesIn(this.place);
@@ -1235,10 +1273,12 @@ export class Story {
     this.evidence = this.clue ? null : evidenceFor(segment, living, this.startCensus);
     // Scope decisions 10, 40, 41 and 72: on every ending, from the line's actual traits in its main place when the
     // story ended (its last living animals), and the free traits the child chose, which every animal of the line has.
-    // A line that died out before it changed is told it didn't have time to change, never the first mammals.
+    // A line that died out before it changed is told it didn't have time to change, never the first mammals. A line
+    // in its chosen place at the story's last generation, short of the win, gets the animal it looks most like
+    // (scope decision 73).
     const here = this.lastAnimals.filter((a) => a.zone === this.mainZone);
     this.reveal = revealFor((here.length ? here : this.lastAnimals).map((a) => a.genome), this.mainZone, this.startWorld,
-      { kept: this.chips.map((c) => c.v), died: outcome === "died" });
+      { kept: this.chips.map((c) => c.v), died: outcome === "died", resemble: outcome === "survived" && !!this.home });
     return "ended";
   }
 }

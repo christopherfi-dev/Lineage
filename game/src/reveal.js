@@ -330,15 +330,18 @@ export function matchAnimal(genomes, zone, base, kept = [], gap = GAP) {
  * @param {ArrayLike<number>[]} genomes the line's animals in its place at the end (body genomes)
  * @param {number} zone the place most of the line lives in (engine zone index)
  * @param {ArrayLike<number>} base the generation-0 world mean for each trait
- * @param {{kept?: Array<{t:number, dir:number}>, died?: boolean, gap?: number}} [opts] the variations the line keeps; it died out
+ * @param {{kept?: Array<{t:number, dir:number}>, died?: boolean, resemble?: boolean, gap?: number}} [opts] the variations the
+ *   line keeps; it died out; the animal it looks most like even if it hasn't changed yet (a line in its chosen place at the
+ *   story's last generation, short of the win: scope decision 73)
  * @returns {Reveal}
  */
-export function revealFor(genomes, zone, base, { kept = [], died = false, gap = GAP } = {}) {
+export function revealFor(genomes, zone, base, { kept = [], died = false, resemble = false, gap = GAP } = {}) {
   const n = genomes.length;
   const average = base.map((b, t) => (n ? genomes.reduce((sum, g) => sum + g[t], 0) / n : b));
   const meets = (credits) => Object.entries(credits).every(([trait, level]) => margin(trait, level, average, base, gap) >= 0);
-  const changed = n > 0 && zone >= 0 && zone <= 2 && REQUIRED[zone].some(([trait, level]) => margin(trait, level, average, base, gap) >= 0);
-  const match = changed ? matchAnimal(genomes, zone, base, kept, gap) : null;
+  const placed = n > 0 && zone >= 0 && zone <= 2;
+  const changed = placed && REQUIRED[zone].some(([trait, level]) => margin(trait, level, average, base, gap) >= 0);
+  const match = changed || (placed && resemble) ? matchAnimal(genomes, zone, base, kept, gap) : null;
   const animal = match?.animal ?? (died ? NO_TIME : FIRST_MAMMALS);
   const shown = animal.why.filter((w) => meets(w.credits));
   const signed = (l) => animal.signs.some(([trait]) => l.credits[trait] !== undefined);
