@@ -109,7 +109,10 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
    small and grey. Only the line's babies glow, and the traits add up on "Your Mossfoot line so
    far", after the place chosen ("Near the water"); each animal of the line has each one, so none
    fades. A glowing trait that doesn't matter there also stands out from the whole world at the
-   start: those traits decide which animal the line becomes. "Your line" replaces "your family" from the
+   start: those traits decide which animal the line becomes. A trait that helps in the line's
+   place and rose in it without a follow gets its own outlined chip, "Strong tail: chosen by the
+   water", said once: "The water is choosing too." "Strong tails are winning here." (scope decision
+   75). "Your line" replaces "your family" from the
    place choice on, and the tree strip becomes "Your line, baby by baby" (`TREE_BETWEEN`), the
    baby on the chosen place's card its first step. Once a place is chosen, a baby of the line born
    in another place is a relative: the line always lives in one place (scope decision 70).

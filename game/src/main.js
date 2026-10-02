@@ -30,6 +30,7 @@ import {
 import { familySince, better, differences, placeNow, timeSplit, misfit } from "./groups.js";
 import { isGoodSeed, goodSeed, familiesWithAFuture } from "./seeds.js";
 import { TRAIT_WORDS, averageOf, comparedRows, plainRows } from "./variations.js";
+import { TRAITS } from "./engine.js";
 import { GAP } from "./reveal.js";
 import {
   START_LINE, bornLine, followLine, groupLines, TIMES_UP, optionLine, lastPassed, madeIt, endingTitle, question, choicesHeading,
@@ -41,7 +42,7 @@ import {
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
   placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
-  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP,
+  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere,
 } from "./narration.js";
 import { resultFor } from "./win.js";
 import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf } from "./collection.js";
@@ -442,6 +443,8 @@ export class Game {
     this.moveToTell = null;
     /** @type {null|number} the line's place filled up, still to be told (scope decision 70) */
     this.fillToTell = null;
+    /** @type {import("./story.js").PlaceChip[]} traits the line's place just chose, still to be told (scope decision 75) */
+    this.placeToTell = [];
     /** @type {Array<{id:number, at:number}>} the line's animals dying now or soon, one by one: the camera stays on each (scope decision 67) */
     this.deathCam = [];
     this.deathCamOn = null;
@@ -550,6 +553,7 @@ export class Game {
     const what = s.afterGeneration(ev);
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
     if (s.fillingNow) this.fillToTell = s.home.zone; // the line's place filled up: told on arriving, or the next watched generation
+    if (s.placeChoseNow.length) this.placeToTell.push(...s.placeChoseNow); // the place chose a trait: told the next watched generation
     // See, guess, explain: at a follow's result the world waits for a guess (scope decision 60). A line that died out
     // gets its own right there, once its last animals have faded (scope decision 68). Only a new Field Guide discovery
     // is a guess; any other "Why?" is told as a line, with no guess (scope decision 69).
@@ -576,7 +580,7 @@ export class Game {
       const lines = s.told ? s.told : v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
         [...groupLines(ev.group, s.noun, [], s.name), ...(q ? [] : s.changeReasons(ev))];
       // The line's place has just filled up: said first, since it is why some die now (scope decision 70).
-      this.say([...this.fillingLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
+      this.say([...this.fillingLines(), ...this.placeLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
     }
     this.updateHud();
     if (what === "back") this.backing.q = q;
@@ -638,6 +642,16 @@ export class Game {
     const z = this.fillToTell;
     this.fillToTell = null;
     return z === null || z === undefined ? [] : [fillingLine(z)];
+  }
+
+  /**
+   * The line's place chose a trait the child didn't follow (scope decision 75), once, as its chip first shows: "The
+   * water is choosing too." "Strong tails are winning here."
+   */
+  placeLines() {
+    const chosen = this.placeToTell.filter((p) => this.story.placeChips.includes(p));
+    this.placeToTell = [];
+    return chosen.length ? [placeChoosing(chosen[0].zone), winningHere(chosen.map((p) => ({ trait: TRAITS[p.t], dir: p.dir })))] : [];
   }
 
   /** A real move of the family (scope decision 59), once: "Some of your animals are moving to the water's edge." */
@@ -1713,7 +1727,14 @@ export class Game {
         ...picked.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: c.words })),
         speakerButton(doc, () => `${YOU_CHOSE} ${chips.join(", ")}.`));
     }
-    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []));
+    // And what the place chose, in its own style (scope decision 75).
+    const byPlace = s.placeChips.map((p) => chosenChip(TRAITS[p.t], p.dir, p.zone));
+    const placeRow = Object.assign(doc.createElement("div"), { className: "chips" });
+    if (byPlace.length) {
+      placeRow.append(...s.placeChips.map((p, i) => Object.assign(doc.createElement("span"), { className: `chip chosen z${p.zone}`, textContent: byPlace[i] })),
+        speakerButton(doc, () => `${byPlace.join(". ")}.`));
+    }
+    this.endingResultEl.replaceChildren(result, ...(chips.length ? [chosen] : []), ...(byPlace.length ? [placeRow] : []));
     // 2. Your idea.
     this.endingQuestion.set(question(s.outcome, s.noun, s.name));
     this.buildIdea(s);
@@ -2101,7 +2122,7 @@ export class Game {
     if (rowEls.length) rowEls[0].append(speakerButton(this.doc, () => rows.map((r) => `${countLine(r.label, r)}.`).join(" ")));
     this.othersEl.replaceChildren(...rowEls);
     this.othersEl.hidden = !rows.length;
-    this.showSoFar(following && !dying ? s.chips : [], following && !dying ? s.home : null);
+    this.showSoFar(following && !dying ? s.chips : [], following && !dying ? s.home : null, following && !dying ? s.placeChips : []);
     this.showWhyHere(following && !dying ? s.reasons : null);
     if (!s.running) this.barEl.style.width = "0%";
   }
@@ -2148,8 +2169,8 @@ export class Game {
    * the order chosen; a faded one greys out, with its reason as a line below.
    * @param {import("./story.js").Chip[]} chips
    */
-  showSoFar(chips, home = null) {
-    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}`;
+  showSoFar(chips, home = null, placeChips = []) {
+    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}:${placeChips.map((p) => p.t).join(",")}`;
     if (key === this.soFarKey) return;
     this.soFarKey = key;
     const doc = this.doc, el = this.soFarEl;
@@ -2157,12 +2178,15 @@ export class Game {
     if (!chips.length && !home) { el.replaceChildren(); return; }
     const faded = chips.filter((c) => c.faded).map((c) => fadedLine(c.v.group, c.faded));
     const words = soFarTitle(this.story.name, this.story.noun);
-    // The place the child chose comes first (scope decision 70), then each chosen trait.
-    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []), ...chips.map((c) => ({ words: chipWords(c.v.group), faded: c.faded }))];
+    // The place the child chose comes first (scope decision 70), then each chosen trait, then what the place chose
+    // (scope decision 75), in their own style.
+    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []), ...chips.map((c) => ({ words: chipWords(c.v.group), faded: c.faded })),
+      ...placeChips.map((p) => ({ words: chosenChip(TRAITS[p.t], p.dir, p.zone), faded: null, zone: p.zone }))];
     const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: words });
     title.append(speakerButton(doc, () => `${words}: ${all.map((c) => c.words).join(", ")}.`));
     const row = Object.assign(doc.createElement("div"), { className: "chips" });
-    row.append(...all.map((c) => Object.assign(doc.createElement("span"), { className: c.faded ? "chip faded" : "chip", textContent: c.words })));
+    row.append(...all.map((c) => Object.assign(doc.createElement("span"), {
+      className: c.faded ? "chip faded" : c.zone !== undefined ? `chip chosen z${c.zone}` : "chip", textContent: c.words })));
     el.replaceChildren(title, row, ...faded.map((t) => {
       const p = Object.assign(doc.createElement("p"), { className: "faded-line" });
       p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: t }), speakerButton(doc, () => t));

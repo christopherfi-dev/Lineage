@@ -320,6 +320,13 @@ export class Story {
     this.started = [];
     /** @type {Chip[]} "Your line so far": each chosen trait, and whether it has faded (scope decisions 59 and 68) */
     this.chips = [];
+    /**
+     * @type {PlaceChip[]} "chosen by the place" (scope decision 75): each trait that helps in the line's place and rose
+     * in the line without the child following it
+     */
+    this.placeChips = [];
+    /** @type {PlaceChip[]} those that first showed this generation, for the page to say once */
+    this.placeChoseNow = [];
     /** @type {Map<number, {dir:number, hurt:boolean}>} by trait: the way the line went, and whether it clearly died off that way */
     this.went = new Map();
     /** how many of the line live in each place, a generation ago */
@@ -517,6 +524,7 @@ export class Story {
     this.noticeMoves(mainBefore);
     this.checkHurt();
     this.updateChips();
+    this.notePlaceChoices(ev.generation);
     // The win (scope decision 73): the line fits its home, so no helpful variation is left there. Checked first.
     if (this.home && (this.phase === "watch" || this.phase === "rise") && this.fitsHome()) return this.end("survived", ev.generation, true);
     if (ev.generation >= this.length) return this.end("survived", ev.generation);
@@ -966,6 +974,30 @@ export class Story {
     return out;
   }
 
+  /**
+   * "Chosen by the place" (scope decision 75): a trait that helps in the
+   * line's place, which the child never followed, has risen in the line since
+   * the child chose the place: its median there is APART or more past where it
+   * was then, toward the end that helps. Once shown, it stays, unless the
+   * child follows that trait: then it is the child's chip.
+   */
+  notePlaceChoices(generation) {
+    this.placeChoseNow = [];
+    const h = this.home;
+    if (!h?.form) return;
+    const here = this.lastAnimals.filter((a) => a.zone === h.zone);
+    if (!here.length) return;
+    const form = formOf(here.map((a) => a.genome));
+    form.forEach((f, t) => {
+      const dir = Math.sign(effectIn(t, h.zone));
+      if (!dir || this.chips.some((c) => c.v.t === t) || this.placeChips.some((p) => p.t === t)) return;
+      if ((f.median - h.form[t].median) * dir < APART) return;
+      const chip = { t, dir, zone: h.zone, generation };
+      this.placeChips.push(chip);
+      this.placeChoseNow.push(chip);
+    });
+  }
+
   /** This variation helps in the line's place (scope decision 73). */
   helps(v) { return variationEffect(v.t, v.dir, this.testZone()) > 0; }
 
@@ -1018,8 +1050,10 @@ export class Story {
       sizeAtChoice: ids.length, sizeAtEnd: null, relativesAtChoice: relativesHere, relativesAtEnd: null,
       peak: ids.length, counts: [ids.length], rise: null, result: null, asked: false,
     });
-    // The way the line went on this trait; "Your line so far" gets its chip (a way back replaces the old one).
+    // The way the line went on this trait; "Your line so far" gets its chip (a way back replaces the old one), and a
+    // trait the place chose is the child's now (scope decision 75).
     this.went.set(x.v.t, { dir: x.v.dir, hurt: false });
+    this.placeChips = this.placeChips.filter((p) => p.t !== x.v.t);
     this.chips = this.chips.filter((c) => c.v.t !== x.v.t);
     this.chips.push({ v: x.v, faded: null });
     this.fresh = [];
@@ -1138,6 +1172,8 @@ export class Story {
     this.remember();
     this.placesBefore = this.countPlaces();
     this.formAtPoint = this.lastForm;
+    // The line's usual form at the choice: what the place chooses is measured from here (scope decision 75).
+    this.home.form = this.lastForm;
     this.markNow();
     return this.home;
   }
@@ -1218,6 +1254,7 @@ export class Story {
     this.diedWhy = why.q;
     this.diedSay = why.lines;
     if (home) {
+      this.placeChips = [];
       if (!home.outcome) { home.outcome = "gone"; home.until = generation; }
       home.goneAt = generation;
       this.homeTries.push(home);
@@ -1298,10 +1335,15 @@ export class Story {
  *   reached, the count stopped rising or fell, RISE_MAX generations, fewer than FAST_FROM at the follow (none at all),
  *   some of the line would be crowded out next, the line died out during it, or the story ended
  *
+ * @typedef {Object} PlaceChip a trait the line's place chose (scope decision 75)
+ * @property {number} t @property {number} dir the way it helps there @property {number} zone
+ * @property {number} generation when it first showed
+ *
  * @typedef {Object} Home where the child chose the family will live (scope decision 70)
  * @property {number} zone @property {number} id the baby on the card chosen @property {number} generation when
  * @property {number} mark its number, which marks the relatives it made (HOME_MARK)
  * @property {number} sizeAtChoice the family's animals living there then: the line it began as
+ * @property {Array<{median:number, level:number}>} [form] the line's usual form then
  * @property {number[]} counts the line at the choice and after each generation, until the first follow
  * @property {null|"reached"|"cap"|"gone"} outcome why its fast-forward stopped: PLACE_TO reached, PLACE_MAX generations, or
  *   the line died out during it @property {null|number} until the generation it stopped

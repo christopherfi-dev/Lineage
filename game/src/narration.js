@@ -426,3 +426,29 @@ export const stillChanging = (name = null) => `${capital(your("line", name))} is
 export const KEEP_GOING = "Keep going next time?";
 /** "Your Mossfoot line looks most like a river otter so far." */
 export const resembleLine = (animal, name = null) => `${capital(your("line", name))} looks most like ${anAnimal(animal)} so far.`;
+
+/* ================= chosen by the place (scope decision 75) ================= */
+
+/** Each place, as the one that chooses: "Strong tail: chosen by the water." */
+export const PLACE_BY = ["the trees", "the ground", "the water"];
+/** A trait each place requires, the way it helps there: [on its chip, what is winning, with an article]. */
+const CHOSEN = {
+  toe_webbing: { 1: ["Webbed feet", "webbed feet", "webbed feet"], [-1]: ["No webbing", "toes without webbing", "toes without webbing"] },
+  curved_claws: { 1: ["Curved claws", "curved claws", "curved claws"], [-1]: ["Straighter claws", "straighter claws", "straighter claws"] },
+  long_hindlimbs: { 1: ["Long back legs", "long back legs", "long back legs"], [-1]: ["Short legs", "short legs", "short legs"] },
+  strong_tail: { 1: ["Strong tail", "strong tails", "a strong tail"], [-1]: ["Small tail", "small tails", "a small tail"] },
+  large_eyes: { 1: ["Big eyes", "big eyes", "big eyes"], [-1]: ["Small eyes", "small eyes", "small eyes"] },
+  streamlined_body: { 1: ["Sleek body", "sleek bodies", "a sleek body"], [-1]: ["Round body", "round bodies", "a round body"] },
+  dense_fur: { 1: ["Thick fur", "thick fur", "thick fur"], [-1]: ["Thin fur", "thin fur", "thin fur"] },
+};
+/** "Strong tail: chosen by the water" (a chip in its own style). */
+export const chosenChip = (trait, dir, zone) => `${CHOSEN[trait][dir][0]}: chosen by ${PLACE_BY[zone]}`;
+/** Said once, when such a chip first shows: "The water is choosing too." then "Strong tails are winning here." */
+export const placeChoosing = (zone) => `${capital(PLACE_BY[zone])} is choosing too.`;
+export const winningHere = (chosen) => {
+  const words = chosen.map((c) => CHOSEN[c.trait][c.dir][1]);
+  return `${capital(andList(words))} ${words.length === 1 && / fur$/.test(words[0]) ? "is" : "are"} winning here.`;
+};
+/** In the win's celebration: "The water chose a strong tail too." (at most three, "too" after the child's own follows). */
+export const placeChoseLine = (zone, chosen, too = true) =>
+  `${capital(PLACE_BY[zone])} chose ${andList(chosen.slice(0, 3).map((c) => CHOSEN[c.trait][c.dir][2]))}${too ? " too" : ""}.`;

@@ -41,7 +41,7 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "win", "still-changing", "collection",
+  "win", "still-changing", "collection", "chosen-by-place",
 ];
 
 /**
@@ -291,6 +291,15 @@ const MOMENT = {
   "still-changing": {
     families: FROM_OTHERS, policies: ["passive", "active"],
     at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.won && !!s.home,
+  },
+  /**
+   * Chosen by the place (scope decision 75): a trait that helps in the line's place rose in the line without the child
+   * following it. Its chip shows in its own style on "Your … line so far", and it is said once: "The water is choosing
+   * too." "Strong tails are winning here." Found at the watched generation that says it.
+   */
+  "chosen-by-place": {
+    families: FROM_OTHERS, policies: ["active", "passive"],
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.placeChoseNow.length > 0 && { chosen: s.placeChoseNow.map((p) => p.t) },
   },
   /**
    * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line

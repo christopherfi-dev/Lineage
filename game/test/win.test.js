@@ -106,3 +106,38 @@ test("at the story's last generation short of the win, the line is still changin
   assert.equal(N.followedLine(["more webbing between the toes", "a sleeker body"]), "You followed more webbing and sleeker bodies.");
   assert.equal(N.becameLine(ANIMALS.find((a) => a.id === "arctic-fox"), "Mossfoot"), "Your Mossfoot line became open-ground explorers, like an arctic fox.");
 });
+
+test("chosen by the place: a trait that helps there, risen in the line without a follow, gets its own chip once, and the win says so", async () => {
+  const N = await import("../src/narration.js");
+  const { resultFor } = await import("../src/win.js");
+  const { effectIn } = await import("../src/why.js");
+  const { TRAITS } = await import("../src/engine.js");
+  const all = await stories({ follow: false });
+  let chips = 0, said = 0;
+  for (const { story } of all) {
+    const zone = story.home?.zone;
+    if (zone === undefined) continue;
+    for (const p of story.placeChips) {
+      chips++;
+      // A trait that helps there, the way it helps, which the child never followed.
+      assert.equal(p.zone, zone);
+      assert.equal(Math.sign(effectIn(p.t, zone)), p.dir);
+      assert.ok(!story.chips.some((c) => c.v.t === p.t));
+      assert.equal(story.placeChips.filter((q) => q.t === p.t).length, 1, "once");
+      const words = [N.chosenChip(TRAITS[p.t], p.dir, zone), N.placeChoosing(zone), N.winningHere([{ trait: TRAITS[p.t], dir: p.dir }])];
+      for (const line of words) assert.ok(line.split(/\s+/).length <= 13 && !/%|percent/i.test(line), line);
+    }
+    if (story.won && story.placeChips.length) {
+      said++;
+      const chosen = story.placeChips.map((p) => ({ trait: TRAITS[p.t], dir: p.dir }));
+      assert.ok(resultFor(story).lines.includes(N.placeChoseLine(zone, chosen, story.chips.length > 0)));
+    }
+  }
+  assert.ok(chips >= 9, `${chips} chips`);
+  assert.ok(said > 0, "a win says what the place chose");
+  assert.equal(N.chosenChip("strong_tail", 1, 2), "Strong tail: chosen by the water");
+  assert.equal(N.winningHere([{ trait: "strong_tail", dir: 1 }]), "Strong tails are winning here.");
+  assert.equal(N.placeChoseLine(2, [{ trait: "strong_tail", dir: 1 }]), "The water chose a strong tail too.");
+  assert.equal(N.placeChoseLine(0, [{ trait: "curved_claws", dir: 1 }, { trait: "toe_webbing", dir: -1 }, { trait: "streamlined_body", dir: -1 }]),
+    "The trees chose curved claws, toes without webbing and a round body too.");
+});

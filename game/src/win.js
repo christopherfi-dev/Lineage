@@ -6,15 +6,15 @@
  * helpful variation is left to find there (a variation is APART past the
  * line's usual). The story ends there, with a celebration: the animal the
  * line became, from its actual traits (reveal.js), what the child followed and
- * why it helped, the animal's "Did you know?", and that almost any new change
- * would make things worse now. A story that reaches its last generation short
+ * why it helped, what the place chose too (scope decision 75), the animal's
+ * "Did you know?", and that almost any new change would make things worse now. A story that reaches its last generation short
  * of the win says the line is still changing, and which animal it looks most
  * like so far.
  */
 
 import { TRAITS } from "./engine.js";
 import { variationEffect, whyLine } from "./why.js";
-import { WIN_TITLE, becameLine, followedLine, fitsNow, ANY_CHANGE_WORSE, stillChanging, KEEP_GOING, resembleLine } from "./narration.js";
+import { WIN_TITLE, becameLine, followedLine, fitsNow, ANY_CHANGE_WORSE, stillChanging, KEEP_GOING, resembleLine, placeChoseLine } from "./narration.js";
 
 /** At most this many of the chosen traits are named in "You followed …". */
 export const FOLLOWED_NAMED = 3;
@@ -42,6 +42,9 @@ export function resultFor(story) {
       if (like && !lines.includes(like.text)) { lines.push(like.text); break; }
     }
   }
+  // What the place chose that the child didn't follow (scope decision 75): "The water chose a strong tail too."
+  const chosen = story.placeChips.filter((p) => p.zone === zone).map((p) => ({ trait: TRAITS[p.t], dir: p.dir }));
+  if (chosen.length) lines.push(placeChoseLine(zone, chosen, followed.length > 0));
   lines.push(...animal.facts.slice(0, 1), fitsNow(zone, story.name), ANY_CHANGE_WORSE);
   return { won: true, title: WIN_TITLE, lines };
 }
