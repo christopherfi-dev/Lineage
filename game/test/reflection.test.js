@@ -7,13 +7,15 @@ test("Check my idea: yes for the table's reason where the family lived; otherwis
   const { checkIdea, ideaSentence } = await import("../src/reflection.js");
   const { TRAIT_INDEX } = await import("../src/engine.js");
   const has = Array(10).fill(false);
-  has[TRAIT_INDEX.large_eyes] = true; has[TRAIT_INDEX.toe_webbing] = true;
-  const truth = { survived: false, zone: 2, has, helper: TRAIT_INDEX.toe_webbing, hurter: TRAIT_INDEX.large_eyes };
-  const eyes = TRAIT_INDEX.large_eyes, web = TRAIT_INDEX.toe_webbing;
-  assert.deepEqual(checkIdea({ did: false, t: eyes, helped: false, zone: 2 }, truth).lines, ["Yes! Big eyes don't help underwater, and cost energy."]);
+  has[TRAIT_INDEX.curved_claws] = true; has[TRAIT_INDEX.toe_webbing] = true;
+  const truth = { survived: false, zone: 2, has, helper: TRAIT_INDEX.toe_webbing, hurter: TRAIT_INDEX.curved_claws };
+  const eyes = TRAIT_INDEX.large_eyes, web = TRAIT_INDEX.toe_webbing, claws = TRAIT_INDEX.curved_claws;
+  assert.deepEqual(checkIdea({ did: false, t: claws, helped: false, zone: 2 }, truth).lines, ["Yes! Claws get in the way when swimming."]);
   assert.deepEqual(checkIdea({ did: false, t: web, helped: false, zone: 2 }, truth).lines,
     ["Good thinking. But webbed feet helped here.", "What else did they have?"]);
-  assert.equal(checkIdea({ did: false, t: eyes, helped: false, zone: 1 }, truth).right, false);
+  assert.equal(checkIdea({ did: false, t: claws, helped: false, zone: 1 }, truth).right, false);
+  // Big eyes don't matter at the water's edge now (scope decision 72): seals have big eyes, otters small ones.
+  assert.equal(checkIdea({ did: false, t: eyes, helped: false, zone: 2 }, { ...truth, has: has.map((h, t) => h || t === eyes) }).right, false);
   assert.equal(checkIdea(null, truth).lines[0], "Thanks for your idea!");
   assert.equal(ideaSentence({ did: true, t: eyes, helped: true, zone: 1 }), "My animals did survive because their big eyes helped on the open ground.");
 });
@@ -21,7 +23,9 @@ test("Check my idea: yes for the table's reason where the family lived; otherwis
 test("the Field Guide has each meaningful trait in each place, with the table's mark", async () => {
   const { FIELD_GUIDE, discoveryLine, discoveredLine, discover, discoveries, keepInJournal, journalEntries } = await import("../src/reflection.js");
   assert.equal(FIELD_GUIDE.length, 24);
-  assert.deepEqual(["✓", "✗", "~"].map((m) => FIELD_GUIDE.filter((e) => e.mark === m).length), [8, 8, 8]);
+  // Scope decision 72 freed six cells where real animals differ (thick fur on the ground and at the water's edge, long back
+  // legs and a strong tail in the leaves, a strong tail on the ground, big eyes at the water's edge).
+  assert.deepEqual(["✓", "✗", "~"].map((m) => FIELD_GUIDE.filter((e) => e.mark === m).length), [6, 4, 14]);
   assert.equal(FIELD_GUIDE.filter((e) => e.neutral).length, 3, "each neutral trait once, for every place");
   const web = FIELD_GUIDE.find((e) => e.key === "toe_webbing:2");
   assert.equal(discoveryLine(web), "You discovered: webbed feet help at the water's edge.");

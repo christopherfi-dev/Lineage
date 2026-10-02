@@ -1,16 +1,178 @@
 # LINEAGE — Real-Animal Reveal Table
 
-Purpose: on every ending (scope decision 40), the game shows which real animal the child's group has become most like, why, and one true fact about that animal. The reveal is based on the group's actual average traits at the end and the habitat where most of it lives. The list of choices the child made plays no part.
+Purpose: on every ending (scope decision 40), the game shows which real animal the child's line has become most like, why, and one true fact about that animal. The animals are also the children's goal: the collection (scope decision 72), the animals they can discover. Which animal a line becomes comes from its actual traits at the end in the place where it lives, and from the free traits the child chose for it. There is no correct answer: every line becomes something.
 
-Principle: there is no correct answer. Every group becomes something. Each "why" line only credits what the engine actually rewards in that habitat, so the reveal never claims a trait helped for a reason the simulation did not model: no digging, gliding, hunting, darkness or danger.
+Principle: each "why" line only credits what the engine actually rewards in that place (`docs/LINEAGE_WHY.md`), and only what the real animal has. A "looks like" line names a trait that doesn't matter there, and never says it helps.
 
-*2026-09-26, Step 5 (family names, `docs/LINEAGE_FAMILY_NAMES.md`): once the family has a name, the reveal line names it: "Your animals became paddlers, a lot like a beaver." reads "Your Mossfoot animals became paddlers, a lot like a beaver.", in both tenses. The "why" lines and the facts don't change. The lines below are shown without a name.*
+*2026-10-02, Round 5, Part 1 (scope decision 72): the collection. Classroom biology drives every line in a place to the same body, so every water story ended as a river otter and every tree story as a koala. Now each place has required traits (they help or hurt there, so every line that lasts gets them) and free ones (they don't decide who lives there). The free traits, which the child's follows decide, decide which animal the line becomes. Twelve animals, four per place, each reached in at least 80% of tries by a child who follows its signature. This replaces the 17-animal table of scope decisions 45 and 46, kept below for the record.*
 
-*2026-09-24, Marc's wording fixes after checking every fact: the bear became "big wanderers" (it is an open-ground animal here), its fact became "Many bears sleep all winter without eating.", and the platypus's small eyes "use less energy to grow" and its strong tail "helps them steer".*
+## The collection: 12 animals (a 4 × 3 grid)
 
-*2026-09-24, scope decisions 45 and 46: seventeen animals instead of eight (six at the water's edge, six in the high leaves, five on open ground), and a "Did you know?" fact for each. The eight earlier animals stay; the capybara's profile gains "dense fur low" (thin fur, true of its sparse, coarse hair), with a "why" line for it.*
+What every line in a place gets (the required traits) and what tells its animals apart (the free and neutral traits). An animal's **signature** is one or two free traits: a line with either becomes it. Its **profile** is every free or neutral trait that sets it apart, true of the real animal; it settles a tie. Each animal's picture is `game/animals/<id>.jpg` (Part 6).
 
-## Trait levels
+| Place | Required (every line there) | Free (the child's follows decide) |
+|---|---|---|
+| High leaves | curved claws; toes without webbing; a round body | thick fur, long back legs, a strong tail, big eyes; coat, ear tips, tail tip |
+| Open ground | long back legs; big eyes | webbed feet, claws, thick fur, a strong tail, body shape; coat, ear tips, tail tip |
+| Water's edge | webbed feet; a strong tail; a sleek body; straighter claws; short back legs | thick fur, big eyes; coat, ear tips, tail tip |
+
+| Place | Animal (id) | Signature (either) | Profile (free and neutral traits that set it apart) | Required traits the real animal lacks |
+|---|---|---|---|---|
+| High leaves | **Squirrel** (`squirrel`), the leaves' own | a strong tail; pointy ear tips | strong tail, pointy ear tips, long back legs | — |
+| | **Sloth** (`sloth`) | a weak tail; short back legs | weak tail, short back legs, thick fur, small eyes | — |
+| | **Koala** (`koala`) | round ear tips; small eyes | round ear tips, small eyes, thick fur, weak tail, light coat | — |
+| | **Slow loris** (`slow-loris`) | thick fur; big eyes | thick fur, big eyes, weak tail, short back legs | curved claws: it grips with strong hands and nails |
+| Open ground | **Hare** (`hare`), the ground's own | a weak tail; thick fur | weak tail, thick fur | — |
+| | **Arctic fox** (`arctic-fox`) | a light coat; round ear tips | light coat, round ear tips, thick fur, strong tail | long back legs: it has short legs |
+| | **Cheetah** (`cheetah`), new | thin fur; a sleek body | thin fur, sleek body, strong tail, bright tail tip, straighter claws | — |
+| | **Jerboa** (`jerboa`), new | a strong tail; a bright tail tip | strong tail, bright tail tip, light coat | — |
+| Water's edge | **River otter** (`river-otter`), the water's own | thick fur | thick fur, small eyes, round ear tips, dark coat | — |
+| | **Seal** (`seal`) | thin fur; big eyes | thin fur, big eyes, round ear tips | a strong tail: it has a tiny tail and swims with its back flippers |
+| | **Beaver** (`beaver`) | a dark coat; a plain tail tip | dark coat, plain tail tip, thick fur, small eyes, round ear tips | a sleek body: it has a chunky one |
+| | **Platypus** (`platypus`) | round ear tips; small eyes | round ear tips (it has no outer ears), small eyes, thick fur, dark coat | — |
+
+"Strong tail" is the engine's trait, drawn as a bigger tail: a squirrel's bushy tail, a jerboa's long one, a beaver's flat paddle. "Round ear tips" is the opposite of pointy ones, so it also stands for no outer ears (seal, platypus). A line that matches no signature in its place becomes the place's own animal. The four required traits a real animal lacks are why each of these four has no "why" line for that trait.
+
+## Matching rule (scope decision 72)
+
+1. Only the animals of the line's place count. The line is its animals living there at the end (all of them, once the child chose a place).
+2. **A chosen free trait decides first.** The line keeps every trait the child chose (scope decision 72), so each of its animals has each one. An animal qualifies when one of its signatures is a chosen trait that doesn't matter in that place, the way it was chosen.
+3. **Else, what the line has.** An animal qualifies when three quarters or more of the line has one of its signatures (high: at least GAP above the generation-0 world's average; low: at least GAP below it).
+4. **Among those that qualify**, the best fits its profile best: for each profile trait, the share of the line that has it less the share that has the opposite, and 2 more for a chosen trait that way (2 less for one chosen the other way). A tie goes to the animal listed first in its place.
+5. **If none qualifies,** the place's own animal: the squirrel, the hare, the river otter.
+6. **A line names an animal only once it has changed toward its place:** at least one required trait past its helpful level on average. A line that lasted but didn't change stays like the first mammals; one that died out first had no time to change (scope decision 41). Neither is in the collection.
+7. The reveal shows only the "why" lines whose credited trait the line has at that level, then up to two "looks like" lines the same way, the signature's first; then the animal's "Did you know?" lines. Every water's-edge animal adds "Did you know? Whales' ancestors were land animals that started swimming."
+
+GAP = 0.12 (the game's APART). The generation-0 world's averages, the same in every seed: webbing 0.15, claws 0.45, fur 0.39, back legs 0.45, tail 0.39, eyes 0.40, body 0.35; coat, ear tips and tail tip 0.49. Each founding family's founders differ in fur, tail, coat, ear tips and tail tip by 0.15 either way (scope decision 72), so each family can become any animal of its place.
+
+## Each animal as a child sees it (for Marc to check)
+
+The reveal line, the "why" lines (the first ones that the line has), up to two "looks like" lines, and the facts, each with a speaker. A line that died out sees "Your animals were becoming a lot like a sloth." and the "why" lines in the past tense; the "looks like" lines and the facts are about the real animal and stay in the present. **New, for Marc to check:** the cheetah and the jerboa (every line), and every "looks like" line. The "why" lines and facts of the other ten are the ones Marc checked on 2026-09-24, except that a "why" line now only credits a required trait (so the sloth's, koala's and slow loris's "Thick fur keeps them warm." and the beaver's "Thick fur keeps them warm, but it slows their swimming." are now "looks like" lines: thick fur doesn't matter in those places any more).
+
+**Squirrel** · high leaves
+- Your animals became climbers, a lot like a squirrel.
+- Curved claws grip the branches. Toes without webbing hold on tight.
+- Looks like: Squirrels have big bushy tails too. Squirrels have pointy ears too. Squirrels have long back legs too.
+- Did you know? Squirrels plant trees by forgetting buried nuts.
+
+**Sloth** · high leaves
+- Your animals became slow, careful climbers, a lot like a sloth.
+- Big curved claws hold on to branches. Toes without webbing hold on tight. A round body helps them hold on.
+- Looks like: Sloths have tiny tails too. Sloths have short back legs too. Sloths have thick, shaggy fur too. Sloths have small eyes too.
+- Did you know? Sloths are surprisingly good swimmers.
+
+**Koala** · high leaves
+- Your animals became sleepy climbers, a lot like a koala.
+- Curved claws grip the branches. Toes without webbing hold on tight. A round body helps them hold on.
+- Looks like: Koalas have round, fluffy ears too. Koalas have small eyes too. Koalas have thick fur too. Koalas have tiny tails too. Koalas have light grey coats too.
+- Did you know? Koalas sleep up to 20 hours a day.
+
+**Slow loris** · high leaves
+- Your animals became night climbers, a lot like a slow loris.
+- Toes without webbing hold on tight. A round body helps them hold on. (No claws line: slow lorises grip with nails.)
+- Looks like: Slow lorises have thick, woolly fur too. Slow lorises have huge eyes too. Slow lorises have tiny tails too.
+- Did you know? A slow loris has a venomous bite.
+
+**Hare** · open ground
+- Your animals became runners, a lot like a hare.
+- Long back legs help them run fast. Big eyes spot things across open ground.
+- Looks like: Hares have short tails too. Hares have thick fur too.
+- Did you know? Baby hares are born furry, with open eyes.
+
+**Arctic fox** · open ground
+- Your animals became open-ground explorers, a lot like an arctic fox. (It was "cold-weather experts": thick fur doesn't matter on the open ground now, and the game has no cold.)
+- Big eyes spot things across open ground. (No legs line: arctic foxes have short legs.)
+- Looks like: Arctic foxes have light coats too, white in winter. Arctic foxes have small, round ears too. Arctic foxes have very thick fur too. Arctic foxes have big bushy tails too.
+- Did you know? Most arctic foxes turn white in winter.
+
+**Cheetah** · open ground · new
+- Your animals became sprinters, a lot like a cheetah.
+- Long back legs help them run fast. Big eyes spot things across open ground.
+- Looks like: Cheetahs have short fur too. Cheetahs have sleek bodies too. Cheetahs have long, strong tails too. Cheetahs have a white tip on their tails too. Cheetahs have straighter claws too.
+- Did you know? Cheetahs are the fastest runners on land.
+
+**Jerboa** · open ground · new
+- Your animals became hoppers, a lot like a jerboa.
+- Long back legs help them run fast. Big eyes spot things across open ground.
+- Looks like: Jerboas have very long tails too. Jerboas have a bright tuft on their tail tip too. Jerboas have light, sandy coats too.
+- Did you know? Jerboas hop on two legs, like tiny kangaroos.
+
+**River otter** · water's edge
+- Your animals became swimmers, a lot like a river otter.
+- Webbed feet push through water. A strong tail helps them swim. A sleek body slides through the water easily. Short legs don't drag in the water.
+- Looks like: River otters have very thick fur too. River otters have small eyes too. River otters have small, round ears too. River otters have dark brown coats too.
+- Did you know? River otters slide down snowy and muddy banks. (And the whales line.)
+
+**Seal** · water's edge
+- Your animals became sleek swimmers, a lot like a seal.
+- Webbed flippers push them through water. A sleek body slides through the water easily. Short legs don't drag in the water. (No tail line: seals have a tiny tail.)
+- Looks like: Seals have short fur too. Seals have big eyes too. Seals have no pointy ears at all.
+- Did you know? A seal's nose shuts tight when it dives. (And the whales line.)
+
+**Beaver** · water's edge
+- Your animals became paddlers, a lot like a beaver.
+- Webbed feet push through water. A strong tail helps them swim. Short legs don't drag in the water. (No sleek-body line: beavers are chunky.)
+- Looks like: Beavers have dark brown coats too. Beavers have plain tail tips too. Beavers have thick fur too. Beavers have small eyes too. Beavers have small, round ears too.
+- Did you know? Beaver teeth are orange and never stop growing. (And the whales line.)
+
+**Platypus** · water's edge
+- Your animals became river divers, a lot like a platypus.
+- Webbed feet push through water. A strong tail helps them steer. A sleek body slides through the water easily. Short legs don't drag in the water.
+- Looks like: Platypuses have no pointy ears at all. Platypuses have tiny eyes too. Platypuses have thick fur too. Platypuses have dark brown fur too.
+- Did you know? Platypuses are mammals that lay eggs. (And the whales line.)
+
+**Not in the collection:** the first mammals (tree shrew), for a line that lasted but didn't change ("Your animals stayed like the very first mammals, like a tree shrew."), and "Your animals didn't have time to change." for one that died out first. Both as before.
+
+Every line is 13 words or fewer (the longest: "Your animals became open-ground explorers, a lot like an arctic fox.", 11 words).
+
+## The seventeen before, the six candidates, and why each is in or out
+
+| Animal | Now | Why |
+|---|---|---|
+| Squirrel, sloth, koala, slow loris | in, high leaves | Each has a free-trait look of its own: a big tail or pointy ears; a tiny tail or short legs; round ears or small eyes; thick fur or big eyes. |
+| Hare, arctic fox | in, open ground | A short tail or thick fur; a light coat or round ears. |
+| River otter, seal, beaver, platypus | in, water's edge | Thick fur; thin fur or big eyes; a dark coat or a plain tail tip; round ears or small eyes. |
+| Cheetah | **added**, open ground | Long legs and big eyes, as the ground requires; short fur and a sleek body set it apart. 84% reached. |
+| Jerboa | **added**, open ground | Long back legs and big eyes; a long tail with a bright tuft sets it apart. 94% reached. |
+| Lynx | out | Reached in 81% of tries in the experiment (13 animals made 80%), but the grid is 4 × 3, four per place, and the arctic fox was reached more often (89%). It would fit the ground with no mismatch: a question for the architect. |
+| Meerkat | out | 79% in the experiment (curved claws or a light coat, free on the ground): under 80%. |
+| Bushbaby, tarsier | out | Their look in the leaves is big eyes and long back legs, which are the slow loris's signature and the squirrel's profile: a line can't be told apart as one. |
+| Bear | out | On open ground long back legs and big eyes are required; a bear has neither. |
+| Capybara | out | At the water's edge long legs hurt and a strong tail helps; a capybara has long legs and almost no tail. |
+| Fishing cat | out | At the water's edge claws hurt; a fishing cat has curved claws. |
+| Lemur, red panda | out | 77% and 73% in the experiment: under 80%. |
+| Muskrat | out | The beaver's look (thick, dark fur, a plain flat tail): a line can't be told apart as one. |
+| Mink | out | The river otter's look (thick, dark fur, small eyes), and no picture. |
+
+*"In the experiment": the scratch copy of the game with a 16-animal grid (the 12 above with the lynx, meerkat, lemur and red panda), 30 seeds, a 10-minute limit. The 12-animal numbers are from the game's own code (below).*
+
+## Check results (Claude Code, 2026-10-02, scope decision 72)
+
+*The simulated child on the game's own code (seeds 1–30, every founding family, 90 stories per animal, each on a new iPad): it taps the family, chooses the animal's place as soon as a baby of its family lives there, then follows a glowing baby whose variation is one of the animal's signatures, once (until the line keeps one); on the backup panel a signature option, else a helpful one, else none. The story stops at the win (the line fits its home: every required trait's median within APART of its helpful end, so no helpful variation is left) or 8 minutes after the place choice, and the animal is matched from the line then. Minutes as in Round 4: 20 s a watched generation, 2 s a fast one, 1.8 s a follow.*
+
+| Animal | Reached (of 90) | Otherwise |
+|---|---|---|
+| Squirrel | 88 (98%) | sloth 2 |
+| Sloth | 81 (90%) | squirrel 7, slow loris 2 |
+| Koala | 78 (87%) | squirrel 12 |
+| Slow loris | 73 (81%) | squirrel 15, koala 2 |
+| Hare | 90 (100%) | — |
+| Arctic fox | 80 (89%) | hare 10 |
+| Cheetah | 76 (84%) | hare 14 |
+| Jerboa | 85 (94%) | hare 5 |
+| River otter | 75 (83%) | seal 8, beaver 4, platypus 3 |
+| Seal | 80 (89%) | beaver 4, river otter 3, platypus 3 |
+| Beaver | 76 (84%) | river otter 9, seal 3, platypus 2 |
+| Platypus | 83 (92%) | river otter 6, seal 1 |
+
+- **A child following random glows** (after 40 s of watching, a random glowing baby it may follow; on the backup panel a random option when one helps), 90 stories in each place, 270 in all: **all 12 animals**, none above 16%: squirrel 16%, hare 12%, seal 10%, platypus 10%, cheetah 9%, koala 8%, river otter 8%, arctic fox 8%, sloth 6%, beaver 6%, jerboa 5%, slow loris 4%. By place: leaves squirrel 42, koala 22, sloth 15, slow loris 11; ground hare 32, cheetah 24, arctic fox 21, jerboa 13; water seal 27, platypus 26, river otter 22, beaver 15.
+- **Every line is checked against the engine:** each "why" line credits only a required trait of its place at its helpful level (✓ high, ✗ low), and only one the real animal has; each "looks like" line names a free or neutral trait of its place.
+
+## Before Round 5 (kept for the record)
+
+The 17-animal table of scope decisions 45 and 46, matched on the line's average with the old M1 net effects. Its animals, lines and numbers below are history.
+
+### Trait levels
 Uses the seven meaningful traits only; the three neutral traits are never used for matching.
 
 Levels are relative to the generation-0 world average for each trait, so that a reveal reflects what changed. The starting world's usual body is neither high nor low.
@@ -26,10 +188,10 @@ GAP = 0.12. That is the game's APART, the smallest difference it treats as visib
 
 *Balance round, 2026-09-23. This replaces the absolute levels (high 0.6 or more, low 0.4 or less), under which the starting body alone matched Squirrel and 47% of reveals were Squirrel.*
 
-## Habitat
+### Habitat
 The zone where the largest share of the group lives at the end: high leaves (canopy), open ground (forest_floor), or water's edge (shoreline).
 
-## What the engine rewards in each habitat
+### What the engine rewards in each habitat
 
 For one unit of each trait, the change in zone fitness is the sum over performance dimensions of zone weight × trait effect, minus zone scarcity × upkeep (`lineage-m1/src/config/modelConfig.js`, `traits.js`, `core/performance.js`). A trait at "high" is rewarded where this is positive; a trait at "low" is rewarded where it is negative.
 
@@ -45,7 +207,7 @@ For one unit of each trait, the change in zone fitness is the sum over performan
 
 So, for example, at the water's edge short back legs, thin fur, small eyes and short claws are all rewarded, and in the high leaves a small tail and a round body are. Every "why" line below credits only a trait at a level its habitat rewards, with two trade-off lines kept from the balance round (see the check results).
 
-## Water's edge
+### Water's edge
 
 River otter
 - Profile: toe webbing high, strong tail high, streamlined body high, curved claws low.
@@ -95,7 +257,7 @@ Fishing cat
 - Why, died out: "Webbed feet helped them swim." "Short legs didn't drag in the water."
 - Did you know: "Did you know? Fishing cats dive into water to catch fish." "Did you know? Whales' ancestors were land animals that started swimming."
 
-## High leaves
+### High leaves
 
 Squirrel
 - Profile: curved claws high, toe webbing low, streamlined body low.
@@ -145,7 +307,7 @@ Slow loris
 - Why, died out: "Big eyes helped them see well." "Thick fur kept them warm." "A tiny tail didn't get in their way." "A round body helped them hold on."
 - Did you know: "Did you know? A slow loris has a venomous bite."
 
-## Open ground
+### Open ground
 
 Hare
 - Profile: long back legs high, strong tail low, large eyes high.
@@ -187,7 +349,7 @@ Arctic fox
 - Why, died out: "Thick fur kept them warm."
 - Did you know: "Did you know? Most arctic foxes turn white in winter."
 
-## Any habitat — fallbacks
+### Any habitat — fallbacks
 
 The first mammals (tree shrew), for a surviving group only
 - Profile: no animal above qualifies.
@@ -201,11 +363,11 @@ No time to change, for a group that died out (scope decision 41)
 - Why: "Their story ended before new traits could be passed on."
 - No fact: it names no animal.
 
-## Died-out endings (scope decisions 40 and 41)
+### Died-out endings (scope decisions 40 and 41)
 
 Every ending gets a reveal. It uses the group's actual average traits and main habitat when the story ended (its last living members), with the same table, the same matching rule and the same "why" filter. A group that died out gets its reveal and "why" lines in the past tense (above, "Died out" and "Why, died out"). The "Did you know?" facts are about the real animal, so they stay in the present tense.
 
-## Matching rule
+### Matching rule
 1. Only animals from the group's end habitat are considered, plus the fallback.
 2. An animal qualifies only if the group has its signature trait(s).
 3. Among qualifying animals, the best match is the one whose checked traits the group meets most strongly: the sum of how far each met checked trait is past its level. A tie goes to the animal listed first in its habitat above.
@@ -216,7 +378,7 @@ Every ending gets a reveal. It uses the group's actual average traits and main h
 
 *Balance round, 2026-09-23. Rules 2 and 3 replace "the best match needs at least all but one of its checked traits" and "ties go to the animal with more checked traits". With "all but one" kept alongside the signature rule, the targets (fallback at most 35%, no animal above 35%) were met only at GAP 0.04 or less, where a barely changed trait counts as high, and Meerkat never appeared.*
 
-## Rejected animals (2026-09-24, scope decision 45)
+### Rejected animals (2026-09-24, scope decision 45)
 
 Each was considered and left out, with the reason. "Tried" means it was added to the final table and measured on the 540 stories.
 
@@ -239,7 +401,7 @@ Each was considered and left out, with the reason. "Tried" means it was added to
 | Spider monkey | Its gripping tail is a strong tail, which the high leaves punish. |
 | Hedgehog, armadillo | Spines and armour can't be shown. |
 
-## Facts for Marc to check (2026-09-24, scope decision 46)
+### Facts for Marc to check (2026-09-24, scope decision 46)
 
 Every animal as a child sees it on the ending: its reveal line, its "why" sentences (shown together as one paragraph), and its "Did you know?" fact or facts, each with a speaker. The first "why" sentence always shows; the others show only when the group has that trait. A group that died out sees the past-tense lines instead; the facts stay the same. Each fact is one true, kid-level fact, 11 words or fewer.
 
@@ -361,7 +523,7 @@ Every animal as a child sees it on the ending: its reveal line, its "why" senten
 - Their story ended before new traits could be passed on.
 - (No fact: it names no animal.)
 
-## Check results (Claude Code, 2026-09-24, scope decisions 45 and 46)
+### Check results (Claude Code, 2026-09-24, scope decisions 45 and 46)
 
 The game implements this table in `game/src/reveal.js`, which must match this file.
 
@@ -412,7 +574,7 @@ The game implements this table in `game/src/reveal.js`, which must match this fi
 - **Why the fallbacks were high:** only 14 of the 540 endings (3%) have no trait past GAP. The rest had changed, but in ways no animal matched, such as webbed feet alone at the water's edge (now the platypus) or big eyes and webbed feet (now the seal).
 - **What still falls back:** mostly groups that ended in the high leaves with webbed feet (no real tree animal has them), groups whose webbing or claws never moved, and bodies from one habitat that ended in another.
 
-## Earlier results (kept for the record)
+### Earlier results
 
 ### Checks for Claude Code (2026-09-23)
 - Confirm each "why" line against the zone weights. If an animal's habitat does not reward a trait its "why" line credits, rewrite that line or drop the animal, and report it.

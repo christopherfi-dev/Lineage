@@ -1719,13 +1719,14 @@ export class Game {
       li.append(this.predictionBlock(p, p.question.text));
       return li;
     }));
-    // The real-animal reveal on every ending (scope decisions 10 and 40, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
-    // the family's actual average traits and main habitat when the story ended, never its choices.
+    // The real-animal reveal on every ending (scope decisions 10, 40 and 72, docs/LINEAGE_REAL_ANIMAL_REVEAL.md):
+    // the line's actual traits and main place when the story ended, and the free traits the child chose.
     this.revealEl.hidden = !s.reveal;
     if (s.reveal) {
       const died = s.outcome === "died";
       this.revealLine.set(namedReveal(died ? s.reveal.animal.revealPast : s.reveal.animal.reveal, s.name));
-      this.revealWhy.set((died ? s.reveal.whyPast : s.reveal.why).join(" "));
+      // Then the free traits it shares with the real animal (scope decision 72).
+      this.revealWhy.set([...(died ? s.reveal.whyPast : s.reveal.why), ...s.reveal.like].join(" "));
       this.revealFactsEl.replaceChildren(...s.reveal.facts.map((fact) => {
         const p = Object.assign(doc.createElement("p"), { className: "fact" });
         p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: fact }), speakerButton(doc, () => fact));

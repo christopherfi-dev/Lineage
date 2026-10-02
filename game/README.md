@@ -101,12 +101,15 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
    back?"), and while the line is very small ("Your line needs you. Stay with them?").
 3. **Following a line** (scope decisions 66–68). The first tap follows a family. A follow
    narrows it to a line: its animals with the trait in its place ("3 of your Mossfoot line have
-   bigger eyes."). From then on a baby joins the line when a parent is in it and it inherited that
-   trait (the latest one only). The rest of the old line in its place, the line's babies that
-   didn't inherit it, and their babies are "your relatives", drawn full size in a soft clay
-   (`KIN_COLOR`); everyone else is small and grey. Only the line's babies glow, and the traits add
-   up on "Your Mossfoot line so far", after the place chosen ("Near the water"); an earlier one
-   that fades in the line greys out, with its reason. "Your line" replaces "your family" from the
+   bigger eyes."). From then on a baby joins the line when a parent is in it and it inherited
+   every trait the line keeps, the latest way on each one chosen (scope decision 72); after a
+   follow on a trait that doesn't matter in the place, a relative's baby with them all joins too.
+   The rest of the old line in its place, the line's babies that didn't inherit them, and their
+   babies are "your relatives", drawn full size in a soft clay (`KIN_COLOR`); everyone else is
+   small and grey. Only the line's babies glow, and the traits add up on "Your Mossfoot line so
+   far", after the place chosen ("Near the water"); each animal of the line has each one, so none
+   fades. A glowing trait that doesn't matter there also stands out from the whole world at the
+   start: those traits decide which animal the line becomes. "Your line" replaces "your family" from the
    place choice on, and the tree strip becomes "Your line, baby by baby" (`TREE_BETWEEN`), the
    baby on the chosen place's card its first step. Once a place is chosen, a baby of the line born
    in another place is a relative: the line always lives in one place (scope decision 70).
@@ -170,8 +173,10 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
     (the start and the end drawn, the line baby by baby, the line and its relatives here, the
     traits chosen); your idea (a sentence to build, or your own words); check my idea (against the
     table, with a clue, the same trait in two places, and "Your last choice": its line beside its
-    relatives here); and the reveal (the real animal the line became like, its traits, the
-    predictions and choices, the Field Guide and the story card). "Try another family" (the world
+    relatives here); and the reveal (the real animal the line became like, one of the
+    collection's twelve, `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`: the free traits the child chose
+    decide it first; then its traits, the predictions and choices, the Field Guide and the story
+    card). "Try another family" (the world
     as it is now; at the story's end, the same seed from generation 0) and "New world".
 11. **Read-aloud.** Every child-facing line has a small speaker (`speechSynthesis`,
     `src/speech.js`, a calm voice at rate 0.85). "20 → 31" is read as "from 20 to 31". Lines stay

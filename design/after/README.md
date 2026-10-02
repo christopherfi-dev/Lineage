@@ -1,5 +1,7 @@
 # LINEAGE — the live build, moment by moment (after Step 5)
 
+**Round 5, Part 1 (scope decision 72):** `ending-reveal` and `story-card` are shot again: the reveal is one of the collection's twelve animals now, from the free traits the child chose ("Your … animals became river divers, a lot like a platypus."), with up to two "looks like" lines after the "why" lines ("Platypuses have tiny eyes too."). `so-far` too: the line keeps every trait the child chose, so no chip fades now, and the moment is "Your line so far" with two or more traits. Nothing else drawn changed; the rest are Part 0's pictures.
+
 **Round 5, Part 0 (scope decision 71):** `stay` is new: choosing the open ground is staying, with its own lines, "Your … family stays on the open ground." then "It's crowded here already. The fastest runners will win." (the sheet with the ground's card tapped, 1.5 s). The rest are Round 4's pictures.
 
 **Round 4, Part 3 (scope decision 70):** `filling` is new ("It's getting full. The best swimmers are winning.", when some living in the line's new home are first crowded out, 1.5 s), and `other-card` and `card` are shot again: another group living in the line's place since before the line came says "They got here first. Now long back legs are starting to matter." once the place is full, and `card`'s generation now tells the place filling up. The rest are Part 2's pictures.

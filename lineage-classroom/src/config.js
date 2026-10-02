@@ -29,18 +29,19 @@ const NONE = 0;
 /**
  * Each trait's effect in each place, [high leaves, open ground, water's edge],
  * in M1's trait order. Every "✓" and "✗" has the direction of M1's own net
- * effect (zone weights times trait effects, less upkeep), and every "~" is
- * where that net effect is under LITTLE_EFFECT. This is the table in
- * docs/LINEAGE_WHY.md; lineage-classroom/test/classroom.test.js checks it
- * against the engine.
+ * effect (zone weights times trait effects, less upkeep). A "~" is where that
+ * net effect is under LITTLE_EFFECT, or a trait the real animals of that place
+ * have both ways (FREE_BY_ANIMALS, scope decision 72): it is free there, so
+ * the child's follows decide it. This is the table in docs/LINEAGE_WHY.md;
+ * lineage-classroom/test/classroom.test.js checks it against the engine.
  */
 export const PLACE_EFFECTS = deepFreeze([
   [HURTS, NONE, HELPS], //  toe_webbing        M1: -2.53 -0.37  2.88
   [HELPS, NONE, HURTS], //  curved_claws       M1:  2.31  0.17 -1.15
-  [NONE, HELPS, HURTS], //  dense_fur          M1:  0.30  0.90 -0.70
-  [HELPS, HELPS, HURTS], // long_hindlimbs     M1:  0.93  1.89 -1.07
-  [HURTS, HURTS, HELPS], // strong_tail        M1: -0.63 -0.80  1.42
-  [NONE, HELPS, HURTS], //  large_eyes         M1:  0.35  1.25 -0.55
+  [NONE, NONE, NONE], //    dense_fur          M1:  0.30  0.90 -0.70  (free on the ground and at the water's edge)
+  [NONE, HELPS, HURTS], //  long_hindlimbs     M1:  0.93  1.89 -1.07  (free in the leaves)
+  [NONE, NONE, HELPS], //   strong_tail        M1: -0.63 -0.80  1.42  (free in the leaves and on the ground)
+  [NONE, HELPS, NONE], //   large_eyes         M1:  0.35  1.25 -0.55  (free at the water's edge)
   [HURTS, NONE, HELPS], //  streamlined_body   M1: -1.38 -0.34  1.82
   [NONE, NONE, NONE], //    coat_shade         neutral
   [NONE, NONE, NONE], //    ear_tip_shape      neutral
@@ -50,9 +51,28 @@ export const PLACE_EFFECTS = deepFreeze([
 /** An M1 net effect smaller than this is a "~" in PLACE_EFFECTS. */
 export const LITTLE_EFFECT = 0.4;
 
+/**
+ * The "~" that M1 counts as a real help or hurt, freed because the real
+ * animals of that place have the trait both ways (scope decision 72): by trait,
+ * each place [high leaves, open ground, water's edge] and why. A required trait
+ * keeps M1's direction; only these became free.
+ */
+export const FREE_BY_ANIMALS = deepFreeze({
+  dense_fur: {
+    1: "Arctic foxes and hares have thick fur; cheetahs, in hot places, have short fur.",
+    2: "Otters and beavers have very thick fur; seals have short hair.",
+  },
+  long_hindlimbs: { 0: "Squirrels leap on long back legs; sloths and koalas climb slowly on short ones." },
+  strong_tail: {
+    0: "Squirrels balance with long, bushy tails; koalas and sloths have tiny tails.",
+    1: "Cheetahs and jerboas balance with long tails; hares have short ones.",
+  },
+  large_eyes: { 2: "Seals have big eyes for seeing underwater; otters and platypuses have small eyes." },
+});
+
 export const classroomConfig = deepFreeze({
   ...currentModelConfig,
-  version: "lineage-classroom-config-3",
+  version: "lineage-classroom-config-4",
 
   // The common-ancestor world: every founder on the open ground, one body.
   startingPopulation: 40,
@@ -101,6 +121,16 @@ export const classroomConfig = deepFreeze({
   leanMoveChance: 0.3,
   roomyBirths: 2,
   roomyBelow: 0.5,
+
+  // The ancestors are one kind of animal, but no two look exactly alike (scope
+  // decision 72): in every founding family, each trait in founderVaried is
+  // founderSpread below the ancestral body in a third of the founders, as it is
+  // in a third, and founderSpread above it in a third, dealt out by id with no
+  // draw. They are the traits free everywhere or free on the ground, where the
+  // founders live: fur, tail, coat, ear tips and tail tip. So a look the child
+  // follows is carried by a part of the family, not by one newborn.
+  founderSpread: 0.15,
+  founderVaried: [2, 4, 7, 8, 9],
 });
 
 /** Founders by id make the game's founding families in groups of this many (game/src/families.js: 13, 13 and 14 of 40). */
@@ -132,6 +162,7 @@ export function classroomIdentityFor(config) {
       founders: { leaners: config.founderLeaners ?? 0, lean: config.founderLean ?? 0 },
       leanMove: { at: config.leanAt ?? 1, chance: config.leanMoveChance ?? 0 },
       roomyBirths: { extra: config.roomyBirths ?? 0, below: config.roomyBelow ?? 0 },
+      founderLooks: { spread: config.founderSpread ?? 0, traits: Array.from(config.founderVaried ?? []) },
     },
   }));
 }

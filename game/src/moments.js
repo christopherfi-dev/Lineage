@@ -319,11 +319,14 @@ const MOMENT = {
       return g ? { id: g.id } : null;
     },
   },
-  /** "Your line so far" with two or more chosen traits, one of them faded, with why (scope decisions 59 and 68). */
+  /**
+   * "Your line so far" with two or more chosen traits (scope decisions 59 and 68). The line keeps every trait the
+   * child chose (scope decision 72), so none fades now.
+   */
   "so-far": {
     families: FROM_OTHERS,
     policies: ["active", "unwise"],
-    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && { chips: s.chips.map((c) => c.v.group) },
   },
   /**
    * The whole line died out with 25 or more generations of the story left, and the child taps "Try another family":
