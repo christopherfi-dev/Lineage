@@ -14,12 +14,18 @@ import { ZONE_AT } from "./narration.js";
 export const WHY = {
   toe_webbing: ["Webbing makes it hard to grip branches.", "Webbed feet don't matter much on open ground.", "Webbed feet push through water."],
   curved_claws: ["Curved claws grip the branches.", "Claws don't matter much on open ground.", "Claws get in the way when swimming."],
-  dense_fur: ["Thick fur doesn't matter much in the trees.", "Thick fur keeps them warm on open ground.", "Thick, wet fur slows swimming."],
-  long_hindlimbs: ["Long back legs help them leap between branches.", "Long back legs help them run fast.", "Long legs drag in the water."],
-  strong_tail: ["A heavy tail makes climbing harder.", "A heavy tail slows them down on land.", "A strong tail helps them swim."],
-  large_eyes: ["Big eyes don't matter much in the trees.", "Big eyes spot things across open ground.", "Big eyes don't help underwater, and cost energy."],
+  // Scope decision 72: free where the real animals of a place have it both ways, with one that has it the other way.
+  dense_fur: ["Thick fur doesn't matter much in the trees.", "Thick fur doesn't matter much on open ground: cheetahs have short fur.",
+    "Thick fur doesn't matter much in the water: seals have short fur."],
+  long_hindlimbs: ["Long legs don't matter much in the trees: sloths climb on short ones.", "Long back legs help them run fast.", "Long legs drag in the water."],
+  strong_tail: ["A big tail doesn't matter much in the trees: koalas have tiny ones.", "A big tail doesn't matter much on open ground: hares have short ones.",
+    "A strong tail helps them swim."],
+  large_eyes: ["Big eyes don't matter much in the trees.", "Big eyes spot things across open ground.", "Big eyes don't matter much in the water: otters have small eyes."],
   streamlined_body: ["A sleek body is hard to climb with.", "Body shape doesn't matter much on open ground.", "A sleek body slides through water."],
 };
+
+/** What a trait free in every place is called in a guess, like a neutral trait's noun (scope decision 72). */
+const FREE_NOUN = { dense_fur: "Thick fur" };
 
 /** The neutral traits' line in the table: "[Trait] doesn't help or hurt anywhere." */
 export const NEUTRAL_WHY = {
@@ -125,6 +131,16 @@ export const but = (line) => `But ${line.charAt(0).toLowerCase()}${line.slice(1)
  */
 export function guessFor(text, t, zone, extra = null) {
   const trait = TRAITS[t];
+  if (FREE_NOUN[trait] && [0, 1, 2].every((z) => effectIn(t, z) === 0)) {
+    // Free in every place (scope decision 72): its three place lines all say it doesn't matter much, so, like a neutral
+    // trait, the answers are "helps here", "hurts here" and the place's own line.
+    const noun = FREE_NOUN[trait];
+    return {
+      text, t, zone, extra,
+      options: [`${noun} helps them ${ZONE_AT[zone]}.`, `${noun} hurts them ${ZONE_AT[zone]}.`, whyLine(t, zone)].map((o, i) => ({ text: o, right: i === 2 })),
+      right: whyLine(t, zone),
+    };
+  }
   if (NEUTRAL_WHY[trait]) {
     // A neutral trait has one line in the table (scope decision 65): the three answers are "helps here", "hurts
     // here" and the table's "doesn't help or hurt anywhere".

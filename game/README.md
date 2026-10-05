@@ -59,9 +59,14 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "Why?" guesses, whichever place the child chooses first, measured with a simulated child (scope decision 70).
+A story ends with the win, when the line fits its home, a median 4.6 minutes after the first tap in the high leaves, 5.5 on the open ground and 7.8 at the water's edge, with a median of 3, 4 and 6 follows; 269 of 270 stories win before the story's last generation, measured with a simulated child following random glows (scope decision 78).
 
-1. **Time waits for the child.** The animals wander from the start, but generation 1 begins
+1. **Time waits for the child.** After the arrival mist, the opening (scope decision 77,
+   `src/opening.js`): the collection's twelve cards face down, "These are the animals you can
+   become.", the cards flipping one after another with a quiet card sound, "How many can you
+   discover?", the ones not yet evolved on this iPad settling as mystery cards, then a soft puff,
+   and "Tap an animal to follow its family." (5.1 s the first time, 2.0 s for later stories in the
+   session; a tap skips it). The animals wander from the start, but generation 1 begins
    only when the child taps an animal and follows its family (the tapped animal's ancestor 3
    generations back through the mother line, `src/families.js`), and names it.
    **"Where will your family live?"** (scope decision 70) is then the first choice: a card for
@@ -101,12 +106,18 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
    back?"), and while the line is very small ("Your line needs you. Stay with them?").
 3. **Following a line** (scope decisions 66–68). The first tap follows a family. A follow
    narrows it to a line: its animals with the trait in its place ("3 of your Mossfoot line have
-   bigger eyes."). From then on a baby joins the line when a parent is in it and it inherited that
-   trait (the latest one only). The rest of the old line in its place, the line's babies that
-   didn't inherit it, and their babies are "your relatives", drawn full size in a soft clay
-   (`KIN_COLOR`); everyone else is small and grey. Only the line's babies glow, and the traits add
-   up on "Your Mossfoot line so far", after the place chosen ("Near the water"); an earlier one
-   that fades in the line greys out, with its reason. "Your line" replaces "your family" from the
+   bigger eyes."). From then on a baby joins the line when a parent is in it and it inherited
+   every trait the line keeps, the latest way on each one chosen (scope decision 72); after a
+   follow on a trait that doesn't matter in the place, a relative's baby with them all joins too.
+   The rest of the old line in its place, the line's babies that didn't inherit them, and their
+   babies are "your relatives", drawn full size in a soft clay (`KIN_COLOR`); everyone else is
+   small and grey. Only the line's babies glow, and the traits add up on "Your Mossfoot line so
+   far", after the place chosen ("Near the water"); each animal of the line has each one, so none
+   fades. A glowing trait that doesn't matter there also stands out from the whole world at the
+   start: those traits decide which animal the line becomes. A trait that helps in the line's
+   place and rose in it without a follow gets its own outlined chip, "Strong tail: chosen by the
+   water", said once: "The water is choosing too." "Strong tails are winning here." (scope decision
+   75). "Your line" replaces "your family" from the
    place choice on, and the tree strip becomes "Your line, baby by baby" (`TREE_BETWEEN`), the
    baby on the chosen place's card its first step. Once a place is chosen, a baby of the line born
    in another place is a relative: the line always lives in one place (scope decision 70).
@@ -165,18 +176,34 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
    113 animals, growing. Many have webbed feet." (scope decision 53). After a visit, a flight to
    a baby or a drag, the camera stays where the child put it until "Back to my …"; a follow
    still takes it to the line.
-10. **Endings** (scope decision 62). The story ends at the story's length ("Your Mossfoot line
-    survived 50 generations.") or when the whole line is gone. Four steps with Next: what happened
+10. **Endings** (scope decisions 62 and 73). The story ends with the win, when the line fits its
+    home (in its place, every trait the place requires at its helpful end, so no helpful variation
+    is left: "Your Mossfoot line fits its home!"), at the story's length ("Your Mossfoot line
+    survived 50 generations."), or when the whole line is gone. After the win, the first step
+    celebrates: "You did it!", "Your Mossfoot line became swimmers, like a river otter.", what the
+    child followed and why it helped, the animal's "Did you know?", and "Your Mossfoot line fits the
+    water's edge now." "Almost any new change would make things worse." At the story's length short
+    of it: "Your Mossfoot line is still changing." "Keep going next time?" and the animal it looks
+    most like so far. Then four steps with Next: what happened
     (the start and the end drawn, the line baby by baby, the line and its relatives here, the
     traits chosen); your idea (a sentence to build, or your own words); check my idea (against the
     table, with a clue, the same trait in two places, and "Your last choice": its line beside its
-    relatives here); and the reveal (the real animal the line became like, its traits, the
-    predictions and choices, the Field Guide and the story card). "Try another family" (the world
-    as it is now; at the story's end, the same seed from generation 0) and "New world".
-11. **Read-aloud.** Every child-facing line has a small speaker (`speechSynthesis`,
+    relatives here); and the reveal (the real animal the line became like, one of the
+    collection's twelve, `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`: the free traits the child chose
+    decide it first; then its traits, the predictions and choices, the Field Guide and the story
+    card). "Try another place" (scope decision 76: the same family in the same world, its name
+    kept, choosing where to live again) and "New world"; the teacher demo keeps "Try another
+    family" (the world as it is now; at the story's end, the same seed from generation 0).
+11. **The collection** (scope decision 74, `src/collection.js`). The twelve animals a line can
+    become, four to a row and a row for each place: one becomes "evolved" on this iPad when a line
+    becomes it at the win, and its card shows its picture (`animals/<id>.jpg`), name and place mark;
+    the rest are mystery cards. "You've evolved 5 of 12." It is the ending's last step, with the new
+    one marked "New!", and opens from a button on the start screen. It stays on this iPad; the
+    teacher's "Start fresh" on the journal page clears it with the journal and the Field Guide.
+12. **Read-aloud.** Every child-facing line has a small speaker (`speechSynthesis`,
     `src/speech.js`, a calm voice at rate 0.85). "20 → 31" is read as "from 20 to 31". Lines stay
     under about 12 words. Every panel's timer stands still while anything is being read aloud.
-12. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
+13. **The creature card** (Step 3, scope decisions 21–23). Once the story has begun, tapping
     any animal opens its card; the world keeps running behind it. It shows whose the animal is
     ("In your Mossfoot line", "One of your relatives", "Not in your line"), its drawing, where it
     spends its time, a gentle line when a trait doesn't fit there, its ten traits in plain words,
@@ -184,7 +211,7 @@ A story takes a median 14.7 minutes, with a median of 5 traits added up and 5 "W
     up its family (for a relative: your relatives here) beside your line, how it is doing against
     yours, and up to three differences (scope decision 51). If the animal passes away while its
     card is open, the card stays and says so.
-13. **The prediction journal** (Step 6, scope decisions 25, 28–31 and 68, `src/journal.js`). After
+14. **The prediction journal** (Step 6, scope decisions 25, 28–31 and 68, `src/journal.js`). After
     the child's 1st, 4th, 7th, 10th and 13th follow, before the fast-forward, one question, in
     turn: "What will happen?" (your line with the trait) or "Which will do better, your line or
     your relatives?". Three or four answers, from `docs/LINEAGE_PREDICTION_QUESTIONS.md`: one
@@ -297,7 +324,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 5 (a 30-generation story). Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 13 too, with a 30-generation story. Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), `try-another-place` (76) and the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 

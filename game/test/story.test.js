@@ -4,11 +4,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-test("a follow narrows the line to its carriers in its place, the rest there become relatives, and only babies that inherit it join", async () => {
+test("a follow narrows the line to its carriers in its place, the rest there become relatives, and only babies that inherit its traits join", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story, RISE_TO, FAST_FROM } = await import("../src/story.js");
   const { carries } = await import("../src/variations.js");
-  let checked = 0, born = 0, kinBorn = 0;
+  let checked = 0, born = 0, kinBorn = 0, kinJoined = 0;
   const follow = (story, bridge, g) => {
     assert.ok(bridge.isFollowed(g.id), "only babies in the line are followed");
     const was = new Set(bridge.followedIds()), relatives = bridge.relativeIds(), zone = story.testZone();
@@ -25,6 +25,8 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
       assert.equal(bridge.zoneOf(id), zone);
       assert.ok(carries(bridge.animal(id).genome, g.v));
     }
+    // The line keeps every trait the child chose, the latest way on each (scope decision 72).
+    assert.deepEqual(bridge.follow.kept, story.chips.map((c) => c.v));
     // The rest of the old line in its place are relatives, beside the relatives from before. The old line's
     // animals in other places are no one's now (scope decision 67).
     for (const id of was) assert.equal(bridge.isRelative(id), !bridge.isFollowed(id) && bridge.zoneOf(id) === zone);
@@ -36,7 +38,7 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
     assert.equal(story.noun, "family");
     while (story.phase !== "ended" && bridge.generation < 40) {
       if (story.phase === "choice") { follow(story, bridge, story.options[0]); continue; }
-      const line = new Set(bridge.followedIds()), kin = new Set(bridge.relativeIds()), v = bridge.follow.v;
+      const line = new Set(bridge.followedIds()), kin = new Map(bridge.relatives), f = bridge.follow, v = f.v;
       const ev = bridge.step();
       for (const b of ev.births) {
         const kid = bridge.get(b.childId);
@@ -47,9 +49,15 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
           if (kin.has(b.motherId)) { assert.ok(bridge.isRelative(b.childId)); kinBorn++; }
           continue;
         }
-        // A line grows by a baby with a parent in it that inherited the latest followed trait (scope decisions 67 and 68).
+        // A line grows by a baby with a parent in it that inherited every trait the line keeps (scope decisions 67, 68
+        // and 72); after a follow on a trait that doesn't matter there, also by such a baby of a relative that follow
+        // made, or made since.
         const fromLine = line.has(b.parentAId) || line.has(b.parentBId);
-        assert.equal(bridge.isFollowed(b.childId), fromLine && carries(kid.bodyGenome, v));
+        const fromKin = f.free && [b.parentAId, b.parentBId].some((p) => (kin.get(p) ?? -1) >= f.mark);
+        const keeps = f.kept.every((u) => carries(kid.bodyGenome, u));
+        assert.ok(f.kept.includes(v));
+        assert.equal(bridge.isFollowed(b.childId), (fromLine || fromKin) && keeps);
+        if (!fromLine && fromKin && keeps) kinJoined++;
         if (fromLine && !bridge.isFollowed(b.childId)) { assert.ok(bridge.isRelative(b.childId), "a line baby without it is a relative"); born++; }
         if (kin.has(b.parentAId) || kin.has(b.parentBId)) { assert.ok(bridge.isFollowed(b.childId) || bridge.isRelative(b.childId)); kinBorn++; }
       }
@@ -65,6 +73,7 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
   assert.ok(checked >= 3, "follows");
   assert.ok(born > 0, "line babies without the trait became relatives");
   assert.ok(kinBorn > 0, "relatives had babies");
+  assert.ok(kinJoined > 0, "after a follow on a trait that doesn't matter there, relatives' babies with it joined");
 });
 
 test("the family tree strip is the chain of followed babies, the ancestors in between smaller", async () => {
@@ -77,9 +86,15 @@ test("the family tree strip is the chain of followed babies, the ancestors in be
   const before = story.familyTree();
   assert.equal(before.line, false);
   assert.equal(before.nodes[before.nodes.length - 1].id, story.firstId);
+  // Two follows: of a glowing baby, or on the backup panel (which opens only with an option that helps: scope decision 73).
   while (story.phase !== "ended" && story.choices.length < 2) {
     if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
     story.afterGeneration(bridge.step());
+    for (let k = 0; k < 40 && story.phase === "watch" && story.choices.length < 2; k++) {
+      story.advance(0.5);
+      const g = story.glowing.find((x) => story.followable(x));
+      if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+    }
   }
   assert.equal(story.choices.length, 2);
   const tree = story.familyTree();
@@ -283,12 +298,14 @@ test("on an iPad whose Field Guide has every entry, no Why? is a guess: each is 
   assert.ok(told > 3, `${told} told`);
 });
 
-test("glow balance: helpful and harmful traits glow first, and while one glows or can, at most one glowing baby's trait doesn't matter", async () => {
+test("glow balance: while a helpful or harmful trait glows or can, at most one glowing baby's trait doesn't matter, and that one is always open", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story, GLOW_MIN_SECONDS } = await import("../src/story.js");
   const { variationEffect } = await import("../src/why.js");
   const { sameVariation } = await import("../src/cohorts.js");
-  let balanced = 0, starts = 0;
+  const { carries } = await import("../src/variations.js");
+  const { GAP } = await import("../src/reveal.js");
+  let balanced = 0, starts = 0, early = 0;
   for (const seed of [1, 2, 13]) for (const f of [0, 1, 2]) {
     const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
     story.begin(bridge.families.founding[f].ids[0]);
@@ -306,41 +323,41 @@ test("glow balance: helpful and harmful traits glow first, and while one glows o
         for (const x of started) {
           starts++;
           if (matters(x)) continue;
-          // A trait that doesn't matter here lit up: no baby of the line with one that helps or hurts was still waiting
-          // to, even one yet to appear in its day.
-          const waiting = story.fresh.filter((y) => matters(y) && story.followable(y) && open(y) &&
-            !story.glowing.includes(y) && !story.glowing.some((z) => sameVariation(z.v, y.v)));
-          assert.equal(waiting.length, 0);
+          // A trait that doesn't matter here stands out from the world at the start too (scope decision 72).
+          const level = story.startWorld[x.v.t] + x.v.dir * GAP;
+          assert.ok(x.v.dir > 0 ? x.v.thr >= level - 1e-9 : x.v.thr <= level + 1e-9);
+          assert.ok(carries(bridge.get(x.id).bodyGenome, x.v));
+          // It no longer waits for babies of the line with a trait that helps or hurts to light up first (scope decision 72).
+          if (story.fresh.some((y) => matters(y) && story.followable(y) && open(y) &&
+            !story.glowing.includes(y) && !story.glowing.some((z) => sameVariation(z.v, y.v)))) early++;
         }
         const g = story.glowing.find((x) => story.followable(x));
         if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
       }
     }
   }
-  assert.ok(balanced > 50 && starts > 50, `${balanced} balanced steps, ${starts} glows started`);
+  assert.ok(balanced > 50 && starts > 50 && early > 0, `${balanced} balanced steps, ${starts} glows started, ${early} early`);
 });
 
-test("an earlier trait on 'Your line so far' greys out when the line loses it; the latest one doesn't, until the child comes back to that line", async () => {
+test("'Your line so far' keeps every trait the child chose: each animal of the line has each one, also back from a line that died out", async () => {
   const { Bridge } = await import("../src/bridge.js");
-  const { Story, FADED_BELOW } = await import("../src/story.js");
+  const { Story } = await import("../src/story.js");
   const { carries } = await import("../src/variations.js");
-  let faded = 0, checked = 0;
+  let backs = 0, checked = 0;
   for (const seed of [1, 2, 3]) for (const f of [0, 1, 2]) {
     const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
       if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
-      story.afterGeneration(bridge.step());
+      if (story.afterGeneration(bridge.step()) === "back") backs++;
       if (story.phase === "ended") break;
-      const line = bridge.followedAnimals(), latest = story.choices[story.choices.length - 1];
+      // Scope decision 72: a baby joins the line only with every chosen trait, and a line that died out gives back
+      // only the animals of the line before with each of its traits; so no chip fades.
+      const line = bridge.followedAnimals();
+      assert.deepEqual(story.chips.map((c) => c.v), bridge.follow.kept ?? []);
       for (const chip of story.chips) {
-        const have = line.filter((a) => carries(a.genome, chip.v)).length;
-        assert.equal(!!chip.faded, have < FADED_BELOW && 2 * have < line.length);
-        // Each animal of a line has its latest trait, until a later line dies out and the child comes back to it
-        // with the rest of it and their babies (scope decision 68).
-        const back = latest && story.tries.some((t) => t.generation >= latest.generation);
-        if (latest && chip.v === latest.v && !back) assert.equal(chip.faded, null);
-        if (chip.faded) faded++;
+        assert.ok(line.every((a) => carries(a.genome, chip.v)));
+        assert.equal(chip.faded, null);
         checked++;
       }
       for (let k = 0; k < 40 && story.phase === "watch"; k++) {
@@ -350,7 +367,7 @@ test("an earlier trait on 'Your line so far' greys out when the line loses it; t
       }
     }
   }
-  assert.ok(checked > 100 && faded > 0, `${faded} of ${checked}`);
+  assert.ok(checked > 100 && backs > 0, `${checked} chips checked, ${backs} backs`);
 });
 
 test("the first choice is where the family will live: a card fills in once a baby of the family lives there, the line fills the place, and only babies born there join", async () => {
@@ -392,14 +409,14 @@ test("the first choice is where the family will live: a card fills in once a bab
     assert.equal(story.family.then, there.length);
     assert.equal(story.phase, there.length >= PLACE_TO ? "watch" : "moving");
     while (story.phase !== "ended" && bridge.generation < 14) {
-      const line = new Set(bridge.followedIds()), v = bridge.follow.v, was = story.phase;
+      const line = new Set(bridge.followedIds()), kept = bridge.follow.kept, was = story.phase;
       const ev = bridge.step();
       for (const b of ev.births) {
         const kid = bridge.get(b.childId);
         if (!kid || !(line.has(b.parentAId) || line.has(b.parentBId))) continue;
-        // A baby of the line joins it only when it lives there too (and inherited the latest followed trait); one born
+        // A baby of the line joins it only when it lives there too (and inherited every trait the line keeps); one born
         // in another place is a relative: blue is only ever the child's line, in one place.
-        assert.equal(bridge.isFollowed(b.childId), bridge.zoneOf(b.childId) === zone && (!v || carries(kid.bodyGenome, v)));
+        assert.equal(bridge.isFollowed(b.childId), bridge.zoneOf(b.childId) === zone && kept.every((u) => carries(kid.bodyGenome, u)));
         if (bridge.zoneOf(b.childId) !== zone) { assert.ok(bridge.isRelative(b.childId)); bornElsewhere++; }
       }
       const what = story.afterGeneration(ev);
@@ -473,7 +490,7 @@ test("the first choice's lines, and the new home's, are short, with no percentag
   const N = await import("../src/narration.js");
   const { MOMENTS } = await import("../src/moments.js");
   const { readFileSync } = await import("node:fs");
-  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE, N.LOTS_OF_ROOM];
+  const name = "Thistlepaddle", lines = [N.placeQuestion(name), ...N.PLACE_CARDS, N.WAIT_GENERATION, N.WATCH_LINE, N.LOTS_OF_ROOM, N.staysLine(name), N.CROWDED_GROUND];
   for (const zone of [0, 1, 2]) {
     lines.push(N.homeLine(19, zone, name), N.homeCounter(zone, [2, 5, 11, 20], "reached", name), N.homeCounter(zone, [3, 7, 12, 16, 18, 19], "cap", name),
       N.homeGoneLine(zone, 2, name), N.PLACE_LABELS[zone], N.fillingLine(zone), N.firstHereLine(zone));
@@ -485,6 +502,7 @@ test("the first choice's lines, and the new home's, are short, with no percentag
   }
   assert.equal(N.homeCounter(2, [2, 5, 11, 20], "reached", "Mossfoot"), "Your Mossfoot line near the water: 2… 5… 11… 20!");
   assert.equal(N.homeCounter(0, [2, 5], null), "Your line in the high trees: 2… 5…");
+  assert.equal(N.staysLine("Mossfoot"), "Your Mossfoot family stays on the open ground.");
   // Every moment has its link on the moments page, and every link is a moment.
   const page = readFileSync(new URL("../moments.html", import.meta.url), "utf8");
   const linked = [...page.matchAll(/data-moment="([^"]+)"/g)].map((m) => m[1]);
@@ -537,6 +555,23 @@ test("a new home with plenty of room says so; once some living there are crowded
   }
   assert.equal(told, 3);
   assert.ok(first > 0, "some groups at the water's edge got there first");
+});
+
+test("staying on the open ground says it is crowded already, so its filling up is never told again", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true });
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (!story.placeCards()[1]) story.afterGeneration(bridge.step());
+    const home = story.choosePlace(1);
+    assert.equal(home.roomy, false, "no lots of room on the ground");
+    assert.equal(story.fillTold, true);
+    for (let g = 0; g < 10 && story.phase !== "ended"; g++) {
+      story.afterGeneration(bridge.step());
+      assert.equal(story.fillingNow, false);
+    }
+  }
 });
 
 test("while nobody touches the iPad, a newborn's chime comes at most once in IDLE_CHIME_GAP seconds, and quieter", async () => {
