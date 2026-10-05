@@ -1079,6 +1079,138 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
      - Every new line has a speaker, is 8 words or fewer ("Your Mossfoot line looks like a river otter."; the rest 7 or fewer), and shows no percentages (`game/test/gate.test.js`, `win.test.js`).
      - Tests: game 38, Classroom 13, M1 412, all passing.
 
+99. **The architect's answers on PR #33, and Round 9** (2026-10-05, the architect; `docs/LINEAGE_ROUND_9.md`). PR #33 is merged. Round 9 starts from main.
+   - **Marc's teaching decision:** this is a lesson about adaptation, not genetics. Two parents mixing their traits keeps breaking it: a line's babies take traits from mates outside the line, so they become branches, and a good choice doesn't reliably flourish. So inheritance in Classroom mode is simplified (a baby is like its one parent), and then the gate goes on.
+   - **Answers:**
+     - the gate goes on, on the new inheritance;
+     - Part A ("The [place] did all the choosing.", decision 96) stays as a fallback;
+     - with the gate on, the "chosen by the place" chips are retired and "still improving" stays (decision 97);
+     - `TAKE_ALL` and `fewerEvery` stay in the code, switched off.
+   - **The round:**
+     - one-parent inheritance in Classroom mode, and "Its babies will have … too." at a follow;
+     - the gate on that inheritance;
+     - every earlier promise checked again;
+     - the gate's targets, which include a helpful follow reaching 20 in its fast-forward and a harmful follow's line dying out within a median of 3 minutes;
+     - the win listing what the home needed, all chosen by the child;
+     - moments, pictures, frame times and the pull request.
+   - **The rule for shipping:** the new inheritance and the gate ship only if every promise and target is met; otherwise the tables are reported and the shipped game stays as it is.
+
+100. **One parent: a baby is like its parent** (2026-10-05, the architect's item 1; built and measured by Claude Code). Not shipped (decision 105): Classroom mode still has two parents, each trait whole from one of them (decision 67).
+   - **The way chosen in the engine** (`lineage-classroom/src/classroom.js`, `inheritance: "one-parent"`):
+     - No mates. Every adult of M1's breeding ages (1 to 5 generations old) has its babies on its own, in id order, with no mating draw.
+     - As many babies per animal as before: half a pair's (`babiesPerAnimal`), so 1, and 2 while its place has plenty of room (decision 70).
+     - Each baby is M1's own `createChild`, with the parent passed in as both parents and no drift (`oneParentChild`). M1's average of two identical parents is exactly the parent, so the baby copies all ten traits, the neutral ones too.
+     - Then M1's usual chance of one new difference on one trait: 3 in 10 babies, a step of 0.15–0.35, as now.
+     - Where it lives is copied exactly: none of M1's movers. Only Round 4's lean move takes a leaning parent's baby next door (3 in 10 of their babies, as now).
+     - Its birth and mating records name the parent on both sides, so families, lines and the genealogy work unchanged.
+     - Why this way: it is the smallest change. M1's own birth (ids, records, the new difference) is reused, and only who the parents are changes. And every adult has babies, so no animal is left out for want of a mate.
+     - `inheritance` is part of the model's identity. As shipped it stays "whole-trait", and the identity is unchanged.
+   - *Checked* (seeds 1–10, 40 generations each, the world on its own):
+     - 62,551 babies: 44,778 exact copies of their parent, 17,773 with one new difference, none with more.
+     - A new difference was drawn for 18,951 (3 in 10); 17,038 of them a visible step (0.12 or more). The rest were already at the end of their range.
+     - Every baby's time was its parent's, except 884 born next door.
+   - **The variation rate and its step stay as they are** (3 in 10; 0.15–0.35). Halving the rate was measured and does not rescue the targets (decision 104).
+   - **"Its babies will have webbed feet too."** True with one parent: a new variation that helps there was in 99 in 100 of its carrier's babies, and 98 in 100 of its grandbabies. With two parents, 67 and 68 in 100. Not built (decision 105).
+   - Tests: `lineage-classroom/test/classroom.test.js` (one parent: copies with at most one difference, the parent's time or next door, the babies per animal; 87 of 300 babies with a difference, 31 of 100 leaners' babies born next door). `game/test/gate.test.js` (decision 101).
+
+101. **The gate on one parent: who joins the line** (2026-10-05, the architect's item 2; built and measured by Claude Code). Not shipped.
+   - **As built** (`bridge.js`, under `LIKE_RULE`, with `likeTraits` "every"):
+     - At the first tap, the family's band covers all ten traits, the three neutral ones too (`EVERY_TRAIT`; `profileOf` with `neutral`). So any new difference is a new kind of animal.
+     - A baby of the line joins it if, on every trait, it is inside the band or past it the way the child chose there (decision 97), and lives in the line's place. A copy of a line animal always is like the line, so the line's babies stay in the line, unless born next door.
+     - A baby born with a new difference that takes it out of the band glows. It joins the line only if the child follows it; otherwise it is a relative.
+     - The exception, Round 8's reading: a difference further the way the child already chose on that trait joins by itself, and doesn't glow.
+     - A follow narrows the line to the followed animals (decision 67). Their babies are copies of them, so they are the line.
+     - Every branch glows for the one trait it is out of the band on (`story.js` `variationOn`: when that is less than a whole variation from the line's usual, the glow's step starts at the band's edge). A newborn that isn't a branch doesn't glow (`updateGlow`).
+     - With the gate on, the "chosen by the place" chips retire and "still improving" stays, as decided (decision 99).
+   - **Also measured, "place":** the gate as in Round 8, checking only the traits that help or hurt in the line's place, so a difference on a free or neutral trait joins by itself. It is kept for comparison only.
+   - Test (`game/test/gate.test.js`), with one parent and the gate on, in six stories: every copy of a line animal in the line's place joined the line (389). A baby with a new difference joined only when it was still like the line: 33 did and 136 didn't.
+
+102. **A helpful follow climbs** (2026-10-05; built by Claude Code for the architect's item 4). Not shipped.
+   - With one parent, a followed baby's babies are like it. So a follow that helps there gets its fast-forward however few it starts with, even one (`story.js` `climbs`). As shipped, a follow of fewer than `FAST_FROM` (3) is watched from the start instead (decision 69).
+   - A helpful fast-forward goes on while the line holds its size (`riseGeneration`): a line of one has one baby a generation, and when that baby is born different, the count waits a generation.
+   - The rest of the fast-forward is as before: it stops at `RISE_TO` (20), when the line falls, or after `RISE_MAX` (15) generations (decision 67).
+
+103. **The gate's targets, measured on one parent** (2026-10-05, the architect's item 4; Claude Code). Not met.
+   - *Method:* seeds 1–30, every founding family, each place (90 stories a place), 12-second generations, reading time included; the simulated children of decisions 94 and 97, and one that makes one follow that hurts there, then stops.
+   - **The targets** (high leaves / open ground / water's edge):
+
+     | Target | Needed | One parent, gate on (as built, "every") | One parent, gate on, "place" only |
+     |---|---|---|---|
+     | After a helpful follow, the line reaches 20 in its fast-forward | 9 in 10 follows, each place | 16 of 50, 34 of 80, 19 of 58 | 40 of 84, 72 of 106, 47 of 103 |
+     | Follows every helpful glow: wins | 77 of 90 each place, in about 8 min | 3, 3, 0 (a median 4.0 and 5.5 min) | 8, 16, 0 (a median 4.8 and 5.7 min) |
+     | Never chooses: the line dies out | 63 of 90, quickly | 90, 90, 90; a median 1.2, 1.9, 1.1 min from the tap | 90, 90, 90; 1.2, 1.9, 1.2 min |
+     | One helpful choice, then stops: dies out | 54 of 90 | 90, 90, 90; its line a median 1.0, 1.2, 0.9 min after the follow | 90, 90, 90; 1.1, 2.1, 1.1 min |
+     | A harmful follow: that line dies out | a median of 3 min or less after it | all 31, 59, 31 such lines; a median 0.8 min (90th 0.8) | all 37, 66, 38; 0.8 min (0.8) |
+     | Random glows | reported | won 0, lost 90 in each place; a median 1.3, 2.5, 1.3 min; no animals | won 0, lost 90; 1.4, 2.5, 1.3 min; no animals |
+
+   - **Met:** never chooses, one choice then stops, and a harmful follow. **Not met:** a helpful follow reaching 20, and the child who follows every helpful glow winning. They fail because every line dies out, whatever the child does.
+   - **Most lines die before a helpful baby glows.** The child following every helpful glow made a follow in only 35, 63 and 40 of 90 stories. In 11 stories in the high leaves and 6 at the water's edge, the family died out before its place could even be chosen, a median 8 generations in.
+   - **How the helpful follows' fast-forwards ended** (high leaves / open ground / water's edge): reached 20 in 16 / 34 / 19; fell in 11 / 17 / 9; the line died out, or went back to the line before, before the end in 23 / 29 / 30.
+   - **Why helpful follows don't reach 20.** Traced generation by generation for 8 generations after each helpful follow of the child following every helpful glow, "every", all stories. The trace is a separate run of the same children; its fast-forwards differ from the table's by up to 2 a place.
+     - *Who dies, and of what:* almost all are crowded out (in the high leaves, 15, 33, 52, 69 and 55 of the lines' animals in generations 1–5 after the follow). Old age kills at most 6 in a generation, across all the lines together.
+     - *Babies:* about one per surviving line animal each generation (0.80 to 1.00). The place is always full, so no animal ever has a second.
+     - *Who leaves the line:* about a quarter of the line's babies each generation (28 of 124, 45 of 152 and 45 of 185 in the high leaves), each born with a new difference out of the band. They leave on any trait, the neutral ones as often as the others (in the first generation in the high leaves: coat 4, tail tip 4, long legs 6). On the open ground, also 9 to 22 a generation born next door (generations 1–7).
+     - *The line falls behind the place:* a followed line starts with a median of 1 or 2 animals. The place around it holds 55 after each cull, and every adult there has a baby each generation, 3 in 10 born with a new difference; the best of them rise to the top of the ranking. The line improves only by the child's follows. Within 2 to 5 generations its median is under the place's survival cut, and it is crowded out mid-climb (in the high leaves, lines wiped out in generations 2–6: 3, 7, 6, 5 and 1).
+     - With "place", fewer leave (about 5 to 12 in 100 a generation, only on the place's traits, or born next door), and more follows reach 20. But the lines are still crowded out by the same rising cut.
+
+104. **Every earlier promise, on one parent** (2026-10-05, the architect's item 3; Claude Code).
+   - **The promises** (seeds 1–30 unless named; high leaves / open ground / water's edge):
+
+     | Promise | As shipped (two parents) | One parent, gate off | One parent, gate on ("every") |
+     |---|---|---|---|
+     | The places adapt by generation 40 (water animals 0.2 more webbing, sleekness and tail; tree animals 0.2 more claws) | 30 of 30 | 28 of 30 (claws 30, water 28) | as gate off (the world) |
+     | All three places alive at 50 and 76 | 30 of 30 | 30 of 30 | as gate off |
+     | Choice 1: a baby in the chosen place within 2 generations (9 in 10) | 88, 90, 89 of 90 | 81, 90, 86 | 67, 90, 69 |
+     | Choice 1: the chosen place reaches 20 within 4 generations (9 in 10) | 88, 90, 86 | 66, 90, 64 | 19, 88, 23 |
+     | Every founding family has a future at the first tap (seeds 1–100) | 300 of 300 | 300 of 300 | 300 of 300 |
+     | Each of the 12 animals reached by a child choosing its place and following its signature (8 in 10) | 73 to 90 of 90 each (decision 85) | 11 to 23 of 90 each | 0 to 4 of 90 each |
+     | A random child reaches all 12 | yes | yes: won 122 of 270, all 12 animals | no: won 0 |
+
+     - The world at generation 40 with one parent (the median of 30; leaves / ground / water): webbing 0.00, 0.17, 0.95; sleek body 0.00, 0.36, 0.96; strong tail 0.40, 0.39, 0.96; curved claws 1.00, 0.46, 0.05; big eyes 0.40, 1.00, 0.42.
+     - The 12 animals, gate off (the signature child): squirrel 18, sloth 17, koala 15, slow loris 11, hare 23, lynx 15, cheetah 23, jerboa 17, river otter 11, seal 19, beaver 13, platypus 18 of 90. Gate on (signature and every helpful glow): squirrel 1, sloth 1, koala 1, hare 3, lynx 1, cheetah 4, the other six 0.
+     - The random child, one parent and the gate off: hare 25, sloth 17, cheetah 16, koala 15, seal 13, squirrel 10, beaver 8, jerboa 6, river otter 5, platypus 4, lynx 2, slow loris 1.
+   - **Broken even with the gate off:** Choice 1 in the high leaves and at the water's edge, and every animal's reachability.
+   - **Why: with one parent, families never mix, so one family takes each place.** Seeds 1–30, the world on its own, counting each founding family's descendants as the game does:
+     - one parent: at generation 20, a single family holds the high leaves in 20 of 30 worlds, the open ground in 19 and the water's edge in 15. At generation 40: 28, 26 and 27.
+     - two parents, as shipped: all three families live on in all 30 worlds at generation 40, and every place keeps two or three of them in 89 of 90.
+     - So a child's family must beat the other two families on its own in its place, and two in three don't. With the gate on, it can improve only by the child's follows, while the other families improve on their own.
+     - Good new variations last less long, too. One that helps there is still carried by 5 or more of its descendants there 10 generations on in 29 in 100 cases with one parent, and in 68 in 100 with two. A good new trait can't join the good traits of other families, so the families race.
+   - **Adjusting Classroom mode doesn't rescue it** (each with one parent and the gate on, "every"; leaves / ground / water):
+
+     | What-if | A helpful follow reaches 20 | Every helpful glow: wins | Choice 1: a baby within 2 / 20 within 4 (in 100) |
+     |---|---|---|---|
+     | As built | 16 of 50, 34 of 80, 19 of 58 | 3, 3, 0 | 74/21, 100/98, 77/26 |
+     | Half the variation (3 in 20) | 42 of 70, 60 of 85, 34 of 79 | 3, 9, 1 | 82/44, 100/100, 83/51 |
+     | More births with room (4 more a pair) | 8 of 43, 31 of 80, 12 of 58 | 1, 5, 0 | 73/23, 100/98, 72/32 |
+     | More babies (4 a pair) | 24 of 70, 44 of 84, 18 of 53 | 4, 8, 0 | 92/60, 100/100, 92/39 |
+
+     Halving the variation helps the most (fewer leave the line, and the place improves more slowly), but at best 7 in 10 helpful follows reach 20 (on the open ground), and the helpful child still wins at most 9 of 90. The leaners were not changed: with the gate off, a baby still gets to the chosen place (90, 100 and 96 in 100); what fails is the line's growth there.
+
+105. **Not shipped, and what the architect decides next** (2026-10-05, the architect's items 5 and 6; Claude Code).
+   - **The shipped game stays as it is:** two parents, each trait whole from one of them; the gate off (`LIKE_RULE` false); Part A's "The water did all the choosing." as the fallback (decision 96). `TAKE_ALL` and `fewerEvery` stay off.
+   - *Checked:* the shipped game's 1,080 stories (decision 94's four children, each place) are the same as Round 8's, story by story, in every field Round 8 recorded.
+   - **Built and kept, switched off:** one-parent inheritance (decision 100), the gate's reading on it (101) and the climb (102). The game's changes all wait behind `bridge.like` or one-parent inheritance.
+   - **Not built, and why:** both lines are true only with one parent and the gate on, so the shipped game would say something false.
+     - "Its babies will have webbed feet too." With two parents, only about two babies in three have it (decision 100).
+     - The win's list, "You chose everything the water needs:". With the gate off, the place chooses too: in the shipped game, 261 of the 270 wins of the child following random glows have a "chosen by the place" chip, and 156 of the 270 of the child following every helpful glow (decision 75).
+     - So no new moments and no new pictures. Nothing the child sees changed, so no picture needs shooting again.
+   - *Frame times* (as decision 98: iPad landscape 1180×820 at 2×, headless Chromium, seed 13 unless named; the mean per frame, then with a 4× slower CPU; this branch against main with PR #33 merged, the same moments):
+     - `generation` 70.9 ms (388.9) against 69.5 (327.3);
+     - `follow` 50.6 (259.7) against 55.0 (275.3);
+     - `rising` 54.2 (303.7) against 49.3 (270.0);
+     - `compare` 58.6 (314.1) against 62.4 (312.2);
+     - `choose-place` 49.5 (258.6) against 45.5 (252.1);
+     - `opening-waiting` 33.1 (174.6) against 36.8 (172.0);
+     - `win` 68.2 (353.6) against 49.1 (365.9): at 1×, main's camera was mid-flight, with 29 animals in view against 85;
+     - `did-all-choosing` 69.0 (368.9) against 70.5 (368.9);
+     - `still-improving` (seed 2) 47.3 (257.5) against 49.6 (243.4).
+     - The gaps are the order of measuring, not the code. Main was measured first each time. Measured again, `generation` was 73.7 (400.8) against 65.8 (366.7) and `rising` 58.2 (273.9) against 52.7 (281.0). With the branch measured first, `generation` was 68.1 (348.6) against main's 70.8 (351.4).
+   - Tests: game 39, Classroom 14, M1 412, all passing.
+   - **For the architect.** One parent makes the line's babies like it, as hoped, but it makes each place a race between families, and a line held to the child's choices loses that race. Three ways forward:
+     - (a) **The gate on the win, not on the line:** keep two parents and today's line. The win comes only when every trait the home needs is one the child chose; the place's own choices don't count toward it. "You chose everything the water needs:" is then true by construction.
+     - (b) **A follow that keeps the whole line:** one parent and the gate as built, but a follow doesn't narrow the line to the few followed animals; the whole line keeps going, and the chosen way is added to what it keeps.
+     - (c) **Softer competition in Classroom mode:** one parent, with the line competing less hard against the other families (more room, or a cull that isn't strictly ranked).
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.
