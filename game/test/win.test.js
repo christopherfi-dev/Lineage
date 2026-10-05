@@ -1,6 +1,7 @@
 // The win (scope decision 73): a story with a place chosen ends the first generation its line fits its home, with a
 // celebration; at the story's last generation short of the win, the line is still changing, and looks most like an
-// animal of its place. Nothing chooses for the child (scope decision 89).
+// animal of its place. Nothing chooses for the child (scope decision 89), and a child who followed nothing gets no win:
+// the place did all the choosing (scope decision 96).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -100,12 +101,40 @@ test("at the story's last generation short of the win, the line is still changin
   assert.equal(N.becameLine(ANIMALS.find((a) => a.id === "lynx"), "Mossfoot"), "Your Mossfoot line became pouncers, like a lynx.");
 });
 
+test("no win without choosing: a line that fits its home with no follow in the story gets the place's ending, not the win", async () => {
+  const N = await import("../src/narration.js");
+  const { resultFor } = await import("../src/win.js");
+  // A child who never follows: every line in its place fits its home in time, and none of it is a win.
+  for (const { story, zone, fitsAtEnd } of await stories({ follow: false })) {
+    assert.equal(story.outcome, "survived");
+    assert.ok(fitsAtEnd && story.fits, "the line fits its home");
+    assert.equal(story.choices.length + story.tries.length, 0);
+    assert.equal(story.won, false, "no win without choosing");
+    assert.equal(story.placeChose, true);
+    const r = resultFor(story);
+    assert.equal(r.won, false);
+    assert.equal(r.title, N.looksLikeLine(story.reveal.animal, story.name));
+    assert.deepEqual(r.lines, [N.didAllChoosing(zone), N.CHOOSE_YOURSELF]);
+    assert.equal(r.aloud, true, "read aloud");
+  }
+  // A child who follows wins as before.
+  for (const { story } of await stories()) if (story.fits) { assert.ok(story.choices.length + story.tries.length > 0); assert.equal(story.won, true); }
+  assert.equal(N.didAllChoosing(2), "The water did all the choosing.");
+  assert.equal(N.didAllChoosing(0), "The trees did all the choosing.");
+  assert.equal(N.didAllChoosing(1), "The open ground did all the choosing.");
+  const { ANIMALS } = await import("../src/reveal.js");
+  for (const line of [N.CHOOSE_YOURSELF, ...[0, 1, 2].map(N.didAllChoosing), ...ANIMALS.map((a) => N.looksLikeLine(a, "Thistlepaddle"))]) {
+    assert.ok(line.split(/\s+/).length <= 13, line);
+    assert.doesNotMatch(line, /%|percent/i);
+  }
+});
+
 test("chosen by the place: a trait that helps there, risen in the line without a follow, gets its own chip once, and the win says so", async () => {
   const N = await import("../src/narration.js");
   const { resultFor } = await import("../src/win.js");
   const { effectIn } = await import("../src/why.js");
   const { TRAITS } = await import("../src/engine.js");
-  const all = await stories({ follow: false });
+  const all = [...await stories({ follow: false }), ...await stories()];
   let chips = 0, said = 0;
   for (const { story } of all) {
     const zone = story.home?.zone;

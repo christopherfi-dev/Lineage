@@ -9,12 +9,14 @@
  * why it helped, what the place chose too (scope decision 75), the animal's
  * "Did you know?", and that almost any new change would make things worse now. A story that reaches its last generation short
  * of the win says the line is still changing, and which animal it looks most
- * like so far.
+ * like so far. A line that fits its home though the child followed nothing in
+ * the story is no win (scope decision 96): the place did all the choosing.
  */
 
 import { TRAITS } from "./engine.js";
 import { variationEffect, whyLine } from "./why.js";
-import { WIN_TITLE, becameLine, followedLine, fitsNow, ANY_CHANGE_WORSE, stillChanging, KEEP_GOING, resembleLine, placeChoseLine } from "./narration.js";
+import { WIN_TITLE, becameLine, followedLine, fitsNow, ANY_CHANGE_WORSE, stillChanging, KEEP_GOING, resembleLine, placeChoseLine, looksLikeLine, didAllChoosing,
+  CHOOSE_YOURSELF } from "./narration.js";
 
 /** At most this many of the chosen traits are named in "You followed …". */
 export const FOLLOWED_NAMED = 3;
@@ -22,11 +24,15 @@ export const FOLLOWED_NAMED = 3;
 /**
  * The ending's first step, after the win or at the story's last generation short of it.
  * @param {import("./story.js").Story} story ended, with its reveal
- * @returns {null|{won: boolean, title: string, lines: string[]}} null for a line that died out, or with no place chosen
+ * @returns {null|{won: boolean, title: string, lines: string[], aloud?: boolean}} null for a line that died out, or with no
+ *   place chosen; `aloud`: its lines are read aloud as the step opens
  */
 export function resultFor(story) {
   const home = story.home, animal = story.reveal?.animal;
   if (story.outcome !== "survived" || !home || !animal || animal.zone === null) return null;
+  // No win without choosing (scope decision 96): the line fits its home, but the child followed nothing. No celebration;
+  // the animal it looks like, "The water did all the choosing." and "Can you choose yourself next time?", read aloud.
+  if (story.placeChose) return { won: false, title: looksLikeLine(animal, story.name), lines: [didAllChoosing(home.zone), CHOOSE_YOURSELF], aloud: true };
   if (!story.won) return { won: false, title: stillChanging(story.name), lines: [KEEP_GOING, resembleLine(animal, story.name)] };
   const zone = home.zone, kind = (c) => variationEffect(c.v.t, c.v.dir, zone);
   // What the child followed: the traits that help there first, then the free ones; a harmful one never fits a home.

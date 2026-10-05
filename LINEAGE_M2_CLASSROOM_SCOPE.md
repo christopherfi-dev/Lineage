@@ -968,6 +968,10 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Moments:** 69 in all. New: `opening-waiting`, `opening-card`, `idle-pause`, `stall` (seed 1), `branch-leaving` (seed 104) and `folded-panel`; retired: `choice` and `blocked`. With 12-second days and no backup panel, some moments moved: `same`, `back` and `told` open in seed 2 and `go-back` in seed 16, and `shrink` lets its child follow (a child that never follows keeps its whole family in its place, which no longer shrinks sharply). Every moment is shot again at the three sizes (213 pictures in `design/after/`, with `arrival-mist` and `generation-dawn`); `design/compare.html` lists the new ones and drops the retired. The moments in a watched day frame the line as the game keeps it (`moments.js` `keepLineNow`), and turn the idle pause off while they reach their moment.
    - *Checked: every visible button in `opening-waiting`, `opening-card`, `intro-found`, `naming`, `choose-place`, `generation`, `idle-pause`, `folded-panel`, `stall`, `branch-leaving` and `compare` is 44 px or more on each side, at all three sizes (473 buttons). No request leaves the page (the pictures were taken with every other request blocked or logged). Tests: game 33, Classroom 12, M1 412, all passing.*
 
+95. **The architect's answers on PR #32, and Round 8** (2026-10-05, the architect; `docs/LINEAGE_ROUND_8.md`). PR #32 is merged. Round 8 starts from main.
+   - **Answers:** stalls keep "three in a row with the line never above 5" (decision 91 stands); the camera keeps its 0.7 zoom-out until Marc's check on a real iPad (decision 92 stands).
+   - **The round:** Part A, no win without choosing, shipped now as a safety net while the gate is off (decision 96); Part B, the gate's second try, where a direction the child chose keeps improving by itself (decision 97); the moments, pictures, frame times and the pull request (decision 98).
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.

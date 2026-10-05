@@ -443,6 +443,24 @@ export const KEEP_GOING = "Keep going next time?";
 /** "Your Mossfoot line looks most like a river otter so far." */
 export const resembleLine = (animal, name = null) => `${capital(your("line", name))} looks most like ${anAnimal(animal)} so far.`;
 
+/* ================= no win without choosing (scope decision 96) ================= */
+
+/** The places doing the choosing, in the brief's words: "The water did all the choosing." */
+export const PLACE_DID = ["the trees", "the open ground", "the water"];
+/** A line that fits its home though the child followed nothing: "Your Mossfoot line looks like a river otter." */
+export const looksLikeLine = (animal, name = null) => `${capital(your("line", name))} looks like ${anAnimal(animal)}.`;
+/** "The water did all the choosing." */
+export const didAllChoosing = (zone) => `${capital(PLACE_DID[zone])} did all the choosing.`;
+export const CHOOSE_YOURSELF = "Can you choose yourself next time?";
+
+/* ================= a chosen trait still improving (scope decision 97) ================= */
+
+/** On its chip in "Your line so far": "More webbing: still improving". */
+export const improvingChip = (group) => `${chipWords(group)}: still improving`;
+/** Said once, when the chip first shows it: "Your line keeps getting more webbing." then "You chose it, so it keeps going." */
+export const keepsGetting = (group) => `Your line keeps getting ${shortGroup(group)}.`;
+export const CHOSE_IT_GOING = "You chose it, so it keeps going.";
+
 /* ================= chosen by the place (scope decision 75) ================= */
 
 /** Each place, as the one that chooses: "Strong tail: chosen by the water." */

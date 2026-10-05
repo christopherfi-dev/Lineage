@@ -30,8 +30,11 @@
  * variation, better or worse, starts a branch: a relative, unless the child
  * follows it. The band is the founders' at the tap; in a chosen place only the
  * traits that help or hurt there are checked; a follow moves the followed
- * trait's band to the animals followed. With the rule off, every band is null
- * and nothing here changes what joins the line.
+ * trait's band to the animals followed. Chosen ways keep improving (scope
+ * decision 97): once the child chose a way on a trait (more webbing), a baby
+ * past the band that way is like the line too, since the child chose it; only
+ * a new kind of difference, or the other way, makes a branch. With the rule
+ * off, every band is null and nothing here changes what joins the line.
  */
 
 import {
@@ -51,9 +54,11 @@ import { Families } from "./families.js";
 import { APART, carries, formOf, isNeutral } from "./variations.js";
 
 /**
- * Your line never gets an adaptation you didn't choose (scope decision 87): a baby joins it only if it is like it.
- * Built and measured, and off: with it, the child who follows every helpful glow won only 72, 84 and 19 of 90 stories
- * (high leaves, open ground, water's edge), short of the target of 85% (scope decision 87).
+ * Your line never gets an adaptation you didn't choose (scope decisions 87 and 97): a baby joins it only if it is like
+ * it, or past it the ways the child chose. Built and measured, and off: with chosen ways improving by themselves, the
+ * child who follows every helpful glow won 74, 88 and 69 of 90 stories (high leaves, open ground, water's edge); a
+ * follow that takes every helpful difference, or slightly fewer crowded out, or both, never more than 73 at the water's
+ * edge, short of the target of 85% in each place (scope decision 97).
  */
 export const LIKE_RULE = false;
 
@@ -82,9 +87,28 @@ export function profileOf(genomes, traits = MEANINGFUL, band = []) {
   return out;
 }
 
-/** This body is like the line (scope decision 87): inside its band on every meaningful trait but `except`. */
-export const isLike = (genome, band, except = -1) =>
-  !band || band.every((b, t) => !b || t === except || (genome[t] >= b[0] - 1e-12 && genome[t] <= b[1] + 1e-12));
+/**
+ * The way the child chose on each trait (scope decision 97), from the variations the line keeps: 1 more, -1 less, 0
+ * none chosen.
+ * @param {Array<{t:number, dir:number}>} [kept] @returns {number[]} by trait
+ */
+export const waysOf = (kept = []) => {
+  const ways = TRAITS.map(() => 0);
+  for (const u of kept) ways[u.t] = u.dir;
+  return ways;
+};
+
+/** On one trait: inside the band, or past it the way the child chose (scope decision 97). */
+const likeOn = (x, b, way) => (x < b[0] - 1e-12 ? way < 0 : x > b[1] + 1e-12 ? way > 0 : true);
+
+/**
+ * This body is like the line (scope decision 87): on every meaningful trait but `except`, inside its band, or past
+ * it the way the child chose there (`ways`, scope decision 97).
+ * @param {ArrayLike<number>} genome @param {null|Array<null|number[]>} band @param {number} [except]
+ * @param {null|number[]} [ways] by trait, 1, -1 or 0 (waysOf); null: inside every band
+ */
+export const isLike = (genome, band, except = -1, ways = null) =>
+  !band || band.every((b, t) => !b || t === except || likeOn(genome[t], b, ways?.[t] ?? 0));
 
 export class Bridge {
   /**
@@ -121,7 +145,17 @@ export class Bridge {
      * child followed); "all", the seven meaningful traits (measured for scope decision 87)
      */
     this.likeTraits = "place";
+    /**
+     * chosen ways keep improving (scope decision 97): a baby past the line's band the way the child chose is like it
+     * too; false only to measure the reading of scope decision 87, where it is a branch
+     */
+    this.keepImproving = true;
+    /** @type {typeof classroomConfig} the engine's Classroom configuration; another one only to measure (scope decision 97) */
+    this.config = classroomConfig;
   }
+
+  /** The ways the child chose, from the variations the line keeps, for the like rule (scope decision 97); null without it. */
+  waysFor(kept) { return this.keepImproving ? waysOf(kept) : null; }
 
   /**
    * The teacher demo (?demo=webbed): M1's defining fixture with its webbing
@@ -134,9 +168,14 @@ export class Bridge {
     return new Bridge(state, [envelope.canopyFocalIds, envelope.shorelineFocalIds]);
   }
 
-  /** The common-ancestor world: every founder on the open ground with one body; the leaves and the water start empty. */
-  static fromAncestor(seed) {
-    return new Bridge(createAncestorWorld(seed, classroomConfig));
+  /**
+   * The common-ancestor world: every founder on the open ground with one body; the leaves and the water start empty.
+   * @param {number} seed @param {typeof classroomConfig} [config] another Classroom configuration, only to measure
+   */
+  static fromAncestor(seed, config = classroomConfig) {
+    const bridge = new Bridge(createAncestorWorld(seed, config));
+    bridge.config = config;
+    return bridge;
   }
 
   index() {
@@ -163,7 +202,7 @@ export class Bridge {
    * This place has plenty of room: a pair living there would have more babies, since there is more food (the engine's
    * own rule, scope decision 70).
    */
-  roomyIn(zone) { return babiesPerPair(this.zoneCounts()[zone], zone, classroomConfig) > classroomConfig.offspringPerPair; }
+  roomyIn(zone) { return babiesPerPair(this.zoneCounts()[zone], zone, this.config) > this.config.offspringPerPair; }
 
   /* ================= following (observer state only) ================= */
 
@@ -181,7 +220,7 @@ export class Bridge {
     const living = this.livingIds(), members = new Set();
     for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
     const band = this.like ? profileOf([...members].map((id) => this.byId.get(id).bodyGenome)) : null;
-    this.follow = { roots: [...roots], members, v: null, band };
+    this.follow = { roots: [...roots], members, v: null, band, ways: null };
     this.relatives = new Map();
     return this.follow;
   }
@@ -203,19 +242,22 @@ export class Bridge {
    * family's animals that have it, wherever in the family they were born.
    *
    * The followed trait's band in the line's profile is theirs now (scope decision 87); the rest stay as they were.
+   * Each kept variation's way is chosen now (scope decision 97): past the band that way is like the line too.
    * @param {number[]} ids the carriers followed, in the line's place
    * @param {number} zone the line's place
    * @param {import("./cohorts.js").Variation} v the variation followed
    * @param {number} mark this follow's number
    * @param {import("./cohorts.js").Variation[]} [kept] every variation the line keeps, this one too
    * @param {boolean} [free] this variation's trait doesn't matter in the line's place
+   * @param {import("./cohorts.js").Variation[]} [also] the followed baby's other helpful differences, taken in at once
+   *   (measured for scope decision 97, not used): their bands are the carriers' too
    */
-  narrowTo(ids, zone, v, mark, kept = [v], free = false) {
+  narrowTo(ids, zone, v, mark, kept = [v], free = false, also = []) {
     const keep = new Set(ids);
     for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.set(id, mark);
     for (const id of keep) this.relatives.delete(id);
-    const band = this.follow.band && profileOf(ids.map((id) => this.byId.get(id).bodyGenome), [v.t], this.follow.band);
-    this.follow = { roots: [...keep], members: keep, v, kept, mark, free, place: this.follow.place ?? null, band };
+    const band = this.follow.band && profileOf(ids.map((id) => this.byId.get(id).bodyGenome), [v.t, ...also.map((u) => u.t)], this.follow.band);
+    this.follow = { roots: [...keep], members: keep, v, kept, mark, free, place: this.follow.place ?? null, band, ways: band && this.waysFor(kept) };
     return this.follow;
   }
 
@@ -233,40 +275,51 @@ export class Bridge {
     for (const id of keep) this.relatives.delete(id);
     // In a chosen place, the line is checked on the traits that help or hurt there (scope decision 87).
     const was = this.follow.band ?? null;
-    const band = was && this.likeTraits === "place" ? was.map((b, t) => (classroomConfig.placeEffects[t][zone] !== 0 ? b : null)) : was;
-    this.follow = { roots: [...keep], members: keep, v: null, kept: [], mark, free: false, place: zone, band };
+    const band = was && this.likeTraits === "place" ? was.map((b, t) => (this.config.placeEffects[t][zone] !== 0 ? b : null)) : was;
+    this.follow = { roots: [...keep], members: keep, v: null, kept: [], mark, free: false, place: zone, band, ways: null };
     return this.follow;
   }
 
   /**
    * A baby of the line joins it (scope decisions 67, 70, 72 and 87): it inherited every variation the line keeps,
-   * lives in its place, and is like the line.
+   * lives in its place, and is like the line, or past it the ways the child chose (scope decision 97).
    */
   joins(kid, f = this.follow) {
     const kept = f.kept ?? (f.v ? [f.v] : []);
     return kept.every((u) => carries(kid.bodyGenome, u)) && (f.place === null || f.place === undefined || currentZoneBinIndex(kid) === f.place) &&
-      isLike(kid.bodyGenome, f.band);
+      isLike(kid.bodyGenome, f.band, -1, f.ways);
   }
 
   /**
    * This baby would be like the line but for one trait, its new variation's (scope decision 87): a branch the child
-   * may follow. It lives in the line's place, is inside every band but that trait's, and has every variation the line
-   * keeps on the other traits.
+   * may follow. It lives in the line's place, is like the line on every trait but that one (inside its band, or past
+   * it a way the child chose, scope decision 97), and has every variation the line keeps on the other traits.
    * @param {number} id @param {number} t the trait of its new variation
+   * @param {import("./cohorts.js").Variation[]} [also] its other differences, each taken in with it (measured for scope
+   *   decision 97, not used): it has each, and is like the line past the band their ways
    */
-  branchOf(id, t) {
+  branchOf(id, t, also = []) {
     const f = this.follow, kid = this.byId.get(id);
     if (!f || !kid || (f.place !== null && f.place !== undefined && currentZoneBinIndex(kid) !== f.place)) return false;
     const kept = f.kept ?? (f.v ? [f.v] : []);
-    return kept.every((u) => u.t === t || carries(kid.bodyGenome, u)) && isLike(kid.bodyGenome, f.band, t);
+    let ways = f.ways;
+    if (also.length) {
+      ways = (ways ?? waysOf()).slice();
+      for (const u of also) ways[u.t] = u.dir;
+    }
+    return kept.every((u) => u.t === t || also.some((a) => a.t === u.t) || carries(kid.bodyGenome, u)) &&
+      also.every((u) => carries(kid.bodyGenome, u)) && isLike(kid.bodyGenome, f.band, t, ways);
   }
 
-  /** The traits on which this animal is outside the line's profile (scope decision 87). */
+  /**
+   * The traits on which this animal is unlike the line (scope decision 87): outside its band, and not past it a way the
+   * child chose there (scope decision 97).
+   */
   unlikeTraits(id) {
-    const band = this.follow?.band, g = this.byId.get(id)?.bodyGenome;
+    const band = this.follow?.band, ways = this.follow?.ways, g = this.byId.get(id)?.bodyGenome;
     if (!band || !g) return [];
     const out = [];
-    band.forEach((b, t) => { if (b && (g[t] < b[0] - 1e-12 || g[t] > b[1] + 1e-12)) out.push(t); });
+    band.forEach((b, t) => { if (b && !likeOn(g[t], b, ways?.[t] ?? 0)) out.push(t); });
     return out;
   }
 
@@ -299,16 +352,16 @@ export class Bridge {
    * @returns {Set<number>} the line now (empty when none of them is alive)
    */
   restore(mark, v, place = null, kept = v ? [v] : [], free = false, band = null) {
-    const members = new Set();
+    const members = new Set(), ways = band && this.waysFor(kept);
     for (const [id, m] of this.relatives) {
       if (m !== mark) continue;
       // A line in a chosen place takes back only its relatives there; the rest stay relatives, of the line before.
       const ind = this.byId.get(id);
-      if ((place === null || this.zoneOf(id) === place) && !!ind && kept.every((u) => carries(ind.bodyGenome, u)) && isLike(ind.bodyGenome, band)) members.add(id);
+      if ((place === null || this.zoneOf(id) === place) && !!ind && kept.every((u) => carries(ind.bodyGenome, u)) && isLike(ind.bodyGenome, band, -1, ways)) members.add(id);
       else this.relatives.set(id, mark - 1);
     }
     for (const id of members) this.relatives.delete(id);
-    this.follow = { roots: [...members], members, v, kept, mark: mark - 1, free, place, band };
+    this.follow = { roots: [...members], members, v, kept, mark: mark - 1, free, place, band, ways };
     return members;
   }
 
@@ -337,7 +390,7 @@ export class Bridge {
    */
   dyingNext() {
     const snapshot = this.state.currentIndividuals.slice().sort((a, b) => a.id - b.id);
-    return whoDoesNotMakeIt(snapshot, classroomConfig);
+    return whoDoesNotMakeIt(snapshot, this.config);
   }
 
   /** One of the child's relatives: the rest of a line the child narrowed from, or a baby of one. */
@@ -382,7 +435,7 @@ export class Bridge {
     if (isExtinct(this.state)) return null;
     // Where each animal lived before this generation, so each death says where it happened (scope decision 70).
     const zoneBefore = new Map(this.state.currentIndividuals.map((i) => [i.id, currentZoneBinIndex(i)]));
-    advanceClassroomGeneration(this.state, classroomConfig);
+    advanceClassroomGeneration(this.state, this.config);
     this.index();
 
     const result = this.state.lastGenerationResult;

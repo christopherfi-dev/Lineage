@@ -163,6 +163,8 @@ export function classroomIdentityFor(config) {
       leanMove: { at: config.leanAt ?? 1, chance: config.leanMoveChance ?? 0 },
       roomyBirths: { extra: config.roomyBirths ?? 0, below: config.roomyBelow ?? 0 },
       founderLooks: { spread: config.founderSpread ?? 0, traits: Array.from(config.founderVaried ?? []) },
+      // Only when set (measured for scope decision 97, not used), so the shipped model's identity is unchanged.
+      ...(config.fewerEvery > 0 ? { fewerBirths: { every: config.fewerEvery } } : {}),
     },
   }));
 }
