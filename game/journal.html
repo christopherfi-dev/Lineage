@@ -83,7 +83,8 @@
       const a = el("article");
       const when = new Date(s.when);
       a.append(el("h2", "", s.name ? `The ${s.name} family` : "A family with no name"));
-      a.append(el("p", "meta", `${isNaN(when) ? "" : when.toLocaleString()} · world ${s.seed} · generations ${s.from}–${s.to} · ${s.outcome === "died" ? `died out after ${s.lasted}` : s.won ? `fit its home after ${s.lasted}` : `survived ${s.lasted}`}`));
+      // A line that fit its home with no follow in the story is no win (scope decision 96): the place did all the choosing.
+      a.append(el("p", "meta", `${isNaN(when) ? "" : when.toLocaleString()} · world ${s.seed} · generations ${s.from}–${s.to} · ${s.outcome === "died" ? `died out after ${s.lasted}` : s.won ? `fit its home after ${s.lasted}` : s.placeChose ? `fit its home after ${s.lasted}, with nothing followed: the place did all the choosing` : `survived ${s.lasted}`}`));
       a.append(el("p", "idea", `“${s.idea}”${s.typed ? " (typed)" : ""}`));
       a.append(el("p", `check${s.right ? " right" : ""}`, (s.check || []).join(" ")));
       const dl = el("dl");

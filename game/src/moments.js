@@ -41,7 +41,7 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "win", "still-changing", "collection", "chosen-by-place",
+  "win", "still-changing", "did-all-choosing", "collection", "chosen-by-place", "still-improving",
   "intro-flip", "intro-found", "intro-puff", "find-another", "hard-place",
   "opening-waiting", "opening-card", "idle-pause", "stall", "branch-leaving", "folded-panel",
 ];
@@ -298,8 +298,14 @@ const MOMENT = {
    */
   "still-changing": {
     families: FROM_OTHERS, policies: ["passive", "active"],
-    at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.won && !!s.home,
+    at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.fits && !!s.home,
   },
+  /**
+   * No win without choosing (scope decision 96): the line fits its home, but the child followed nothing. No celebration
+   * and no collection card: the animal it looks like, "The water did all the choosing." and "Can you choose yourself next
+   * time?", read aloud; then the reflection steps and "Find another animal!" as usual.
+   */
+  "did-all-choosing": { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "ended" && s.placeChose },
   /**
    * Chosen by the place (scope decision 75): a trait that helps in the line's place rose in the line without the child
    * following it. Its chip shows in its own style on "Your … line so far", and it is said once: "The water is choosing
@@ -308,6 +314,16 @@ const MOMENT = {
   "chosen-by-place": {
     families: FROM_OTHERS, policies: ["active", "passive"],
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.placeChoseNow.length > 0 && { chosen: s.placeChoseNow.map((p) => p.t) },
+  },
+  /**
+   * A chosen trait still improving (scope decision 97): the line's median on a trait the child followed, one that helps
+   * there, is APART further the way the child chose than right after the follow. Its chip says so on "Your … line so
+   * far", and it is said once: "Your line keeps getting more webbing." "You chose it, so it keeps going." Found at the
+   * watched generation that says it.
+   */
+  "still-improving": {
+    families: FROM_OTHERS, policies: ["wise", "active"],
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.improvingNow.length > 0 && { chips: s.improvingNow.map((c) => c.v.t) },
   },
   /**
    * "Find another animal!" (scope decision 82): after the win, the child taps it; a new world, and its quick card flip,
@@ -811,7 +827,7 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
-  } else if (moment === "win" || moment === "still-changing") {
+  } else if (moment === "win" || moment === "still-changing" || moment === "did-all-choosing") {
     // The ending opens on its first step, the line's home (scope decision 73).
     G.endingAt = null;
     G.showEnding();

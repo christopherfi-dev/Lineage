@@ -168,6 +168,11 @@ export const STALLS_BACK = 3;
  * got from its other parent too, when it is like the line on every other trait: not only for a variation new at birth.
  */
 export const GLOW_ANY = true;
+/**
+ * With the like rule on, a follow takes in every difference of the baby followed that helps in the line's place, not
+ * only the glowing one, and a baby whose differences all help there may glow (measured for scope decision 97, not used).
+ */
+export const TAKE_ALL = false;
 /** A glowing baby is never replaced by a newer one before it has glowed this long (seconds of watching). */
 export const GLOW_MIN_SECONDS = 10;
 /** New glows start at least this far apart (seconds of watching), so babies light up one at a time. */
@@ -237,7 +242,7 @@ export class Story {
    *   values of GENERATION_SECONDS and GLOW_GENERATIONS, and of WIN_FROM
    */
   constructor(bridge, { homeOf = () => null, length = STORY_GENERATIONS, known = () => false, places = false, generationSeconds = GENERATION_SECONDS,
-    glowGenerations = GLOW_GENERATIONS, onePerVariation = true, lookahead = false, winFrom = WIN_FROM, glowAny = GLOW_ANY } = {}) {
+    glowGenerations = GLOW_GENERATIONS, onePerVariation = true, lookahead = false, winFrom = WIN_FROM, glowAny = GLOW_ANY, takeAll = TAKE_ALL } = {}) {
     this.bridge = bridge;
     this.homeOf = homeOf;
     /** the story's first choice is where the family will live (scope decision 70) */
@@ -282,6 +287,8 @@ export class Story {
     this.winFrom = winFrom;
     /** a branch baby glows for a variation it got from its other parent too, not only for a new one at birth (scope decision 87) */
     this.glowAny = glowAny;
+    /** a follow takes in every difference of the baby that helps there (TAKE_ALL, measured for scope decision 97) */
+    this.takeAll = takeAll;
     /** @type {"waiting"|"place"|"moving"|"watch"|"rise"|"stall"|"ended"} */
     this.phase = "waiting";
     /** @type {null|Rise} the fast-forward after a follow, while the followed trait's count in the line rises (scope decision 67) */
@@ -325,8 +332,12 @@ export class Story {
     this.endGeneration = null;
     /** @type {null|"died"|"survived"} */
     this.outcome = null;
-    /** the line fits its home: the story ended with the win (scope decision 73), its outcome "survived" */
+    /** the line fits its home (scope decision 73): the story ended there, its outcome "survived" */
+    this.fits = false;
+    /** it fits, and the child chose something in the story: the win (scope decisions 73 and 96) */
     this.won = false;
+    /** it fits, but the child followed nothing in the story: the place did all the choosing, so no win (scope decision 96) */
+    this.placeChose = false;
     /** how many carriers the latest follow narrowed the line to, or how many the line was when the child came back to it */
     this.lineStart = 0;
     /** @type {null|number} how many relatives the child had when the story ended */
@@ -376,6 +387,8 @@ export class Story {
     this.placeChips = [];
     /** @type {PlaceChip[]} those that first showed this generation, for the page to say once */
     this.placeChoseNow = [];
+    /** @type {Chip[]} chosen traits first still improving this generation (scope decision 97), for the page to say once */
+    this.improvingNow = [];
     /** @type {Map<number, {dir:number, hurt:boolean}>} by trait: the way the line went, and whether it clearly died off that way */
     this.went = new Map();
     /** how many of the line live in each place, a generation ago */
@@ -697,13 +710,35 @@ export class Story {
    * than half of it; the reason is whether it hurt in the line's place. Since
    * the line keeps every chosen trait (scope decision 72), each of its
    * animals has each one, so none fades; this stays as a guard.
+   *
+   * A chosen trait that helps in the line's place is still improving (scope
+   * decision 97) once the line's median there is APART or more past where it
+   * was right after the follow, the way the child chose: its chip shows it from
+   * then on, and it is said once (improvingNow).
    */
   updateChips() {
-    const n = this.lastAnimals.length;
+    const n = this.lastAnimals.length, forms = new Map();
+    this.improvingNow = [];
     for (const chip of this.chips) {
       const have = this.lastAnimals.filter((a) => carries(a.genome, chip.v)).length;
       chip.faded = have >= FADED_BELOW || 2 * have >= n ? null : variationEffect(chip.v.t, chip.v.dir, this.place) < 0 ? "hurt" : "lost";
+      if (chip.faded || chip.improving !== null || chip.from === null || variationEffect(chip.v.t, chip.v.dir, chip.zone) <= 0) continue;
+      if (!forms.has(chip.zone)) {
+        const here = this.lastAnimals.filter((a) => a.zone === chip.zone);
+        forms.set(chip.zone, here.length ? formOf(here.map((a) => a.genome)) : null);
+      }
+      const form = forms.get(chip.zone);
+      if (form && (form[chip.v.t].median - chip.from) * chip.v.dir >= APART) {
+        chip.improving = this.bridge.generation;
+        this.improvingNow.push(chip);
+      }
     }
+  }
+
+  /** A new chip for a chosen variation: the line's median on its trait in its place now, to tell it still improving from. */
+  chipFor(v, zone) {
+    const here = this.bridge.followedAnimals().filter((a) => a.zone === zone);
+    return { v, faded: null, zone, from: here.length ? formOf(here.map((a) => a.genome))[v.t].median : null, improving: null };
   }
 
   /**
@@ -712,14 +747,15 @@ export class Story {
    * off that way.
    */
   rebuildChips() {
-    const was = this.went;
+    const was = this.went, old = new Map(this.chips.map((x) => [x.v, x]));
     this.went = new Map();
     this.chips = [];
-    for (const c of this.choices) {
-      const w = was.get(c.v.t);
-      this.went.set(c.v.t, { dir: c.v.dir, hurt: !!w && w.dir === c.v.dir && w.hurt });
-      this.chips = this.chips.filter((x) => x.v.t !== c.v.t);
-      this.chips.push({ v: c.v, faded: null });
+    for (const c of this.choices) for (const v of [...(c.also ?? []), c.v]) {
+      const w = was.get(v.t);
+      this.went.set(v.t, { dir: v.dir, hurt: !!w && w.dir === v.dir && w.hurt });
+      this.chips = this.chips.filter((x) => x.v.t !== v.t);
+      // A chip the line had keeps where it started from, and whether it was still improving (scope decision 97).
+      this.chips.push(old.get(v) ?? { v, faded: null, zone: c.zone, from: null, improving: null });
     }
   }
 
@@ -755,9 +791,15 @@ export class Story {
     // A baby of the line with a new variation: one that joined it, or, since a baby joins only if it is like the line, a
     // branch, like the line but for that variation (scope decision 87).
     const babies = b.like ? [...ev.group.born, ...(ev.group.branched ?? [])] : ev.group.born;
+    // More of a way the child chose joins the line by itself (scope decision 97): no new kind of difference, so no glow.
+    const ways = b.like ? b.follow?.ways : null;
     for (const id of babies) {
-      const nv = newbornVariation(b, id, this.lastForm) ?? (this.glowAny && !b.isFollowed(id) ? this.inheritedVariation(id) : null);
-      if (!nv || (!b.isFollowed(id) && !b.branchOf(id, nv.t))) continue;
+      let nv = newbornVariation(b, id, this.lastForm);
+      if (nv && ways?.[nv.t] === nv.dir) nv = null;
+      nv ??= this.glowAny && !b.isFollowed(id) ? this.inheritedVariation(id) : null;
+      // With TAKE_ALL (measured), a branch may differ on other traits too, each one that helps there.
+      const also = nv && this.takeAll && !b.isFollowed(id) ? this.helpfulOthers(id, nv.t) : [];
+      if (!nv || !also || (!b.isFollowed(id) && !b.branchOf(id, nv.t, also))) continue;
       const v = this.standsOut(nv, id);
       const showAt = this.watchT + (watched ? APPEAR_SPAN * this.generationSeconds * appearFraction(id) : 0);
       if (v) this.fresh.push({ id, v, zone: b.zoneOf(id), generation: ev.generation, bornT: this.watchT, showAt, since: null });
@@ -773,11 +815,38 @@ export class Story {
    * @returns {null|import("./cohorts.js").Variation}
    */
   inheritedVariation(id) {
-    const ts = this.bridge.unlikeTraits(id), ind = this.bridge.get(id);
-    if (ts.length !== 1 || !ind || !this.lastForm) return null;
-    const t = ts[0], value = ind.bodyGenome[t], usual = this.lastForm[t], dir = value > usual.median ? 1 : -1;
+    const ts = this.bridge.unlikeTraits(id);
+    // With TAKE_ALL (measured), a baby outside on several traits glows for the first, when each of them helps there.
+    if (ts.length > 1 && this.takeAll) {
+      const v = this.variationOn(id, ts[0]);
+      return v && this.helps(v) && this.helpfulOthers(id, ts[0]) ? v : null;
+    }
+    return ts.length === 1 ? this.variationOn(id, ts[0]) : null;
+  }
+
+  /** This animal's variation on trait t, against the line's usual form: null when it has none there. */
+  variationOn(id, t) {
+    const ind = this.bridge.get(id);
+    if (!ind || !this.lastForm) return null;
+    const value = ind.bodyGenome[t], usual = this.lastForm[t], dir = value > usual.median ? 1 : -1;
     const v = variationFor(TRAITS[t], dir, usual, value);
     return carries(ind.bodyGenome, v) ? v : null;
+  }
+
+  /**
+   * TAKE_ALL (measured for scope decision 97): a branch baby's differences from the line besides trait t, each a
+   * variation that helps in the line's place; null when one of them doesn't help there.
+   * @returns {null|import("./cohorts.js").Variation[]}
+   */
+  helpfulOthers(id, t) {
+    const out = [];
+    for (const u of this.bridge.unlikeTraits(id)) {
+      if (u === t) continue;
+      const v = this.variationOn(id, u);
+      if (!v || !this.helps(v)) return null;
+      out.push(v);
+    }
+    return out;
   }
 
   /**
@@ -1078,12 +1147,12 @@ export class Story {
    * the line only if it is like it (scope decision 87), also its branches there: relatives with the variation, like
    * the line on every other trait.
    */
-  carrierIds(v) {
+  carrierIds(v, also = []) {
     const zone = this.testZone(), b = this.bridge;
     if (!b.like) return b.followedAnimals().filter((a) => a.zone === zone && carries(a.genome, v)).map((a) => a.id);
     return [...b.followedIds(), ...b.relativeIds()].filter((id) => {
       const ind = b.get(id);
-      return !!ind && b.zoneOf(id) === zone && carries(ind.bodyGenome, v) && b.branchOf(id, v.t);
+      return !!ind && b.zoneOf(id) === zone && carries(ind.bodyGenome, v) && b.branchOf(id, v.t, also);
     });
   }
 
@@ -1153,24 +1222,27 @@ export class Story {
   follow(x) {
     const zone = this.testZone(), back = this.goesBack(x);
     this.closeChoice();
+    // With TAKE_ALL (measured for scope decision 97), the baby's other differences that help there come too.
+    const also = this.takeAll && this.bridge.like ? this.helpfulOthers(x.id, x.v.t) ?? [] : [];
     // A follow's mark counts on from the place choice's (scope decision 70), so "Back to your line" can give that line back.
-    const ids = this.carrierIds(x.v), mark = this.choices.length + 1 + (this.home ? HOME_MARK : 0);
+    const ids = this.carrierIds(x.v, also), mark = this.choices.length + 1 + (this.home ? HOME_MARK : 0);
     // The line keeps every trait the child chose, the latest way on each (scope decision 72).
-    const kept = [...this.chips.filter((c) => c.v.t !== x.v.t).map((c) => c.v), x.v];
-    this.bridge.narrowTo(ids, zone, x.v, mark, kept, variationEffect(x.v.t, x.v.dir, zone) === 0);
+    const taken = new Set([x.v.t, ...also.map((u) => u.t)]);
+    const kept = [...this.chips.filter((c) => !taken.has(c.v.t)).map((c) => c.v), ...also, x.v];
+    this.bridge.narrowTo(ids, zone, x.v, mark, kept, variationEffect(x.v.t, x.v.dir, zone) === 0, also);
     this.lineStart = ids.length;
     const generation = this.bridge.generation, relativesHere = this.bridge.relativesIn(zone);
     this.choices.push({
-      v: x.v, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, generation, zone, back, anchor: x.id, mark,
+      v: x.v, also, group: x.v.group, trait: x.v.trait, neutral: x.v.neutral, generation, zone, back, anchor: x.id, mark,
       sizeAtChoice: ids.length, sizeAtEnd: null, relativesAtChoice: relativesHere, relativesAtEnd: null,
       peak: ids.length, counts: [ids.length], rise: null, result: null, asked: false, band: this.bridge.follow.band ?? null, stuck: false,
     });
     // The way the line went on this trait; "Your line so far" gets its chip (a way back replaces the old one), and a
     // trait the place chose is the child's now (scope decision 75).
-    this.went.set(x.v.t, { dir: x.v.dir, hurt: false });
-    this.placeChips = this.placeChips.filter((p) => p.t !== x.v.t);
-    this.chips = this.chips.filter((c) => c.v.t !== x.v.t);
-    this.chips.push({ v: x.v, faded: null });
+    for (const u of [...also, x.v]) this.went.set(u.t, { dir: u.dir, hurt: false });
+    this.placeChips = this.placeChips.filter((p) => !taken.has(p.t));
+    this.chips = this.chips.filter((c) => !taken.has(c.v.t));
+    this.chips.push(...[...also, x.v].map((u) => this.chipFor(u, zone)));
     this.fresh = [];
     this.glowing = [];
     this.started = [];
@@ -1363,7 +1435,7 @@ export class Story {
       // and its profile (scope decision 87).
       // In the order of "Your line so far" (rebuildChips): each trait where it was last chosen.
       const kept = [];
-      for (const k of this.choices) { const i = kept.findIndex((u) => u.t === k.v.t); if (i >= 0) kept.splice(i, 1); kept.push(k.v); }
+      for (const k of this.choices) for (const v of [...(k.also ?? []), k.v]) { const i = kept.findIndex((u) => u.t === v.t); if (i >= 0) kept.splice(i, 1); kept.push(v); }
       members = this.bridge.restore(c.mark, prev ? prev.v : null, this.home?.zone ?? null, kept,
         !!prev && variationEffect(prev.v.t, prev.v.dir, prev.zone) === 0, prev ? prev.band : this.home?.band ?? this.familyBand);
     }
@@ -1420,15 +1492,21 @@ export class Story {
     }
   }
 
+  /** The child followed something in this story, a follow whose line later died out too (scope decision 96). */
+  get choseAny() { return this.choices.length + this.tries.length > 0; }
+
   /**
    * @param {"died"|"survived"} outcome @param {number} generation
-   * @param {boolean} [won] the line fits its home (scope decision 73)
+   * @param {boolean} [fits] the line fits its home (scope decision 73): the win, when the child followed something in the
+   *   story; with no follow at all, the place did all the choosing, and there is no win (scope decision 96)
    */
-  end(outcome, generation, won = false) {
+  end(outcome, generation, fits = false) {
     this.closeChoice();
     this.phase = "ended";
     this.outcome = outcome;
-    this.won = won;
+    this.fits = fits;
+    this.won = fits && this.choseAny;
+    this.placeChose = fits && !this.choseAny;
     this.endGeneration = generation;
     this.relativesAtEnd = this.bridge.relatives.size;
     this.relativesHereAtEnd = this.bridge.relativesIn(this.place);
@@ -1520,4 +1598,7 @@ export class Story {
  * @typedef {Object} Chip a trait on "Your line so far" (scope decisions 59 and 68)
  * @property {import("./cohorts.js").Variation} v
  * @property {null|"hurt"|"lost"} faded null while the line still has it (FADED_BELOW)
+ * @property {number} zone the line's place when the child chose it
+ * @property {null|number} from the line's median on its trait there right after the follow
+ * @property {null|number} improving the generation it first was still improving (scope decision 97), or null
  */

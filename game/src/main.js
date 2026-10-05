@@ -42,8 +42,8 @@ import {
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
   placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, hardPlaceLine, LOTS_OF_ROOM, fillingLine,
-  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere,
-  stallLines, stallCounter, notGrowingLine, doesntMatterLine, backAgainLine, IDLE_LINE,
+  firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere, didAllChoosing,
+  stallLines, stallCounter, notGrowingLine, doesntMatterLine, backAgainLine, IDLE_LINE, improvingChip, keepsGetting, CHOSE_IT_GOING,
 } from "./narration.js";
 import { resultFor } from "./win.js";
 import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf, preloadPictures, FIND_ANOTHER, PLAY_AGAIN, foundLine } from "./collection.js";
@@ -437,6 +437,8 @@ export class Game {
     this.placeEl.classList.remove("open");
     this.placeEl.hidden = true;
     this.endingAt = null;
+    /** the ending's first step (win.js resultFor), while the ending is up */
+    this.result = null;
     this.home = null;
     this.homeT = 0;
     this.keepT = 0;
@@ -459,6 +461,8 @@ export class Game {
     this.fillToTell = null;
     /** @type {import("./story.js").PlaceChip[]} traits the line's place just chose, still to be told (scope decision 75) */
     this.placeToTell = [];
+    /** @type {import("./story.js").Chip[]} chosen traits just still improving, still to be told (scope decision 97) */
+    this.improveToTell = [];
     /** @type {Array<{id:number, at:number}>} the line's animals dying now or soon, one by one: the camera stays on each (scope decision 67) */
     this.deathCam = [];
     this.deathCamOn = null;
@@ -571,6 +575,7 @@ export class Game {
     if (s.moved) this.moveToTell = s.moved; // told on the next watched generation, or when the fast-forward ends
     if (s.fillingNow) this.fillToTell = s.home.zone; // the line's place filled up: told on arriving, or the next watched generation
     if (s.placeChoseNow.length) this.placeToTell.push(...s.placeChoseNow); // the place chose a trait: told the next watched generation
+    if (s.improvingNow.length) this.improveToTell.push(...s.improvingNow); // a chosen trait still improving: told the same way
     // See, guess, explain: at a follow's result the world waits for a guess (scope decision 60). A line that died out
     // gets its own right there, once its last animals have faded (scope decision 68). Only a new Field Guide discovery
     // is a guess; any other "Why?" is told as a line, with no guess (scope decision 69).
@@ -601,7 +606,7 @@ export class Game {
       const lines = s.told ? s.told : v ? [v.kind === "growing" ? growingLine(v.c.v.group, s.name) : dyingOffLine(v.c.v.group, s.name), ...(q ? [] : [v.reason])] :
         [...groupLines(ev.group, s.noun, [], s.name), ...(q ? [] : s.changeReasons(ev))];
       // The line's place has just filled up: said first, since it is why some die now (scope decision 70).
-      this.say([...this.fillingLines(), ...this.placeLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
+      this.say([...this.fillingLines(), ...this.placeLines(), ...this.improvingLines(), ...lines, ...this.moveLines(), ...this.glowLines()], true);
     }
     this.updateHud();
     if (what === "back" && this.backing) this.backing.q = q;
@@ -672,6 +677,16 @@ export class Game {
     const chosen = this.placeToTell.filter((p) => this.story.placeChips.includes(p));
     this.placeToTell = [];
     return chosen.length ? [placeChoosing(chosen[0].zone), winningHere(chosen.map((p) => ({ trait: TRAITS[p.t], dir: p.dir })))] : [];
+  }
+
+  /**
+   * A trait the child chose still improving (scope decision 97), once, as its chip first shows it: "Your line keeps
+   * getting more webbing." "You chose it, so it keeps going."
+   */
+  improvingLines() {
+    const chips = this.improveToTell.filter((c) => this.story.chips.includes(c));
+    this.improveToTell = [];
+    return chips.length ? [keepsGetting(chips[0].v.group), CHOSE_IT_GOING] : [];
   }
 
   /** A real move of the family (scope decision 59), once: "Some of your animals are moving to the water's edge." */
@@ -1615,7 +1630,8 @@ export class Game {
     const s = this.story;
     // The animal the line became at the win joins this iPad's collection (scope decision 74).
     if (s.won && collect(s.reveal.animal, s.name)) this.freshCard = s.reveal.animal.id;
-    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : s.won ? fitsHome(s.name) : madeIt(s.noun, s.name)]);
+    // No win without choosing (scope decision 96): a line that fits its home with no follow in the story isn't collected.
+    this.say([s.outcome === "died" ? lastPassed(s.noun, s.name) : s.won ? fitsHome(s.name) : s.placeChose ? didAllChoosing(s.home.zone) : madeIt(s.noun, s.name)]);
     this.endingAt = performance.now() + ENDING_DELAY_MS;
     this.updateHud();
   }
@@ -1639,6 +1655,7 @@ export class Game {
     // 0. The line's home (scope decision 73): the win's celebration, or "still changing" at the story's last generation.
     // An early ending has none.
     const fit = resultFor(s);
+    this.result = fit;
     this.endingSteps = [...(fit ? ["result"] : []), "happened", "idea", "check", "reveal", "collection"];
     this.endingEl.classList.toggle("won", !!fit?.won);
     // The real animal's card beside the line: evolved now, or what it looks most like so far (scope decision 74).
@@ -1805,6 +1822,8 @@ export class Game {
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
     if ((name === "reveal" && this.story.reveal) || (name === "result" && this.story.won)) this.sound.revealChord(0.4);
+    // The place did all the choosing (scope decision 96): its two lines are read aloud when sound is on.
+    if (name === "result" && this.result?.aloud && !this.sound.muted) speak(this.result.lines.join(" "));
   }
 
   /** Show the ending's step with this name ("result", "happened", "idea", "check" or "reveal"). */
@@ -1894,7 +1913,7 @@ export class Game {
     this.storyId = this.storyId ?? Date.now();
     keepInJournal({
       id: this.storyId, when: new Date().toISOString(), name: s.name, seed: this.seed,
-      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, won: s.won, lasted: s.lasted,
+      from: s.startGeneration, to: s.endGeneration, outcome: s.outcome, won: s.won, placeChose: s.placeChose, lasted: s.lasted,
       choices: s.choices.map((c) => c.group),
       idea: this.idea.sentence, typed: this.idea.typed, check: check.lines, right: check.right,
       reveal: s.reveal?.animal.name ?? null,
@@ -2254,7 +2273,7 @@ export class Game {
    * @param {import("./story.js").Chip[]} chips
    */
   showSoFar(chips, home = null, placeChips = []) {
-    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}`).join("|")}:${placeChips.map((p) => p.t).join(",")}`;
+    const key = `${this.story?.name}:${this.story?.noun}:${home?.zone}:${chips.map((c) => `${c.v.group}:${c.faded}:${c.improving}`).join("|")}:${placeChips.map((p) => p.t).join(",")}`;
     if (key === this.soFarKey) return;
     this.soFarKey = key;
     const doc = this.doc, el = this.soFarEl;
@@ -2262,15 +2281,17 @@ export class Game {
     if (!chips.length && !home) { el.replaceChildren(); return; }
     const faded = chips.filter((c) => c.faded).map((c) => fadedLine(c.v.group, c.faded));
     const words = soFarTitle(this.story.name, this.story.noun);
-    // The place the child chose comes first (scope decision 70), then each chosen trait, then what the place chose
-    // (scope decision 75), in their own style.
-    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []), ...chips.map((c) => ({ words: chipWords(c.v.group), faded: c.faded })),
+    // The place the child chose comes first (scope decision 70), then each chosen trait, still improving on its chip
+    // once it is (scope decision 97), then what the place chose (scope decision 75), in their own style.
+    const all = [...(home ? [{ words: PLACE_LABELS[home.zone], faded: null }] : []),
+      ...chips.map((c) => ({ words: c.improving !== null && c.improving !== undefined && !c.faded ? improvingChip(c.v.group) : chipWords(c.v.group),
+        faded: c.faded, improving: c.improving !== null && c.improving !== undefined && !c.faded })),
       ...placeChips.map((p) => ({ words: chosenChip(TRAITS[p.t], p.dir, p.zone), faded: null, zone: p.zone }))];
     const title = Object.assign(doc.createElement("div"), { className: "so-far-title", textContent: words });
     title.append(speakerButton(doc, () => `${words}: ${all.map((c) => c.words).join(", ")}.`));
     const row = Object.assign(doc.createElement("div"), { className: "chips" });
     row.append(...all.map((c) => Object.assign(doc.createElement("span"), {
-      className: c.faded ? "chip faded" : c.zone !== undefined ? `chip chosen z${c.zone}` : "chip", textContent: c.words })));
+      className: c.faded ? "chip faded" : c.zone !== undefined ? `chip chosen z${c.zone}` : c.improving ? "chip improving" : "chip", textContent: c.words })));
     el.replaceChildren(title, row, ...faded.map((t) => {
       const p = Object.assign(doc.createElement("p"), { className: "faded-line" });
       p.append(Object.assign(doc.createElement("span"), { className: "text", textContent: t }), speakerButton(doc, () => t));
@@ -3105,13 +3126,16 @@ export class Game {
       this.bloomId = b.id;
       this.bloomLine.set(bornLine(this.story.glowFor(b.id).v.group, this.story.name));
       this.bloomEl.hidden = false;
-      // Its size and the generation panel's, measured once, to keep it on the screen and off the panel; and the buttons
-      // along the right side (scope decision 92).
-      const hud = this.hudEl, stage = this.stage.getBoundingClientRect();
+      // Its size and the generation panel's, measured once, to keep it on the screen and off the panel, with the
+      // "Helping here" note under it (a taller "so far" row pushes the note down); and the buttons along the right
+      // side (scope decision 92).
+      const hud = this.hudEl, why = this.whyHereEl.hidden ? null : this.whyHereEl, stage = this.stage.getBoundingClientRect();
       const side = [this.muteEl, this.zoomEl, this.portraitEl, this.guideButtonEl, this.collectionButtonEl]
         .filter((el) => el && !el.hidden).map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0)
         .map((r) => ({ l: r.left - stage.left, t: r.top - stage.top, b: r.bottom - stage.top }));
-      this.bloomBox = { w: this.bloomEl.offsetWidth, h: this.bloomEl.offsetHeight, hudRight: hud.offsetLeft + hud.offsetWidth, hudBottom: hud.offsetTop + hud.offsetHeight, side };
+      this.bloomBox = { w: this.bloomEl.offsetWidth, h: this.bloomEl.offsetHeight, side,
+        hudRight: Math.max(hud.offsetLeft + hud.offsetWidth, why ? why.offsetLeft + why.offsetWidth : 0),
+        hudBottom: Math.max(hud.offsetTop + hud.offsetHeight, why ? why.offsetTop + why.offsetHeight : 0) };
     }
     const age = now - this.herd.glowSince.get(b.id);
     const op = age < 500 ? age / 500 : age > 5600 ? Math.max(0, 1 - (age - 5600) / 1000) : 1;

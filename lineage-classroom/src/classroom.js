@@ -104,6 +104,17 @@ export function babiesPerPair(living, place, config = classroomConfig) {
 }
 
 /**
+ * Fewer crowded out (measured for scope decision 97, not used): with config.fewerEvery set to k, every k-th pair in
+ * a place without plenty of room, in the order the pairs form, has a baby fewer, so a little fewer are crowded out
+ * each generation. No draw. Unset, as shipped, every pair has babiesPerPair.
+ * @param {number} n the pair's babiesPerPair @param {number} nth this is the nth such pair in its place (from 1)
+ * @param {Object} [config]
+ */
+export function fewerBabies(n, nth, config = classroomConfig) {
+  return config.fewerEvery > 0 && n === config.offspringPerPair && nth % config.fewerEvery === 0 ? n - 1 : n;
+}
+
+/**
  * An animal's fitness in each place: each trait times its effect there.
  * @param {ArrayLike<number>} genome
  * @param {Object} [config]
@@ -180,11 +191,13 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
   const survivorById = new Map(survivors.map((s) => [s.id, s]));
   const newborns = [];
   const birthRecords = [];
+  const crowdedPairs = ZONES.map(() => 0);
   for (const pair of pairs) {
     const A = survivorById.get(pair.parentAId);
     const B = survivorById.get(pair.parentBId);
     const childIds = [];
-    const n = babiesPerPair(living[placeOf(A)], placeOf(A), config);
+    let n = babiesPerPair(living[placeOf(A)], placeOf(A), config);
+    if (n === config.offspringPerPair) n = fewerBabies(n, ++crowdedPairs[placeOf(A)], config);
     for (let k = 0; k < n; k++) {
       const recorded = state.bodyMutationEvents.length;
       const child = classroomChild(state, A, B, targetGeneration, rng, config);

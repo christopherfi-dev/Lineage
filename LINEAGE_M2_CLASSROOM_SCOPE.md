@@ -968,6 +968,117 @@ LINEAGE should feel like a quiet nature documentary. It is set at golden hour an
    - **Moments:** 69 in all. New: `opening-waiting`, `opening-card`, `idle-pause`, `stall` (seed 1), `branch-leaving` (seed 104) and `folded-panel`; retired: `choice` and `blocked`. With 12-second days and no backup panel, some moments moved: `same`, `back` and `told` open in seed 2 and `go-back` in seed 16, and `shrink` lets its child follow (a child that never follows keeps its whole family in its place, which no longer shrinks sharply). Every moment is shot again at the three sizes (213 pictures in `design/after/`, with `arrival-mist` and `generation-dawn`); `design/compare.html` lists the new ones and drops the retired. The moments in a watched day frame the line as the game keeps it (`moments.js` `keepLineNow`), and turn the idle pause off while they reach their moment.
    - *Checked: every visible button in `opening-waiting`, `opening-card`, `intro-found`, `naming`, `choose-place`, `generation`, `idle-pause`, `folded-panel`, `stall`, `branch-leaving` and `compare` is 44 px or more on each side, at all three sizes (473 buttons). No request leaves the page (the pictures were taken with every other request blocked or logged). Tests: game 33, Classroom 12, M1 412, all passing.*
 
+95. **The architect's answers on PR #32, and Round 8** (2026-10-05, the architect; `docs/LINEAGE_ROUND_8.md`). PR #32 is merged. Round 8 starts from main.
+   - **Answers:** stalls keep "three in a row with the line never above 5" (decision 91 stands); the camera keeps its 0.7 zoom-out until Marc's check on a real iPad (decision 92 stands).
+   - **The round:** Part A, no win without choosing, shipped now as a safety net while the gate is off (decision 96); Part B, the gate's second try, where a direction the child chose keeps improving by itself (decision 97); the moments, pictures, frame times and the pull request (decision 98).
+
+96. **No win without choosing** (2026-10-05, the architect's Part A; built and measured by Claude Code). Shipped: the safety net while the gate is off.
+   - **When:** the line fits its home (decision 73) but the child followed nothing in the story. A follow whose line later died out still counts as a choice (`story.js` `choseAny`). Such a story ends with `placeChose`, not `won`.
+   - **No celebration:** no "You did it!", no chord, and no collection card.
+   - **The ending's first step:** the animal it looks like, "Your Mossfoot line looks like a river otter.", then "The water did all the choosing." ("The trees …", "The open ground …") and "Can you choose yourself next time?". Both lines are read aloud as the step opens (when sound is on), each with its speaker as always. Then the reflection steps and "Find another animal!" as usual. (`narration.js` `looksLikeLine`, `didAllChoosing`, `CHOOSE_YOURSELF`; `win.js` `resultFor`.)
+   - **Said as the story ends:** "The water did all the choosing."
+   - **The teacher's journal:** "fit its home after 26, with nothing followed: the place did all the choosing".
+   - *Measured* (the method of decision 94: seeds 1–30, every founding family, each place; 1,080 stories):
+     - The child that never chooses gets this ending in all 270 of its stories (90, 90 and 90), and none wins.
+     - Every other child's 810 stories are the same as in Round 7, story by story: the same win (270 of 270 each), minutes, follows, generations and animal.
+     - Every story of the child following random glows had a follow before its line fit.
+     - Measured again on this round's final code: the same.
+     - *Not covered:* any follow counts. A child that follows one trait that doesn't matter there, then nothing, still wins 90, 90 and 90 (a median 4.4, 5.2 and 6.8 minutes): the place did the rest.
+   - **Moment:** `did-all-choosing` (seed 13, the water's edge: "Your … line looks like a river otter.").
+
+97. **The gate's second try: chosen ways keep improving** (2026-10-05, the architect's Part B; built and measured by Claude Code). Not shipped: no combination meets every target.
+   - **The rule as built** (`bridge.js`, under `LIKE_RULE`). Marc's rule stays: the line never gets an adaptation the child didn't choose. The new reading:
+     - Each variation the line keeps (decision 72) is a way the child chose on its trait, more or less (`waysOf`).
+     - A baby joins the line if, on every trait checked in its place, it is inside the line's band or past it the way the child chose (`isLike` with `ways`). It still needs every kept variation, and to live in the place.
+     - A difference on a trait the child hasn't chosen, either way, or the other way on a chosen one, makes a branch: a relative that glows and joins only if followed.
+     - A newborn's variation that is more of a way already chosen doesn't glow; it joins by itself (`story.js` `updateGlow`).
+     - Kept from PR #32's best reading: only the place's traits are checked (and any the child followed), and a branch glows for a difference it inherited too (`GLOW_ANY`).
+   - **The targets** (the method of decision 94; seeds 1–30, every founding family, each place, 90 stories a place; 12-second generations, reading time included):
+     - never chooses: dies out before the win in at least 70% (63 of 90);
+     - one helpful choice, then stops: at least 60% (54 of 90);
+     - every helpful glow: wins in at least 85% (77 of 90) in each place, within about 8 minutes;
+     - random glows: wins, losses and animals reported.
+   - **(i) A follow takes in all of the baby's helpful differences** (`story.js` `TAKE_ALL`, measured only). Its other differences that help in the place become chosen ways too, and chips. A baby whose differences all help there may glow.
+   - **(ii) Slightly fewer crowded out** (Classroom `fewerEvery`, measured only). In a place without plenty of room, every k-th pair has one baby fewer. Unset, the model and its identity are as before. How many are crowded out each generation in a full place (seeds 1–30, generations 11–50, the world on its own):
+     - as shipped: 54 of every 109 animals there (49 in 100);
+     - every 10th pair a baby fewer: 48 in 100;
+     - every 5th: 47;
+     - every 4th: 46;
+     - every 3rd: 45;
+     - every 2nd: 42.
+   - **Every combination** (of 90 stories; high leaves / open ground / water's edge):
+
+     | Combination | Never chooses: died out | One helpful choice: died out | Every helpful glow: won (within 8 min) | Median minutes | Random glows: won / lost |
+     |---|---|---|---|---|---|
+     | B (the rule) | 90 / 90 / 90 | 90 / 90 / 90 | 74 (74) / 88 (88) / 69 (48) | 5.0 / 5.7 / 7.4 | 6 / 84, 30 / 60, 0 / 90 |
+     | B + (i) | 90 / 90 / 90 | 90 / 88 / 90 | 75 (75) / 88 (88) / 73 (50) | 5.0 / 5.7 / 7.4 | 9 / 81, 34 / 56, 0 / 90 |
+     | B + (ii) every 10th | 90 / 90 / 90 | 90 / 90 / 90 | 77 (77) / 87 (87) / 53 (32) | 5.1 / 5.7 / 7.7 | 7 / 83, 28 / 62, 0 / 90 |
+     | B + (ii) every 5th | 90 / 90 / 90 | 90 / 90 / 90 | 83 (83) / 89 (89) / 61 (28) | 5.0 / 6.0 / 8.3 | 6 / 84, 30 / 60, 0 / 90 |
+     | B + (ii) every 4th | 90 / 90 / 90 | 90 / 90 / 90 | 69 (67) / 88 (86) / 67 (26) | 5.3 / 6.0 / 8.3 | 3 / 87, 25 / 65, 0 / 90 |
+     | B + (ii) every 3rd | 90 / 90 / 90 | 90 / 90 / 90 | 74 (74) / 87 (85) / 58 (33) | 5.3 / 6.1 / 7.8 | 3 / 87, 36 / 54, 1 / 89 |
+     | B + (ii) every 2nd | 90 / 90 / 90 | 90 / 90 / 90 | 72 (72) / 88 (86) / 49 (10) | 5.8 / 6.2 / 9.2 | 9 / 81, 44 / 46, 0 / 90 |
+     | B + (i) + (ii) every 10th | 90 / 90 / 90 | 90 / 89 / 90 | 78 (78) / 87 (87) / 56 (34) | 5.2 / 5.7 / 7.7 | 9 / 81, 36 / 54, 0 / 90 |
+     | B + (i) + (ii) every 5th | 90 / 90 / 90 | 90 / 90 / 90 | 83 (83) / 89 (89) / 63 (28) | 5.0 / 6.0 / 8.3 | 7 / 83, 29 / 61, 0 / 90 |
+     | B + (i) + (ii) every 4th | 90 / 90 / 90 | 90 / 90 / 90 | 70 (68) / 87 (85) / 71 (30) | 5.3 / 6.0 / 8.3 | 6 / 84, 29 / 61, 0 / 90 |
+     | B + (i) + (ii) every 3rd | 90 / 90 / 90 | 90 / 90 / 90 | 75 (75) / 87 (85) / 61 (35) | 5.3 / 6.1 / 7.7 | 6 / 84, 41 / 49, 1 / 89 |
+     | B + (i) + (ii) every 2nd | 90 / 90 / 90 | 90 / 90 / 90 | 73 (73) / 88 (86) / 53 (11) | 5.8 / 6.3 / 9.5 | 10 / 80, 45 / 45, 0 / 90 |
+
+     Round 7's reading (decision 87): every helpful glow won 65, 85 and 20.
+   - **Random glows, the animals reached** (all three places; nearly all on the open ground):
+     - B: hare 17, lynx 6, squirrel 5, cheetah 5, jerboa 2, koala 1.
+     - B + (i): hare 19, cheetah 6, squirrel 5, lynx 5, jerboa 4, koala 3, slow loris 1.
+     - B + (ii) every 10th: hare 18, cheetah 5, squirrel 4, lynx 4, sloth 2, koala 1, jerboa 1.
+     - B + (ii) every 5th: hare 22, cheetah 5, squirrel 4, sloth 2, lynx 2, jerboa 1.
+     - B + (ii) every 4th: hare 13, cheetah 6, jerboa 3, lynx 3, squirrel 2, slow loris 1.
+     - B + (ii) every 3rd: hare 19, jerboa 8, cheetah 6, lynx 3, squirrel 2, slow loris 1, beaver 1.
+     - B + (ii) every 2nd: hare 23, cheetah 9, squirrel 7, jerboa 7, lynx 5, sloth 2.
+     - B + (i) + (ii) every 10th: hare 16, lynx 8, cheetah 7, jerboa 5, koala 4, sloth 3, squirrel 2.
+     - B + (i) + (ii) every 5th: hare 20, cheetah 6, squirrel 4, sloth 2, jerboa 2, koala 1, lynx 1.
+     - B + (i) + (ii) every 4th: hare 13, cheetah 7, jerboa 5, lynx 4, squirrel 3, slow loris 2, sloth 1.
+     - B + (i) + (ii) every 3rd: hare 18, cheetah 9, lynx 7, jerboa 7, sloth 3, squirrel 2, slow loris 1, seal 1.
+     - B + (i) + (ii) every 2nd: hare 20, cheetah 11, jerboa 9, squirrel 6, lynx 5, sloth 3, koala 1.
+   - **No combination meets every target.**
+     - The two children who stop choosing die out in every combination (88 of 90 or more).
+     - The open ground passes in every combination.
+     - The high leaves pass only with (ii): every 10th pair (77; 78 with (i)) or every 5th (83).
+     - The water's edge never reaches 77: at most 73 (B + (i)). Fewer births make it worse (49 to 71).
+     - The smallest change that helps is every 10th pair, and only in the high leaves.
+     - Between settings the results move by up to about 10 stories from the different draws alone (every 5th pair 83 in the high leaves, every 4th 69).
+   - **So the rule stays off:** `LIKE_RULE` false, `TAKE_ALL` false, `fewerEvery` unset. The code stays for the architect, and Part A keeps the safety net (decision 96). *Checked: the shipped game's 1,080 stories are the same as Round 7's (decision 96), and rule B on the final code gives the same 1,080 again.*
+   - **Why the water's edge falls short:**
+     - **The place fills, and improves, fast.** In seed 2 the high leaves had 18 animals when the child chose them, 58 a generation later and 104 the next; their fitness rose with each cull. A line held to its band on the traits the child hasn't chosen yet is the least suited there within a few generations.
+     - **Each follow narrows the line to a few animals:** a median of 3, 3 and 5 at a follow.
+     - **The water's edge needs five chosen traits,** one follow each. Of the 21 lost stories there under B, 2 died before any follow, 4 after one, 11 after two, 3 after three and 1 after four, a median of 11 generations in.
+     - **What helps less than expected:** chosen ways improving by themselves help (69 against Round 7's 20). Taking every helpful difference at once adds little (73), since a baby with two helpful differences is rare. Fewer births slow the line as much as the place.
+   - **The chips, rethought for the rule:**
+     - **With the rule on,** the place can't give the line a trait the child didn't choose, so the "chosen by the place" chips are retired, as in decision 87.
+     - **Instead, a chosen trait shows it keeps going its way:** "↑ More webbing: still improving" on its chip. It shows once the line's median in its place is `APART` further the chosen way than right after the follow, for a trait that helps there.
+     - **Said once:** "Your line keeps getting more webbing." "You chose it, so it keeps going." (`narration.js` `improvingChip`, `keepsGetting`, `CHOSE_IT_GOING`; `story.js` `updateChips`, `improvingNow`).
+     - **With the rule off, as shipped, both show:** the place's chips as before, and the child's own still-improving chips, since the place keeps choosing more of what the child chose.
+     - **Fixed with it:** the caption beside a glowing newborn now also keeps off the "Helping here" note, which a taller "so far" row pushes down.
+     - *Measured as shipped (90 stories each; high leaves, open ground, water's edge):* the chip shows in 8, 34 and 75 stories for the child that follows every helpful glow; 34, 87 and 83 for one helpful choice; 33, 48 and 74 for random glows; never for the child that never chooses. At most 4 in one story. In the high leaves it is rare: the line fits its home soon after a follow, often in the same generation.
+   - **Moment:** `still-improving` (seed 2, the water's edge: "↑ More webbing: still improving", then "Your line keeps getting more webbing.").
+
+98. **Round 8's moments, pictures and checks** (2026-10-05, the architect's last item; Claude Code).
+   - **Moments:** 71 in all. New: `did-all-choosing` (decision 96, seed 13) and `still-improving` (decision 97, seed 2).
+     - Every other moment opens on the same story, seed and generation as in Round 7.
+     - `find-another` starts a new world, as always, so its seed is new each time.
+     - The still-improving chip shows in no other picture. The endings' stories have one, but the ending's "You chose" chips stay plain.
+   - **Pictures:** every moment shot again at 1180×820, 820×1180 and 844×390: 219 in `design/after/`, with `arrival-mist` and `generation-dawn`. Also updated: `design/compare.html`, `game/moments.html`, `game/README.md` and `design/after/README.md`.
+   - *Frame times* (iPad landscape 1180×820 at 2×, headless Chromium, seed 13 unless named; the mean per frame, then with a 4× slower CPU; this branch against main with PR #32 merged):
+     - `generation` 68.4 ms (355.1) against 65.2 (347.1);
+     - `follow` 54.8 (290.5) against 53.3 (298.8);
+     - `rising` 52.3 (271.1) against 54.5 (279.3);
+     - `compare` 62.0 (347.8) against 64.8 (365.1);
+     - `choose-place` 53.0 (266.1) against 49.9 (290.5);
+     - `opening-waiting` 34.2 (194.4) against 34.6 (179.6).
+     - The same screens cost the same within about a tenth. New: `did-all-choosing` 73.9 (449.1), against main's `win` 72.9 (384.9), with 132 animals in view against 85. `still-improving` (seed 2) 50.4 (289.1), against main's `chosen-by-place` 64.6 (255.2), with 52 animals in view against 72.
+   - *Checked:*
+     - Every visible button in `did-all-choosing`, `still-improving`, `win`, `chosen-by-place` and `generation` is 44 px or more on each side, at all three sizes (228 buttons).
+     - No request leaves the page: every picture logged its requests, and none left the local server.
+     - Every new line has a speaker, is 8 words or fewer ("Your Mossfoot line looks like a river otter."; the rest 7 or fewer), and shows no percentages (`game/test/gate.test.js`, `win.test.js`).
+     - Tests: game 38, Classroom 13, M1 412, all passing.
+
 ## What the engine already gives you (do not rebuild these)
 
 - `advanceGeneration(state, config, hooks)` — runs one generation; `hooks` receive birth and death events.

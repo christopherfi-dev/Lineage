@@ -12,7 +12,7 @@ import { currentModelConfig } from "../../lineage-m1/src/config/modelConfig.js";
 import { EFFECT, UPKEEP, TRAITS, TRAIT_INDEX, NEUTRAL_TRAIT_INDICES } from "../../lineage-m1/src/config/traits.js";
 import { classroomConfig, classroomIdentityFor, PLACE_EFFECTS, LITTLE_EFFECT, FREE_BY_ANIMALS } from "../src/config.js";
 import {
-  advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt, babiesPerPair,
+  advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt, babiesPerPair, fewerBabies,
 } from "../src/classroom.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -260,6 +260,29 @@ test("a pair in a place with plenty of room has two more babies: there's more fo
   // Without it, as before: two.
   const before = { ...classroomConfig, roomyBirths: 0 };
   assert.equal(babiesPerPair(0, WATER, before), 2);
+});
+
+test("fewer crowded out (measured for scope decision 97, not used): unset, every pair as before and the model the same", () => {
+  // As shipped: no pair has a baby fewer, and the model's identity is the one it had.
+  for (let nth = 1; nth <= 12; nth++) assert.equal(fewerBabies(2, nth), 2);
+  assert.equal(classroomConfig.fewerEvery, undefined);
+  // Measured: every k-th pair in a full place has a baby fewer, a pair with plenty of room never; another model.
+  const fewer = { ...classroomConfig, fewerEvery: 4 };
+  assert.deepEqual([1, 2, 3, 4, 5, 8].map((nth) => fewerBabies(2, nth, fewer)), [2, 2, 2, 1, 2, 1]);
+  assert.equal(fewerBabies(4, 4, fewer), 4);
+  assert.notEqual(classroomIdentityFor(fewer), classroomIdentityFor(classroomConfig));
+  // In a full place, a quarter of the pairs have one baby: fewer babies than two a pair.
+  const animals = [];
+  for (let i = 0; i < 60; i++) animals.push({ age: 2, time: [0, 1, 0] });
+  const state = worldOf(animals, 7), crowded = createAncestorWorld(7, fewer);
+  crowded.currentIndividuals = state.currentIndividuals.map((i) => ({ ...i, bodyGenome: Float64Array.from(i.bodyGenome), timeAllocation: Float64Array.from(i.timeAllocation) }));
+  crowded.nextIndividualId = state.nextIndividualId;
+  crowded.nextBirthEventId = state.nextBirthEventId;
+  advanceClassroomGeneration(state);
+  advanceClassroomGeneration(crowded, fewer);
+  const pairs = (s) => new Set(s.lastGenerationResult.births.map((b) => `${b.parentAId}:${b.parentBId}`)).size;
+  assert.equal(state.lastGenerationResult.births.length, 2 * pairs(state));
+  assert.equal(crowded.lastGenerationResult.births.length, 2 * pairs(crowded) - Math.floor(pairs(crowded) / 4));
 });
 
 test("the teacher demo (?demo=webbed) is M1's defining fixture, run in Classroom mode", () => {
