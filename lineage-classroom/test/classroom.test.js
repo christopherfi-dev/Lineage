@@ -13,6 +13,7 @@ import { EFFECT, UPKEEP, TRAITS, TRAIT_INDEX, NEUTRAL_TRAIT_INDICES } from "../.
 import { classroomConfig, classroomIdentityFor, PLACE_EFFECTS, LITTLE_EFFECT, FREE_BY_ANIMALS } from "../src/config.js";
 import {
   advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt, babiesPerPair, fewerBabies,
+  babiesPerAnimal,
 } from "../src/classroom.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -283,6 +284,54 @@ test("fewer crowded out (measured for scope decision 97, not used): unset, every
   const pairs = (s) => new Set(s.lastGenerationResult.births.map((b) => `${b.parentAId}:${b.parentBId}`)).size;
   assert.equal(state.lastGenerationResult.births.length, 2 * pairs(state));
   assert.equal(crowded.lastGenerationResult.births.length, 2 * pairs(crowded) - Math.floor(pairs(crowded) / 4));
+});
+
+test("one parent (built for scope decision 100, not shipped): each baby a copy of its parent, but for at most one new difference", () => {
+  // As shipped: two parents, each trait whole from one of them. One parent is another model.
+  assert.equal(classroomConfig.inheritance, "whole-trait");
+  const one = { ...classroomConfig, inheritance: "one-parent" };
+  assert.notEqual(classroomIdentityFor(one), classroomIdentityFor(classroomConfig));
+  assert.equal(babiesPerAnimal(0, WATER, one), (classroomConfig.offspringPerPair + classroomConfig.roomyBirths) / 2);
+  // Forty on the ground (full enough: one baby each), the first twenty leaning toward the water; ten at the water's
+  // edge (plenty of room: two each). Every animal looks different.
+  const animals = [];
+  for (let i = 0; i < 50; i++) {
+    animals.push({ age: 1 + (i % 4), time: i < 20 ? [0, 0.6, 0.4] : i < 40 ? [0, 1, 0] : [0, 0, 1],
+      genome: TRAITS.map((_, t) => ((i * 7 + t * 3) % 11) / 10) });
+  }
+  let babies = 0, changed = 0, moved = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const state = createAncestorWorld(seed, one);
+    state.currentIndividuals = animals.map((a, i) => makeIndividual({
+      id: i + 1, parentIds: null, birthGeneration: 0, ageGenerations: a.age, bodyGenome: a.genome, timeAllocation: a.time, birthEventId: i + 1,
+    }));
+    state.nextIndividualId = animals.length + 1;
+    state.nextBirthEventId = animals.length + 1;
+    advanceClassroomGeneration(state, one);
+    const count = new Map();
+    for (const b of state.lastGenerationResult.births) {
+      assert.equal(b.parentAId, b.parentBId, "one parent, no mate");
+      count.set(b.parentAId, (count.get(b.parentAId) ?? 0) + 1);
+      const baby = state.currentIndividuals.find((i) => i.id === b.childId), P = animals[b.parentAId - 1];
+      // Every trait, the neutral ones too, is the parent's, but for at most one new difference of one step.
+      const diffs = TRAITS.map((_, t) => Math.abs(baby.bodyGenome[t] - P.genome[t])).filter((d) => d > 0);
+      assert.ok(diffs.length <= 1, `baby ${b.childId}: ${diffs.length} differences`);
+      if (diffs.length) { changed++; assert.ok(diffs[0] <= one.bodyMutationMagnitudeMax + 1e-12); }
+      // Where it lives is its parent's, exactly; only a leaning parent's baby is sometimes born next door.
+      if (Array.from(baby.timeAllocation).some((x, z) => x !== P.time[z])) {
+        moved++;
+        assert.equal(P.time[WATER], 0.4, "only a leaning parent's baby is born next door");
+        assert.equal(placeOf(baby), WATER);
+      }
+      babies++;
+    }
+    // Every adult has its babies on its own: one each on the full ground, two each at the roomy water's edge.
+    for (let id = 1; id <= animals.length; id++) assert.equal(count.get(id), id <= 40 ? 1 : 2, `animal ${id}`);
+  }
+  assert.equal(babies, 5 * 60);
+  // About 3 in 10 are born with one new difference; about 3 in 10 of the leaners' babies are born next door.
+  assert.ok(changed / babies > 0.2 && changed / babies < 0.4, `${changed} of ${babies} with a new difference`);
+  assert.ok(moved >= 15 && moved <= 45, `${moved} of 100 leaners' babies born at the water's edge`);
 });
 
 test("the teacher demo (?demo=webbed) is M1's defining fixture, run in Classroom mode", () => {

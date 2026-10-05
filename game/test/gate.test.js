@@ -149,3 +149,53 @@ test("a chosen trait still improving: once the line is APART further its way, it
     }
   }
 });
+
+test("one parent, gate on (built for scope decisions 100 and 101, not shipped): a line baby like its parent stays in the line; a new difference joins only if like the line", async () => {
+  const { Bridge, isLike } = await import("../src/bridge.js");
+  const { Story } = await import("../src/story.js");
+  const { classroomConfig } = await import("../src/engine.js");
+  const { variationEffect } = await import("../src/why.js");
+  const config = { ...classroomConfig, inheritance: "one-parent" };
+  let copies = 0, joinedNew = 0, leftNew = 0, follows = 0;
+  for (const seed of [1, 2]) for (const f of [0, 1, 2]) {
+    const bridge = Bridge.fromAncestor(seed, config), story = new Story(bridge, { places: true });
+    bridge.like = true;
+    bridge.likeTraits = "every";
+    assert.ok(bridge.oneParent && story.climbs);
+    story.begin(bridge.families.founding[f].ids[0]);
+    while (story.phase !== "ended" && bridge.generation < 30) {
+      if (story.phase === "place" && story.placeCards()[1]) story.choosePlace(1);
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
+        story.advance(0.5);
+        const g = story.glowing.find((x) => story.followable(x) && variationEffect(x.v.t, x.v.dir, story.testZone()) > 0);
+        if (g) { story.follow(g); follows++; }
+      }
+      const fl = bridge.follow, line = new Set(fl?.members ?? []);
+      const was = new Map([...line].map((id) => [id, Float64Array.from(bridge.get(id).bodyGenome)]));
+      const ev = bridge.step();
+      if (!ev) break;
+      if (fl?.band && fl.place !== null && fl.place !== undefined) {
+        const joined = new Set(ev.group.born);
+        for (const b of ev.births) {
+          if (!line.has(b.parentAId)) continue;
+          assert.equal(b.parentAId, b.parentBId, "one parent, no mate");
+          const kid = bridge.get(b.childId);
+          if (!kid || bridge.zoneOf(b.childId) !== fl.place) continue;
+          const P = was.get(b.parentAId), differs = [...P.keys()].filter((t) => kid.bodyGenome[t] !== P[t]);
+          assert.ok(differs.length <= 1);
+          if (!differs.length) {
+            // Like its parent, so in the line.
+            copies++;
+            assert.ok(joined.has(b.childId), "a copy of a line animal, living in the line's place, is in the line");
+          } else if (joined.has(b.childId)) {
+            // A new difference joins by itself only inside every band, on all ten traits, or past it the chosen way.
+            joinedNew++;
+            assert.ok(isLike(kid.bodyGenome, fl.band, -1, fl.ways));
+          } else leftNew++;
+        }
+      }
+      story.afterGeneration(ev);
+    }
+  }
+  assert.ok(follows > 0 && copies > 100 && joinedNew > 0 && leftNew > 10, `${follows} follows, ${copies} copies, ${joinedNew} new and like, ${leftNew} new and not`);
+});

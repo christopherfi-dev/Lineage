@@ -21,6 +21,12 @@
  * door may be born living there (leanMove), and a pair has more babies while its
  * place has plenty of room. M1 itself is untouched: lineage-m1 hashes every file
  * it ships, so this mode lives beside it.
+ *
+ * One parent (inheritance "one-parent", scope decision 100: built and measured,
+ * not shipped): no mates at all. Every adult has its babies on its own, as many
+ * as half a pair has, and each baby is a copy of it, in all ten body traits and
+ * in where it lives, then M1's usual chance of one new difference on one trait.
+ * Only the lean move takes a leaning parent's baby next door.
  */
 
 import { formMatingPairs } from "../../lineage-m1/src/core/mating.js";
@@ -63,6 +69,41 @@ export function classroomChild(state, A, B, targetGeneration, rng, config = clas
   return createChild(state, { ...A, bodyGenome: picked }, { ...B, bodyGenome: picked }, targetGeneration, rng, noDrift(config));
 }
 
+/** The config handed to M1's createChild for a baby of one parent: no body or time drift, and none of M1's movers. */
+const copying = new WeakMap();
+const copyOf = (config) => {
+  if (!copying.has(config)) copying.set(config, Object.freeze({ ...config, bodyDriftScale: 0, allocationDriftScale: 0, allocationMutationProbabilityPerChild: 0 }));
+  return copying.get(config);
+};
+
+/**
+ * One baby of one parent (inheritance "one-parent", scope decision 100): a copy of its parent in all ten body traits
+ * and in where it spends its time, then M1's usual chance of one new difference on one trait (bodyMutationOpportunity:
+ * bodyMutationProbabilityPerChild, a step of bodyMutationMagnitudeMin to Max). It is M1's own createChild, with the
+ * parent handed in as both parents and no drift, so its average of them is exactly the parent; nothing comes from a
+ * second animal. Time is passed on exactly: none of M1's movers (allocationMutationProbabilityPerChild), so only the
+ * lean move (leanMove, after this) takes a baby of a leaning parent next door.
+ * @param {Object} state @param {Object} P the parent @param {number} targetGeneration
+ * @param {import("../../lineage-m1/src/core/rng.js").Rng} rng @param {Object} [config]
+ */
+export function oneParentChild(state, P, targetGeneration, rng, config = classroomConfig) {
+  const child = createChild(state, P, P, targetGeneration, rng, copyOf(config));
+  // Exactly the parent's time, with no rounding from M1's renormalizing (its mutation record, if any, keeps it too).
+  child.timeAllocation = Float64Array.from(P.timeAllocation);
+  const last = state.bodyMutationEvents[state.bodyMutationEvents.length - 1];
+  if (last && last.childId === child.id) last.childTimeAllocationAtBirth = Array.from(child.timeAllocation);
+  return child;
+}
+
+/**
+ * How many babies an adult has on its own (inheritance "one-parent", scope decision 100): half a pair's, so the
+ * babies per animal are as before: 1, and 2 while its place has plenty of room (babiesPerPair).
+ * @param {number} living how many live in its place now @param {number} place @param {Object} [config]
+ */
+export function babiesPerAnimal(living, place, config = classroomConfig) {
+  return babiesPerPair(living, place, config) / 2;
+}
+
 /** Where an animal lives: the place it spends most of its time in (ties go to the first, as M1's zone bins). */
 export const placeOf = (individual) => argmax(individual.timeAllocation);
 
@@ -71,9 +112,10 @@ export const placeOf = (individual) => argmax(individual.timeAllocation);
  * parent lives (config.leanAt of its time there or more) is born living there
  * config.leanMoveChance of the time (scope decision 70): it takes 0.8-1.0 of
  * the rest of its time there, as M1's movers do, and so lives there. With both
- * parents leaning, one of their leans, picked evenly. Draws only when a parent
- * leans, so a world without leaners draws as before. Changes the baby in place.
- * @param {Object} child just made by classroomChild @param {Object} A @param {Object} B its parents
+ * parents leaning, one of their leans, picked evenly (one parent is passed as
+ * both: one of its own). Draws only when a parent leans, so a world without
+ * leaners draws as before. Changes the baby in place.
+ * @param {Object} child just made by classroomChild or oneParentChild @param {Object} A @param {Object} B its parents
  * @param {import("../../lineage-m1/src/core/rng.js").Rng} rng @param {Object} [config]
  * @returns {number} the place it moved to, or -1
  */
@@ -104,15 +146,18 @@ export function babiesPerPair(living, place, config = classroomConfig) {
 }
 
 /**
- * Fewer crowded out (measured for scope decision 97, not used): with config.fewerEvery set to k, every k-th pair in
- * a place without plenty of room, in the order the pairs form, has a baby fewer, so a little fewer are crowded out
- * each generation. No draw. Unset, as shipped, every pair has babiesPerPair.
- * @param {number} n the pair's babiesPerPair @param {number} nth this is the nth such pair in its place (from 1)
- * @param {Object} [config]
+ * Fewer crowded out (measured for scope decision 97, not used): with config.fewerEvery set to k, every k-th pair (or,
+ * with one parent, every k-th parent) in a place without plenty of room, in the order they have babies, has a baby
+ * fewer, so a little fewer are crowded out each generation. No draw. Unset, as shipped, nobody has fewer.
+ * @param {number} n the brood's babies @param {number} nth this is the nth such brood in its place (from 1)
+ * @param {Object} [config] @param {boolean} [full] its place doesn't have plenty of room
  */
-export function fewerBabies(n, nth, config = classroomConfig) {
-  return config.fewerEvery > 0 && n === config.offspringPerPair && nth % config.fewerEvery === 0 ? n - 1 : n;
+export function fewerBabies(n, nth, config = classroomConfig, full = n === config.offspringPerPair) {
+  return config.fewerEvery > 0 && full && nth % config.fewerEvery === 0 ? n - 1 : n;
 }
+
+/** An adult of M1's breeding ages (its formMatingPairs: 1 to 5 generations old), which has babies this generation. */
+export const breeds = (ind) => ind.ageGenerations >= 1 && ind.ageGenerations <= 5;
 
 /**
  * An animal's fitness in each place: each trait times its effect there.
@@ -185,22 +230,29 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
   const living = ZONES.map(() => 0);
   for (const s of survivors) living[placeOf(s)]++;
 
-  // From here on, M1's steps 5-10, a baby's body traits each whole from one parent (classroomChild), then the lean
-  // move (scope decision 70).
-  const pairs = formMatingPairs(survivors, config, rng);
+  // Who has babies, and how many. Two parents ("whole-trait", "average"): M1's steps 5-10, its mates, babiesPerPair a
+  // pair, each body trait whole from one parent or the other (classroomChild). One parent ("one-parent", scope decision
+  // 100): every adult of M1's breeding ages has its babies on its own, in id order, half a pair's (babiesPerAnimal):
+  // no mate, so no draw for one, and each baby a copy of it (oneParentChild). Then the lean move (scope decision 70).
+  const one = config.inheritance === "one-parent";
   const survivorById = new Map(survivors.map((s) => [s.id, s]));
+  const broods = one
+    ? survivors.filter(breeds).map((P) => ({ A: P, B: P, overlap: 1, n: babiesPerAnimal(living[placeOf(P)], placeOf(P), config) }))
+    : formMatingPairs(survivors, config, rng).map((pair) => {
+      const A = survivorById.get(pair.parentAId);
+      return { A, B: survivorById.get(pair.parentBId), overlap: pair.overlap, n: babiesPerPair(living[placeOf(A)], placeOf(A), config) };
+    });
   const newborns = [];
   const birthRecords = [];
   const crowdedPairs = ZONES.map(() => 0);
-  for (const pair of pairs) {
-    const A = survivorById.get(pair.parentAId);
-    const B = survivorById.get(pair.parentBId);
+  for (const brood of broods) {
+    const { A, B } = brood;
     const childIds = [];
-    let n = babiesPerPair(living[placeOf(A)], placeOf(A), config);
-    if (n === config.offspringPerPair) n = fewerBabies(n, ++crowdedPairs[placeOf(A)], config);
+    let n = brood.n;
+    if (n === (one ? config.offspringPerPair / 2 : config.offspringPerPair)) n = fewerBabies(n, ++crowdedPairs[placeOf(A)], config, true);
     for (let k = 0; k < n; k++) {
       const recorded = state.bodyMutationEvents.length;
-      const child = classroomChild(state, A, B, targetGeneration, rng, config);
+      const child = one ? oneParentChild(state, A, targetGeneration, rng, config) : classroomChild(state, A, B, targetGeneration, rng, config);
       if (leanMove(child, A, B, rng, config) >= 0) {
         // Its body-mutation record, if any, keeps the time it was born with.
         for (let e = recorded; e < state.bodyMutationEvents.length; e++) {
@@ -210,16 +262,17 @@ export function advanceClassroomGeneration(state, config = classroomConfig) {
       newborns.push(child);
       childIds.push(child.id);
     }
+    // A brood of one parent is recorded as M1's mating record is, with that parent on both sides.
     state.biologicalMatingEvents.push({
       id: state.nextMatingEventId++,
       generation: targetGeneration,
-      parentAId: pair.parentAId,
-      parentBId: pair.parentBId,
-      overlap: pair.overlap,
+      parentAId: A.id,
+      parentBId: B.id,
+      overlap: brood.overlap,
       childIds,
     });
     for (const id of childIds) {
-      birthRecords.push({ childId: id, parentAId: pair.parentAId, parentBId: pair.parentBId, generation: targetGeneration });
+      birthRecords.push({ childId: id, parentAId: A.id, parentBId: B.id, generation: targetGeneration });
     }
   }
   const next = survivors.concat(newborns);

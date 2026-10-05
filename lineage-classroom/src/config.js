@@ -101,7 +101,9 @@ export const classroomConfig = deepFreeze({
   founderAllocation: [0, 1, 0],
   // Each body trait comes whole from one parent or the other, never the average
   // (scope decision 67), so a new trait isn't halved away before it can be
-  // passed on. "average" is M1's rule, for comparison.
+  // passed on. "average" is M1's rule, for comparison. "one-parent" (scope
+  // decision 100, built and measured, not shipped): every adult has its babies
+  // on its own, each a copy of it but for M1's chance of one new difference.
   inheritance: "whole-trait",
 
   // The first choice, "Where will your family live?", fills a new place fast
