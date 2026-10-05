@@ -104,7 +104,7 @@ test("at the story's last generation short of the win, the line is still changin
     assert.doesNotMatch(line, /%|percent/i);
   }
   assert.equal(N.followedLine(["more webbing between the toes", "a sleeker body"]), "You followed more webbing and sleeker bodies.");
-  assert.equal(N.becameLine(ANIMALS.find((a) => a.id === "arctic-fox"), "Mossfoot"), "Your Mossfoot line became open-ground explorers, like an arctic fox.");
+  assert.equal(N.becameLine(ANIMALS.find((a) => a.id === "lynx"), "Mossfoot"), "Your Mossfoot line became pouncers, like a lynx.");
 });
 
 test("chosen by the place: a trait that helps there, risen in the line without a follow, gets its own chip once, and the win says so", async () => {

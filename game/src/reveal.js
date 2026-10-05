@@ -139,18 +139,19 @@ export const ANIMALS = [
     facts: ["Did you know? Baby hares are born furry, with open eyes."],
   },
   {
-    // Arctic foxes have short legs, which keep them warm: no legs line.
-    id: "arctic-fox", name: "Arctic fox", zone: GROUND,
-    signs: [["coat_shade", "high"], ["ear_tip_shape", "low"]],
-    profile: { coat_shade: "high", ear_tip_shape: "low", dense_fur: "high", strong_tail: "high" },
-    became: "open-ground explorers",
-    reveal: "Your animals became open-ground explorers, a lot like an arctic fox.",
-    revealPast: "Your animals were becoming a lot like an arctic fox.",
-    why: [NEEDS.eyes],
-    like: [like("Arctic foxes have light coats too, white in winter.", "coat_shade", "high"),
-      like("Arctic foxes have small, round ears too.", "ear_tip_shape", "low"), like("Arctic foxes have very thick fur too.", "dense_fur", "high"),
-      like("Arctic foxes have big bushy tails too.", "strong_tail", "high")],
-    facts: ["Did you know? Most arctic foxes turn white in winter."],
+    // In place of the arctic fox (scope decision 79): every line that wins on open ground has long back legs, and real
+    // arctic foxes have short ones. A lynx has long legs and sharp eyes, so both of the ground's "why" lines are true.
+    id: "lynx", name: "Lynx", zone: GROUND,
+    signs: [["ear_tip_shape", "high"], ["curved_claws", "high"]],
+    profile: { ear_tip_shape: "high", curved_claws: "high", dense_fur: "high", strong_tail: "low", tail_tip_marking: "high" },
+    became: "pouncers",
+    reveal: "Your animals became pouncers, a lot like a lynx.",
+    revealPast: "Your animals were becoming a lot like a lynx.",
+    why: [NEEDS.legs, NEEDS.eyes],
+    like: [like("Lynx have pointy ears with tufts too.", "ear_tip_shape", "high"), like("Lynx have sharp, curved claws too.", "curved_claws", "high"),
+      like("Lynx have very thick fur too.", "dense_fur", "high"), like("Lynx have short tails too.", "strong_tail", "low"),
+      like("Lynx have a black tip on their tails too.", "tail_tip_marking", "high")],
+    facts: ["Did you know? A lynx's big furry paws work like snowshoes."],
   },
   {
     id: "cheetah", name: "Cheetah", zone: GROUND,

@@ -61,7 +61,7 @@
   const readKey = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
   const read = () => readKey(KEY);
   // The collection's twelve animals, a row for each place (game/src/reveal.js), and those evolved on this iPad.
-  const GRID = [["squirrel", "Squirrel"], ["sloth", "Sloth"], ["koala", "Koala"], ["slow-loris", "Slow loris"], ["hare", "Hare"], ["arctic-fox", "Arctic fox"],
+  const GRID = [["squirrel", "Squirrel"], ["sloth", "Sloth"], ["koala", "Koala"], ["slow-loris", "Slow loris"], ["hare", "Hare"], ["lynx", "Lynx"],
     ["cheetah", "Cheetah"], ["jerboa", "Jerboa"], ["river-otter", "River otter"], ["seal", "Seal"], ["beaver", "Beaver"], ["platypus", "Platypus"]];
   function renderCollection() {
     const box = document.getElementById("collection"), found = readKey(COLLECTION).filter((x) => x && GRID.some(([id]) => id === x.id));

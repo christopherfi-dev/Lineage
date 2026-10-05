@@ -414,7 +414,7 @@ export const fitsHome = (name = null) => `${capital(your("line", name))} fits it
 /** The celebration's last two lines: "Your Mossfoot line fits the water's edge now." */
 export const fitsNow = (zone, name = null) => `${capital(your("line", name))} fits ${ZONE_THE[zone]} now.`;
 export const ANY_CHANGE_WORSE = "Almost any new change would make things worse.";
-/** "a river otter", "an arctic fox" (reveal.js animals). */
+/** "a river otter", "a lynx" (reveal.js animals). */
 export const anAnimal = (animal) => { const n = animal.name.toLowerCase(); return `${/^[aeiou]/.test(n) ? "an" : "a"} ${n}`; };
 /** "Your Mossfoot line became swimmers, like a river otter." */
 export const becameLine = (animal, name = null) => `${capital(your("line", name))} became ${animal.became}, like ${anAnimal(animal)}.`;
