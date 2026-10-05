@@ -364,10 +364,13 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #place .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
 #place .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #place-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
+#place-hard { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 22px; font-style: italic; font-weight: 600; color: #8A5A14; }
+#place-hard[hidden] { display: none; }
 /* A short screen (a phone held sideways): smaller pictures, so the three cards and their words fit above the fold. */
 @media (max-height: 599px) {
   #place { max-height: 82%; padding-top: 8px; }
   #place h2 { font-size: 26px; }
+  #place-hard { margin-top: 2px; font-size: 17px; }
   #place-cards { gap: 10px; margin-top: 10px; }
   #place-cards .option canvas { height: 118px; }
   #place-cards .option .pick { gap: 6px; padding: 8px 8px 12px; font-size: 18px; }

@@ -59,7 +59,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story ends with the win, when the line fits its home, a median 4.6 minutes after the first tap in the high leaves, 5.5 on the open ground and 7.8 at the water's edge, with a median of 3, 4 and 6 follows; 269 of 270 stories win before the story's last generation, measured with a simulated child following random glows (scope decision 78).
+A story ends with the win, when the line fits its home: a median 6.9 minutes after the first tap in the high leaves, 8.1 on the open ground and 12.4 at the water's edge, reading time included (a Grade 3 pace, now that the questions wait), with a median of 3, 4 and 6 follows; 270 of 270 stories win before the story's last generation, measured with a simulated child following random glows (scope decision 85).
 
 1. **Time waits for the child.** After the arrival mist, the opening (scope decision 77,
    `src/opening.js`): the collection's twelve cards face down, "These are the animals you can
@@ -85,8 +85,10 @@ A story ends with the win, when the line fits its home, a median 4.6 minutes aft
    ground), and another group's card there says, when that group lived there before the line came,
    "They got here first. Now webbed feet are starting to matter." The open ground
    usually has 20 of the family already: the line stays, with no fast-forward ("… 23!", "Watch
-   your line."). The trait choices then happen in that place. The teacher demo has no place
-   choice.
+   your line."). The trait choices then happen in that place. If the line in the chosen place
+   dies out, the sheet comes again; from the second time for the same place, "That place is hard
+   for your Mossfoot family. Try another?", that place's card marked (scope decision 83). The
+   teacher demo has no place choice.
 2. **Glowing newborns** (scope decision 32). When a baby in your line is born with a new
    variation, it glows: the trait new in it at birth takes it past the line's usual (its median
    for that trait, plus or minus 0.12). At most three glow at once, the ones that can be followed
@@ -149,8 +151,9 @@ A story ends with the win, when the line fits its home, a median 4.6 minutes aft
    with bigger eyes growing?" (clearly growing on a ✓), "Why are your Mossfoot animals with smaller
    eyes dying off?" (clearly dying off on a ✗), or "Why is your Mossfoot line doing about as well
    as your relatives?" (a "~" or a neutral trait). Three answers, the trait's line from the table in
-   each place; then why, and the discovery. The narration never gives the reason first: it comes
-   after the guess. A result the Field Guide already has is told instead, with no guess: "Your
+   each place; then why, and the discovery. No countdown: the world waits for the guess, and the
+   explanation waits for Next (scope decision 84). The narration never gives the reason first: it
+   comes after the guess. A result the Field Guide already has is told instead, with no guess: "Your
    Mossfoot line is doing about as well as your relatives." and the trait's line. A sudden drop
    asks nothing: the generation's lines give its reason.
 8. **Back to your line** (scope decision 68). When a followed line dies out, its last animals
@@ -191,9 +194,10 @@ A story ends with the win, when the line fits its home, a median 4.6 minutes aft
     relatives here); and the reveal (the real animal the line became like, one of the
     collection's twelve, `docs/LINEAGE_REAL_ANIMAL_REVEAL.md`: the free traits the child chose
     decide it first; then its traits, the predictions and choices, the Field Guide and the story
-    card). "Try another place" (scope decision 76: the same family in the same world, its name
-    kept, choosing where to live again) and "New world"; the teacher demo keeps "Try another
-    family" (the world as it is now; at the story's end, the same seed from generation 0).
+    card); and the collection. On that last step, one way on (scope decision 82): "You've found 3
+    of 12. Find another!" and "Find another animal!", a fresh game in a new world whose quick card
+    flip shows which animals are still to find. The teacher demo keeps "Try another family" (the
+    world as it is now; at the story's end, the same seed from generation 0) and "New world".
 11. **The collection** (scope decision 74, `src/collection.js`). The twelve animals a line can
     become, four to a row and a row for each place: one becomes "evolved" on this iPad when a line
     becomes it at the win, and its card shows its picture (`animals/<id>.jpg`), name and place mark;
@@ -215,8 +219,8 @@ A story ends with the win, when the line fits its home, a median 4.6 minutes aft
     the child's 1st, 4th, 7th, 10th and 13th follow, before the fast-forward, one question, in
     turn: "What will happen?" (your line with the trait) or "Which will do better, your line or
     your relatives?". Three or four answers, from `docs/LINEAGE_PREDICTION_QUESTIONS.md`: one
-    reasonable answer from the table and common Grade 3 misconceptions. 15 seconds; without an
-    answer the story goes on. The next "Since your last choice" shows it beside what happened to
+    reasonable answer from the table and common Grade 3 misconceptions. No countdown: the world
+    waits until the child answers (scope decision 84). The next "Since your last choice" shows it beside what happened to
     that follow's line ("You thought it would grow. It died out."), and the ending lists them all.
     Nothing is ever called wrong, and there are no scores.
 
@@ -324,7 +328,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 13 too, with a 30-generation story. Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), `try-another-place` (76) and the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals). A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `go-back` in seed 1 and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 13 too, with a 30-generation story. Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals), and Round 6 `find-another` (decision 82) and `hard-place` (83, in seed 1); `try-another-place` is retired. A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 

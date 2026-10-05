@@ -327,7 +327,8 @@ const MOMENT = {
   },
   /**
    * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
-   * just became marked "New!", on a new iPad: "You've evolved 1 of 12."
+   * just became marked "New!", on a new iPad: "You've evolved 1 of 12."; under them "You've found 1 of 12. Find
+   * another!" and "Find another animal!" (scope decision 82).
    */
   collection: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */

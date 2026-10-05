@@ -239,6 +239,8 @@ export class Game {
     this.placeBarEl = $("place-bar");
     this.placeNoteEl = $("place-note");
     this.placeQuestionLine = this.speakable($("place-question"));
+    this.placeHardEl = $("place-hard");
+    this.placeHardLine = this.speakable(this.placeHardEl);
     /** @type {Array<HTMLElement & {zone:number, button:HTMLButtonElement, words:HTMLElement, baby:null|number}>} the place cards, each with its baby */
     this.placeCardEls = [];
     this.guessEl = $("guess");
@@ -903,11 +905,9 @@ export class Game {
     const s = this.story, doc = this.doc;
     this.placeQuestionLine.set(placeQuestion(s.name));
     this.placeNoteEl.replaceChildren();
-    // A place where the line died out twice: said on the sheet too, and its card marked (scope decision 83).
-    if (s.hardPlace !== null) {
-      const hard = hardPlaceLine(s.name);
-      this.placeNoteEl.replaceChildren(Object.assign(doc.createElement("span"), { className: "text", textContent: hard }), speakerButton(doc, () => hard));
-    }
+    // A place where the line died out twice: said on the sheet too, under the question, and its card marked (scope decision 83).
+    this.placeHardEl.hidden = s.hardPlace === null;
+    if (s.hardPlace !== null) this.placeHardLine.set(hardPlaceLine(s.name));
     this.placeBarEl.style.width = "100%";
     this.placeCardEls = [0, 1, 2].map((zone) => {
       const el = Object.assign(doc.createElement("div"), { className: `option waiting${zone === s.hardPlace ? " hard" : ""}` });
