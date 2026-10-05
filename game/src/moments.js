@@ -34,14 +34,25 @@ import { truthOf } from "./reflection.js";
 
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
-  "arrival", "naming", "choose-place", "moving", "arrived", "filling",
+  "arrival", "naming", "choose-place", "stay", "moving", "arrived", "filling",
   "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
   "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
   "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
+  "win", "still-changing", "collection", "chosen-by-place", "try-another-place",
+  "intro-flip", "intro-found", "intro-puff",
 ];
+
+/**
+ * The opening's moments (scope decision 77), held still this many seconds in: the cards flipping one after another
+ * (seven up, five still down); settled, on an iPad that has found three animals already (koala, cheetah, seal); and
+ * puffing away.
+ */
+const INTRO_AT = { "intro-flip": 1.4, "intro-found": 4.0, "intro-puff": 4.77 };
+/** The animals the `intro-found` iPad has evolved already. */
+const INTRO_FOUND = ["koala", "cheetah", "seal"];
 
 /**
  * Founding families to try, in order; a world tries those it has (the
@@ -127,6 +138,16 @@ const MOMENT = {
     policies: ["passive"],
     places: [2, 0],
     at: (s, ev, b, what) => what === "moving" && s.home.counts.length >= 2 && { zone: s.home.zone, counts: s.home.counts.slice() },
+  },
+  /**
+   * Choosing the open ground is staying (scope decision 71): "Your Mossfoot family stays on the open ground." then "It's
+   * crowded here already. The fastest runners will win." Found at the sheet, where the child taps the ground's card.
+   */
+  stay: {
+    families: FROM_OTHERS,
+    policies: ["passive"],
+    places: [1],
+    at: (s, ev, b, what) => { const c = what === "place" ? s.placeCards() : []; return c.length && c.every(Boolean) && { cards: c.map((x) => x.id) }; },
   },
   /** About 20 of the line live in its new home: the counter's last number, and back to real time with the camera there. */
   arrived: {
@@ -268,6 +289,38 @@ const MOMENT = {
   leaves: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) && { zone: 0 } },
   /** The whole map, zoomed out: the places' names and the borders between them (scope decision 63). */
   map: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => midStory(s, ev, b, what) },
+  /**
+   * The win (scope decision 73): the line fits its home, and the ending's first step celebrates it: "You did it!", the
+   * animal the line became, what the child followed and why, the animal's "Did you know?", and that it fits now.
+   */
+  win: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
+  /**
+   * At the story's last generation short of the win (scope decision 73): "Your … line is still changing." "Keep going
+   * next time?" and the animal it looks most like. Found in a short story (the shots ask for 20 generations).
+   */
+  "still-changing": {
+    families: FROM_OTHERS, policies: ["passive", "active"],
+    at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !s.won && !!s.home,
+  },
+  /**
+   * Chosen by the place (scope decision 75): a trait that helps in the line's place rose in the line without the child
+   * following it. Its chip shows in its own style on "Your … line so far", and it is said once: "The water is choosing
+   * too." "Strong tails are winning here." Found at the watched generation that says it.
+   */
+  "chosen-by-place": {
+    families: FROM_OTHERS, policies: ["active", "passive"],
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.placeChoseNow.length > 0 && { chosen: s.placeChoseNow.map((p) => p.t) },
+  },
+  /**
+   * "Try another place" (scope decision 76): after the win, the same family again in the same world, its name kept,
+   * and "Where will your … family live?" again, once every card has a baby of the family.
+   */
+  "try-another-place": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
+  /**
+   * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
+   * just became marked "New!", on a new iPad: "You've evolved 1 of 12."
+   */
+  collection: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
   /** A surviving ending whose reveal names a real animal (not the first mammals): its first step, what happened. */
   ending: { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.outcome === "survived" && !!s.reveal && s.reveal.animal !== FIRST_MAMMALS },
   /**
@@ -309,11 +362,14 @@ const MOMENT = {
       return g ? { id: g.id } : null;
     },
   },
-  /** "Your line so far" with two or more chosen traits, one of them faded, with why (scope decisions 59 and 68). */
+  /**
+   * "Your line so far" with two or more chosen traits (scope decisions 59 and 68). The line keeps every trait the
+   * child chose (scope decision 72), so none fades now.
+   */
   "so-far": {
     families: FROM_OTHERS,
     policies: ["active", "unwise"],
-    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && s.chips.some((c) => c.faded) && { chips: s.chips.map((c) => `${c.v.group}${c.faded ? ` (${c.faded})` : ""}`) },
+    at: (s, ev, b, what) => what === null && s.phase === "watch" && s.chips.length >= 2 && { chips: s.chips.map((c) => c.v.group) },
   },
   /**
    * The whole line died out with 25 or more generations of the story left, and the child taps "Try another family":
@@ -586,6 +642,21 @@ export async function goToMoment(game, moment) {
     globalThis.lineageMoment = { moment, seed: G.seed, family: 0, generation: G.bridge.generation, names: G.naming?.names ?? [], name: G.story.name };
     return;
   }
+  if (moment in INTRO_AT) { // the opening, after the mist and before the first tap
+    const G = game;
+    if (moment === "intro-found") {
+      try { localStorage.setItem("lineage.collection", JSON.stringify(INTRO_FOUND.map((id) => ({ id, when: new Date().toISOString(), name: null })))); } catch { /* storage blocked */ }
+    }
+    if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+    // As in a game with the opening: no hint and no "Tap an animal…" until the cards have gone.
+    G.hintEl.style.transition = "none";
+    G.hideHint();
+    G.say([]);
+    G.showLine("");
+    G.playOpening({ seek: INTRO_AT[moment] });
+    globalThis.lineageMoment = { moment, seed: G.seed, generation: G.bridge.generation, at: INTRO_AT[moment] };
+    return;
+  }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
   // A moment is played on a new iPad, whose Field Guide is empty, unless it asks for a full one (scope decision 69).
   game.guideAll = MOMENT[moment].guide === "full";
@@ -643,6 +714,16 @@ export async function goToMoment(game, moment) {
     const tw = G.camTween, zw = G.zoomTween;
     if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "stay") {
+    // The child taps the open ground's card: staying, with its own two lines (scope decision 71).
+    const now = performance.now();
+    G.pickPlace(1, false, now);
+    G.placeChosen(1);
+    const tw = G.camTween, zw = G.zoomTween;
+    if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
+    if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+    G.logTimer = 0;
+    G.pumpLog(0);
   } else if (moment === "moving" || moment === "arrived") {
     // The move holds the whole line in view in its new home; on arriving, the camera goes back to the story's zoom there.
     const tw = G.camTween, zw = G.zoomTween;
@@ -703,18 +784,41 @@ export async function goToMoment(game, moment) {
     G.visitPlace(plan.hit.zone);
     const tw = G.camTween;
     if (tw) { G.cam.x = tw.x; G.cam.y = tw.y; G.camTween = null; }
+  } else if (moment === "win" || moment === "still-changing") {
+    // The ending opens on its first step, the line's home (scope decision 73).
+    G.endingAt = null;
+    G.showEnding();
+  } else if (moment === "try-another-place") {
+    // The child gives an idea, then taps "Try another place": the sheet comes back once every card has its baby.
+    G.endingAt = null;
+    G.showEnding();
+    G.showStep("idea");
+    const t = truthOf(G.story);
+    G.ideaPicks.t.value = String(t.helper ?? t.hurter ?? 5);
+    G.ideaPicks.zone.value = String(t.zone);
+    G.ideaChanged();
+    G.answerIdea();
+    G.showStep("collection");
+    G.anotherPlace();
+    for (let k = 0; k < 600 && !(G.placing && G.placeCardEls.every((el) => el.baby !== null || el.hidden)); k++) await frame();
+  } else if (moment === "collection") {
+    // The story ended with the win as the game has it (its animal joined the collection): the ending's last step.
+    G.endingAt = null;
+    G.showEnding();
+    G.showStep("collection");
   } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();
+    if (moment === "ending") G.showStep("happened");
     if (moment !== "ending" && moment !== "extinct") {
       // The child builds the idea the table would give: the family's biggest helper (or hurter) where it lived.
       const t = truthOf(G.story), trait = G.story.outcome === "survived" ? t.helper ?? t.hurter : t.hurter ?? t.helper;
-      G.setEndingStep(1);
+      G.showStep("idea");
       G.ideaPicks.t.value = String(trait ?? 5);
       if (moment !== "ending-idea") G.ideaPicks.zone.value = String(t.zone);
       G.ideaChanged();
       if (moment !== "ending-idea") G.answerIdea();
-      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.setEndingStep(3);
+      if (moment === "ending-reveal" || moment === "story-card" || moment === "nearly-over") G.showStep("reveal");
       // At the reveal, "Try another family" with few generations left asks first (scope decision 64).
       if (moment === "nearly-over") G.anotherFamily();
       if (moment === "story-card") {

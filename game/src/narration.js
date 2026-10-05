@@ -164,6 +164,12 @@ export function homeCounter(zone, counts, stopped = null, name = null) {
 }
 /** The line moves into a place with plenty of room: pairs there have more babies, since there is more food. */
 export const LOTS_OF_ROOM = "Lots of room here!";
+/**
+ * Choosing the open ground is staying (scope decision 71): its own lines instead of the move's, "Your Mossfoot family
+ * stays on the open ground." then the crowd it stays in.
+ */
+export const staysLine = (name = null) => `${capital(your("family", name))} stays on the open ground.`;
+export const CROWDED_GROUND = "It's crowded here already. The fastest runners will win.";
 /** Who does best in each place, by its key traits in the table. */
 const WINNERS = ["The best climbers are winning.", "The fastest runners are winning.", "The best swimmers are winning."];
 /** The line's place is full: from now on, who survives there depends on who suits it best. */
@@ -394,3 +400,55 @@ export const namedReveal = (line, name = null) => (name ? line.replace(/^Your an
 
 /** "Back to my family", with the family's name once it has one: "Back to my Mossfoot family". */
 export const homeLabel = (noun, name = null) => `Back to my ${name ? `${name} ` : ""}${noun}`;
+
+/* ================= the win (scope decision 73) ================= */
+
+/** The places, as a line fits one: "Your Mossfoot line fits the water's edge now." */
+export const ZONE_THE = ["the high leaves", "the open ground", "the water's edge"];
+/** The ending's first step, once the line fits its home: its title. */
+export const WIN_TITLE = "You did it!";
+/** Above the ending's first step, won or not. */
+export const RESULT_STEP = "Your line's home";
+/** Said in the world as the line fits its home, before the celebration. */
+export const fitsHome = (name = null) => `${capital(your("line", name))} fits its home!`;
+/** The celebration's last two lines: "Your Mossfoot line fits the water's edge now." */
+export const fitsNow = (zone, name = null) => `${capital(your("line", name))} fits ${ZONE_THE[zone]} now.`;
+export const ANY_CHANGE_WORSE = "Almost any new change would make things worse.";
+/** "a river otter", "an arctic fox" (reveal.js animals). */
+export const anAnimal = (animal) => { const n = animal.name.toLowerCase(); return `${/^[aeiou]/.test(n) ? "an" : "a"} ${n}`; };
+/** "Your Mossfoot line became swimmers, like a river otter." */
+export const becameLine = (animal, name = null) => `${capital(your("line", name))} became ${animal.became}, like ${anAnimal(animal)}.`;
+const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+/** "You followed more webbing and sleeker bodies." (the chips' words, at most three) */
+export const followedLine = (groups) => `You followed ${andList(groups.map(shortGroup))}.`;
+/** At the story's last generation, short of the win: the ending's first step. */
+export const stillChanging = (name = null) => `${capital(your("line", name))} is still changing.`;
+export const KEEP_GOING = "Keep going next time?";
+/** "Your Mossfoot line looks most like a river otter so far." */
+export const resembleLine = (animal, name = null) => `${capital(your("line", name))} looks most like ${anAnimal(animal)} so far.`;
+
+/* ================= chosen by the place (scope decision 75) ================= */
+
+/** Each place, as the one that chooses: "Strong tail: chosen by the water." */
+export const PLACE_BY = ["the trees", "the ground", "the water"];
+/** A trait each place requires, the way it helps there: [on its chip, what is winning, with an article]. */
+const CHOSEN = {
+  toe_webbing: { 1: ["Webbed feet", "webbed feet", "webbed feet"], [-1]: ["No webbing", "toes without webbing", "toes without webbing"] },
+  curved_claws: { 1: ["Curved claws", "curved claws", "curved claws"], [-1]: ["Straighter claws", "straighter claws", "straighter claws"] },
+  long_hindlimbs: { 1: ["Long back legs", "long back legs", "long back legs"], [-1]: ["Short legs", "short legs", "short legs"] },
+  strong_tail: { 1: ["Strong tail", "strong tails", "a strong tail"], [-1]: ["Small tail", "small tails", "a small tail"] },
+  large_eyes: { 1: ["Big eyes", "big eyes", "big eyes"], [-1]: ["Small eyes", "small eyes", "small eyes"] },
+  streamlined_body: { 1: ["Sleek body", "sleek bodies", "a sleek body"], [-1]: ["Round body", "round bodies", "a round body"] },
+  dense_fur: { 1: ["Thick fur", "thick fur", "thick fur"], [-1]: ["Thin fur", "thin fur", "thin fur"] },
+};
+/** "Strong tail: chosen by the water" (a chip in its own style). */
+export const chosenChip = (trait, dir, zone) => `${CHOSEN[trait][dir][0]}: chosen by ${PLACE_BY[zone]}`;
+/** Said once, when such a chip first shows: "The water is choosing too." then "Strong tails are winning here." */
+export const placeChoosing = (zone) => `${capital(PLACE_BY[zone])} is choosing too.`;
+export const winningHere = (chosen) => {
+  const words = chosen.map((c) => CHOSEN[c.trait][c.dir][1]);
+  return `${capital(andList(words))} ${words.length === 1 && / fur$/.test(words[0]) ? "is" : "are"} winning here.`;
+};
+/** In the win's celebration: "The water chose a strong tail too." (at most three, "too" after the child's own follows). */
+export const placeChoseLine = (zone, chosen, too = true) =>
+  `${capital(PLACE_BY[zone])} chose ${andList(chosen.slice(0, 3).map((c) => CHOSEN[c.trait][c.dir][2]))}${too ? " too" : ""}.`;

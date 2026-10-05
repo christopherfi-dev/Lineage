@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 import { advanceGeneration } from "../../lineage-m1/src/core/simulation.js";
 import { createInitialState, makeIndividual } from "../../lineage-m1/src/core/individual.js";
 import { currentModelConfig } from "../../lineage-m1/src/config/modelConfig.js";
-import { EFFECT, UPKEEP, TRAIT_INDEX, NEUTRAL_TRAIT_INDICES } from "../../lineage-m1/src/config/traits.js";
-import { classroomConfig, classroomIdentityFor, PLACE_EFFECTS, LITTLE_EFFECT } from "../src/config.js";
+import { EFFECT, UPKEEP, TRAITS, TRAIT_INDEX, NEUTRAL_TRAIT_INDICES } from "../../lineage-m1/src/config/traits.js";
+import { classroomConfig, classroomIdentityFor, PLACE_EFFECTS, LITTLE_EFFECT, FREE_BY_ANIMALS } from "../src/config.js";
 import {
   advanceClassroomGeneration, createAncestorWorld, createWebbedDemoWorld, placeFitness, placeOf, whoDoesNotMakeIt, babiesPerPair,
 } from "../src/classroom.js";
@@ -117,18 +117,18 @@ test("no luck in who survives: the same animals meet the same fate whatever the 
 });
 
 test("a full place loses the animals least suited to it, and between equals the older one", () => {
-  const cap = classroomConfig.zoneCapacity[GROUND], fur = TRAIT_INDEX.dense_fur;
+  const cap = classroomConfig.zoneCapacity[GROUND], legs = TRAIT_INDEX.long_hindlimbs;
   const animals = [];
-  // Thick fur helps on open ground: the ten thinnest-furred don't make it...
-  for (let i = 0; i < 10; i++) animals.push({ genome: withTrait(fur, 0.1 + i / 100), age: 1 });
+  // Long back legs help on open ground: the ten shortest-legged don't make it...
+  for (let i = 0; i < 10; i++) animals.push({ genome: withTrait(legs, 0.1 + i / 100), age: 1 });
   // ...and of two equal animals at the cut, the older one makes room.
-  animals.push({ genome: withTrait(fur, 0.3), age: 4 }, { genome: withTrait(fur, 0.3), age: 2 });
-  for (let i = 0; i < cap - 1; i++) animals.push({ genome: withTrait(fur, 0.5 + i / 200), age: 1 });
+  animals.push({ genome: withTrait(legs, 0.3), age: 4 }, { genome: withTrait(legs, 0.3), age: 2 });
+  for (let i = 0; i < cap - 1; i++) animals.push({ genome: withTrait(legs, 0.5 + i / 200), age: 1 });
   const gone = whoDoesNotMakeIt(worldOf(animals).currentIndividuals);
   assert.deepEqual([...gone.keys()].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.ok([...gone.values()].every((cause) => cause === "least_suited"));
   // Other places lose no one: a water animal here is not crowded out of the ground.
-  const mixed = worldOf([...animals, { genome: withTrait(fur, 0), time: [0, 0, 1] }]);
+  const mixed = worldOf([...animals, { genome: withTrait(legs, 0), time: [0, 0, 1] }]);
   assert.equal(whoDoesNotMakeIt(mixed.currentIndividuals).has(animals.length + 1), false);
   // Between equals of the same age, the one that spends less of its time here goes first.
   const two = [];
@@ -145,29 +145,50 @@ test("with room, only old age: an animal dies at M1's maximum age and not before
   assert.equal(currentModelConfig.ageSurvivalMultiplier[6], 0, "M1's maximum age");
 });
 
-test("every trait keeps M1's direction in every place; a '~' is where M1's effect is small", () => {
+test("every trait keeps M1's direction in every place; a '~' is where M1's effect is small, or a trait real animals there have both ways", () => {
   const { zoneWeights, zoneScarcity } = currentModelConfig;
+  let freed = 0;
   for (let t = 0; t < PLACE_EFFECTS.length; t++) {
     for (let z = 0; z < 3; z++) {
       const net = zoneWeights[z].reduce((s, w, d) => s + w * EFFECT[t][d], 0) - zoneScarcity[z] * UPKEEP[t];
-      const e = PLACE_EFFECTS[t][z];
+      const e = PLACE_EFFECTS[t][z], reason = FREE_BY_ANIMALS[TRAITS[t]]?.[z];
       if (NEUTRAL_TRAIT_INDICES.includes(t)) { assert.equal(e, 0); continue; }
+      if (reason) { assert.equal(e, 0, `trait ${t} place ${z} is free: ${reason}`); assert.ok(Math.abs(net) >= LITTLE_EFFECT); freed++; continue; }
       if (Math.abs(net) < LITTLE_EFFECT) assert.equal(e, 0, `trait ${t} place ${z}: M1 ${net.toFixed(2)} is a "~"`);
       else assert.equal(Math.sign(e), Math.sign(net), `trait ${t} place ${z}: M1 ${net.toFixed(2)}`);
     }
   }
+  // Scope decision 72 freed six: fur on the ground and at the water's edge, long back legs in the leaves, a strong tail in
+  // the leaves and on the ground, big eyes at the water's edge. Each place keeps traits that every line there needs.
+  assert.equal(freed, 6);
+  for (let z = 0; z < 3; z++) assert.ok(PLACE_EFFECTS.filter((row) => row[z] !== 0).length >= 2);
   // Webbed feet: worst in the leaves, best in the water.
   const webbed = placeFitness(withTrait(TRAIT_INDEX.toe_webbing, 1)), plain = placeFitness(withTrait(TRAIT_INDEX.toe_webbing, 0));
   assert.ok(webbed[WATER] - plain[WATER] > 0 && webbed[LEAVES] - plain[LEAVES] < 0 && webbed[GROUND] === plain[GROUND]);
 });
 
-test("the common-ancestor world: every founder on the open ground with the same body; in every family some lean toward the water and some toward the leaves", () => {
+test("the common-ancestor world: every founder on the open ground with the ancestors' body, its looks varied a little in every family; some lean toward the water and some toward the leaves", () => {
   const state = createAncestorWorld(6);
   assert.equal(state.currentIndividuals.length, classroomConfig.startingPopulation);
+  const ancestor = Array.from(currentModelConfig.ancestorBodyGenome), s = classroomConfig.founderSpread, varied = classroomConfig.founderVaried;
   for (const ind of state.currentIndividuals) {
-    assert.deepEqual(Array.from(ind.bodyGenome), Array.from(currentModelConfig.ancestorBodyGenome));
+    ind.bodyGenome.forEach((x, t) => {
+      if (varied.includes(t)) assert.ok([-s, 0, s].some((d) => Math.abs(x - (ancestor[t] + d)) < 1e-12), `founder ${ind.id} trait ${t}`);
+      else assert.equal(x, ancestor[t]);
+    });
     assert.equal(placeOf(ind), GROUND);
   }
+  // Scope decision 72: fur, tail, coat, ear tips and tail tip vary; in each family a third of the founders are below the
+  // ancestors, a third as they are and a third above, so the counts differ by one at most. Making the world draws nothing.
+  assert.deepEqual(varied, [TRAIT_INDEX.dense_fur, TRAIT_INDEX.strong_tail, ...NEUTRAL_TRAIT_INDICES]);
+  for (const [from, to] of [[1, 13], [14, 26], [27, 40]]) {
+    const fam = state.currentIndividuals.filter((i) => i.id >= from && i.id <= to);
+    for (const t of varied) {
+      const n = [-s, 0, s].map((d) => fam.filter((i) => Math.abs(i.bodyGenome[t] - (ancestor[t] + d)) < 1e-12).length);
+      assert.ok(Math.max(...n) - Math.min(...n) <= 1, `family ${from}-${to} trait ${t}: ${n}`);
+    }
+  }
+  assert.deepEqual(Array.from(createAncestorWorld(7).currentIndividuals.map((i) => [...i.bodyGenome])), state.currentIndividuals.map((i) => [...i.bodyGenome]));
   // The game's founding families are 13, 13 and 14 founders by id (scope decision 70): 3 of each lean each way.
   const lean = classroomConfig.founderLean;
   for (const [from, to] of [[1, 13], [14, 26], [27, 40]]) {

@@ -253,12 +253,47 @@ export function founderTimeOf(id, config = classroomConfig) {
   return k % 2 === 1 ? [0, 1 - lean, lean] : [lean, 1 - lean, 0];
 }
 
+/** A fixed shuffle key for (founder, trait): the order its levels are dealt in, with no draw. */
+function lookKey(id, t) {
+  let h = Math.imul((id * 73856093) ^ (t * 19349663), 0x9e3779b1) >>> 0;
+  h = (h ^ (h >>> 15)) >>> 0;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  return (h ^ (h >>> 13)) >>> 0;
+}
+
 /**
- * The common-ancestor world: every founder on the open ground with the same
- * ancestral body (M1's ancestor genome, no spread), M1's founder ages; the
- * high leaves and the water's edge start empty. Some founders of every
- * founding family lean toward each of them (founderTimeOf). Making it draws
- * nothing, so the seed decides only what happens next.
+ * A founder's body (scope decision 72): M1's ancestral body, except for the
+ * traits in config.founderVaried. Within its founding family (FOUNDING_GROUP
+ * founders by id, the last family taking the rest), the founders are put in an
+ * order fixed by (id, trait), and each such trait is config.founderSpread
+ * below the ancestral value, as it is, and above it, in turn along that order:
+ * a third each, so the family's average is about the ancestors'. No draw.
+ * @param {number} id @param {Object} [config]
+ * @returns {number[]}
+ */
+export function founderBodyOf(id, config = classroomConfig) {
+  const body = Array.from(config.ancestorBodyGenome), spread = config.founderSpread ?? 0;
+  if (!(spread > 0)) return body;
+  const n = config.startingPopulation, families = Math.max(1, Math.floor(n / FOUNDING_GROUP));
+  const fam = Math.min(Math.floor((id - 1) / FOUNDING_GROUP), families - 1);
+  const first = fam * FOUNDING_GROUP + 1, last = fam === families - 1 ? n : first + FOUNDING_GROUP - 1;
+  for (const t of config.founderVaried ?? []) {
+    const order = [];
+    for (let i = first; i <= last; i++) order.push(i);
+    order.sort((a, b) => lookKey(a, t) - lookKey(b, t) || a - b);
+    const level = order.indexOf(id) % 3; // 0, 1, 2: below, as it is, above
+    body[t] = Math.min(1, Math.max(0, body[t] + (level - 1) * spread));
+  }
+  return body;
+}
+
+/**
+ * The common-ancestor world: every founder on the open ground with the
+ * ancestral body (M1's ancestor genome), each family's looks varied a little
+ * (founderBodyOf), M1's founder ages; the high leaves and the water's edge
+ * start empty. Some founders of every founding family lean toward each of
+ * them (founderTimeOf). Making it draws nothing, so the seed decides only what
+ * happens next.
  * @param {number} seed
  * @param {Object} [config]
  */
@@ -272,7 +307,7 @@ export function createAncestorWorld(seed, config = classroomConfig) {
       parentIds: null,
       birthGeneration: 0,
       ageGenerations: founderAgeForId(id, config),
-      bodyGenome: config.ancestorBodyGenome,
+      bodyGenome: founderBodyOf(id, config),
       timeAllocation: founderTimeOf(id, config),
       birthEventId,
     }));

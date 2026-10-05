@@ -21,14 +21,22 @@ What differs from M1:
   as in M1. `inheritance: "average"` in the config gives M1's rule, for comparison.
 - **Fitness in a place** (`src/config.js`, `PLACE_EFFECTS`): each trait helps (+1), hurts (−1)
   or doesn't matter (0) there, in the direction of M1's own net effect. The table is in the scope
-  doc, decision 55.
+  doc, decision 55. Since scope decision 72 a trait doesn't matter (0) wherever real animals of
+  the place have it both ways (`FREE_BY_ANIMALS` says which, and why): thick fur on open ground
+  and at the water's edge, long back legs and a strong tail in the high leaves, a strong tail on
+  open ground, big eyes at the water's edge. Each place keeps its required traits, in their
+  directions; the free ones decide which real animal a line becomes (the game's reveal).
 - **Variation and mixing** (`src/config.js`): more and slightly bigger body mutations; mates share
   at least half their time; babies inherit time only in their parents' places and next door, and
   now and then one moves next door.
 - **The common-ancestor world** (`createAncestorWorld`): every founder on the open ground with
   M1's ancestral body. In every 13 founders by id (the game's founding families), 3 lean toward
   the water's edge and 3 toward the high leaves, spending 0.4 of their time there
-  (`founderTimeOf`, scope decision 70). **The teacher demo** (`createWebbedDemoWorld`): M1's
+  (`founderTimeOf`, scope decision 70). And each founder's looks differ a little (scope decision
+  72, `founderBodyOf`): in fur, tail, coat, ear tips and tail tip, a third of each founding family
+  have 0.15 less than the ancestral body, a third the same and a third 0.15 more, dealt by id with
+  no random draw, so every family can become any animal of its place. The useful traits all start
+  the same. **The teacher demo** (`createWebbedDemoWorld`): M1's
   defining fixture.
 - **A new place fills fast** (scope decision 70), so the story's first choice, "Where will your
   family live?", has a baby for each place at once and about 20 living there within a few
