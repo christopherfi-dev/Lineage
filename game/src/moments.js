@@ -35,22 +35,27 @@ import { truthOf } from "./reflection.js";
 /** Every moment, in the order of the moments page. */
 export const MOMENTS = [
   "arrival", "naming", "choose-place", "stay", "moving", "arrived", "filling",
-  "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow", "blocked",
+  "generation", "variation", "follow", "joining", "rising", "slowdown", "watch-small", "edge-arrow",
   "growing", "dying", "line-dies", "died-why", "died-told", "back-line", "compare", "other-card", "relative", "grow", "shrink",
-  "choice", "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
+  "prediction", "prediction-result", "habitat", "ground", "ending", "extinct", "card",
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
   "win", "still-changing", "collection", "chosen-by-place",
   "intro-flip", "intro-found", "intro-puff", "find-another", "hard-place",
+  "opening-waiting", "opening-card", "idle-pause", "stall", "branch-leaving", "folded-panel",
 ];
 
 /**
- * The opening's moments (scope decision 77), held still this many seconds in: the cards flipping one after another
- * (seven up, five still down); settled, on an iPad that has found three animals already (koala, cheetah, seal); and
- * puffing away.
+ * The opening's moments (scope decisions 77 and 93), held still: the cards flipping about half a second apart (seven
+ * up, five still down); all up and waiting for "Let's go!", on a new iPad and on one that has found three animals
+ * already (koala, cheetah, seal); one card tapped, big, its name read aloud; and puffing away after "Let's go!".
+ * `seek`: seconds into the flip; `puff`: seconds after "Let's go!"; `big`: the card tapped.
  */
-const INTRO_AT = { "intro-flip": 1.4, "intro-found": 4.0, "intro-puff": 4.77 };
+const INTRO_AT = {
+  "intro-flip": { seek: 3.6 }, "intro-found": { seek: 7, found: true }, "opening-waiting": { seek: 7 },
+  "opening-card": { seek: 7, big: "lynx" }, "intro-puff": { seek: 7, puff: 0.27 },
+};
 /** The animals the `intro-found` iPad has evolved already. */
 const INTRO_FOUND = ["koala", "cheetah", "seal"];
 
@@ -71,40 +76,44 @@ const PLACE_WAIT = 6;
 const DAY_STEP = 0.5;
 const DAY_STEPS = Math.round(GENERATION_SECONDS / DAY_STEP);
 
-/** The child can follow now: watched at least 40 s, the line not very small, and a glowing variation that can be followed. */
+/** The child can follow now: watched at least 40 s, and a glowing variation that can be followed, however small the line (scope decision 91). */
 function followable(s) {
-  if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
+  if (!s.followOpen || s.quiet < 40) return null;
   return s.glowing.find((x) => s.followable(x)) ?? null;
 }
 
 /**
  * How the child plays while a story is looked for (the measurement's simulated
- * child is "active"). On the backup choice panel every child takes the first
- * option. While the child's line is very small, nothing can be followed
- * (scope decision 44 and the playtest's "no jumping ship").
+ * child is "active"). Nothing chooses for a child that doesn't (scope decision 89).
  */
 const POLICIES = {
   /** Follows the first glowing variation that can be followed, after at least 40 s of watching. */
   active: (s) => { const g = followable(s); return g ? { kind: "follow", id: g.id } : null; },
   /** Like "active", but only a variation that helps in its place. */
   wise: (s) => {
-    if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
+    if (!s.followOpen || s.quiet < 40) return null;
     const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) > 0);
     return g ? { kind: "follow", id: g.id } : null;
   },
   /** Like "active", but only a variation that hurts in its place: its line soon dies off. */
   unwise: (s) => {
-    if (!s.followOpen || s.quiet < 40 || s.inDanger) return null;
+    if (!s.followOpen || s.quiet < 40) return null;
     const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) < 0);
     return g ? { kind: "follow", id: g.id } : null;
   },
   /** Follows nothing by itself. */
   passive: () => null,
+  /** Follows the first glowing variation that doesn't matter in its place, once, then nothing: its line may not grow (scope decision 91). */
+  onefree: (s) => {
+    if (!s.followOpen || s.quiet < 40 || s.choices.length + s.tries.length > 0) return null;
+    const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) === 0);
+    return g ? { kind: "follow", id: g.id } : null;
+  },
 };
 
 /** A glowing baby the card explains instead of offering a follow, for this reason (story.js whyNot), just lit up. */
 const explained = (reason) => (s, ev, b, what) => {
-  if (what !== "day" || !s.followOpen || s.inDanger) return null;
+  if (what !== "day" || !s.followOpen) return null;
   const g = s.glowing.find((x) => s.whyNot(x) === reason && x.since === s.watchT);
   return g ? { id: g.id } : null;
 };
@@ -163,7 +172,7 @@ const MOMENT = {
   /** A newborn with a new variation lights up: the only one glowing. */
   variation: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => what === "day" && s.phase === "watch" && s.glowing.length === 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
   /** A glowing newborn whose variation can be followed: its card is opened, "Follow animals with …" (scope decision 67). */
-  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day" || s.inDanger) return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x)); return g ? { id: g.id } : null; } },
+  follow: { families: FROM_OTHERS, policies: ["passive", "active"], at: (s, ev, b, what) => { if (what !== "day") return null; const g = s.followOpen && s.glowing.find((x) => s.followable(x)); return g ? { id: g.id } : null; } },
   /**
    * A follow (scope decisions 66 and 67): the line's animals with the trait light up, counted, and the counter
    * starts; no prediction comes first. At least five of them.
@@ -196,26 +205,13 @@ const MOMENT = {
     families: FROM_OTHERS,
     policies: ["unwise", "active"],
     at: (s, ev, b, what) => {
-      if (what !== "day" || !s.followOpen || s.quiet < 40 || s.inDanger || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
+      if (what !== "day" || !s.followOpen || s.quiet < 40 || PREDICT_AFTER.includes(s.choices.length + 1)) return null;
       const g = s.glowing.find((x) => s.followable(x) && x.v.dir * netEffect(x.v.t, s.testZone()) < 0 && s.carrierIds(x.v).length < FAST_FROM);
       return g ? { id: g.id, carriers: s.carrierIds(g.v).length } : null;
     },
   },
   /** A glowing baby, and the camera turned away from it: an arrow at the screen's edge points to it (playtest). */
   "edge-arrow": { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "day" && s.followOpen && s.choices.length === 0 && ev.generation >= 3 && s.glowing.length >= 1 && s.glowing[0].since === s.watchT && { id: s.glowing[0].id } },
-  /**
-   * The child's line is at DANGER_SIZE or fewer and a baby glows: its card says "Your line needs you. Stay with
-   * them?" with only "Keep looking", whatever its trait (a meaningful one when there is one).
-   */
-  blocked: {
-    families: FROM_WEBBED,
-    policies: ["passive", "active"],
-    at: (s, ev, b, what) => {
-      if (what !== "day" || !s.followOpen || !s.inDanger) return null;
-      const g = s.glowing.find((x) => s.followable(x)) ?? s.glowing[0];
-      return g ? { id: g.id, size: s.family.now } : null;
-    },
-  },
   /** Real time after a follow on a trait that helps there: "Your line with … is growing." and the table's reason (scope decision 67). */
   growing: { families: FROM_OTHERS, policies: ["wise", "active"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.verdict(ev)?.kind === "growing" && since(s, ev) >= 2 && { lines: [s.verdict(ev).reason] } },
   /**
@@ -275,8 +271,6 @@ const MOMENT = {
   grow: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.group.count - ev.group.before >= 4 && ev.group.count >= 1.2 * ev.group.before },
   /** The family clearly smaller than last generation, but not gone. */
   shrink: { families: FROM_WEBBED, policies: ["passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
-  /** The backup choice panel, with two or three options. */
-  choice: { families: FROM_OTHERS, policies: ["passive"], at: (s, ev, b, what) => what === "choice" && s.options.length >= 2 },
   /** The first follow: once the child follows, the prediction journal asks its first question. */
   prediction: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => { if (what !== "day" || s.choices.length !== 0) return null; const g = followable(s); return g ? { id: g.id } : null; } },
   /** The second follow: "Since your last choice" shows the line and its relatives, and the first prediction beside what happened. */
@@ -325,6 +319,25 @@ const MOMENT = {
     families: FROM_OTHERS, policies: ["passive", "active"], places: [2, 1, 0],
     at: (s, ev, b, what) => what === "back" && s.phase === "place" && s.hardPlace !== null && { zone: s.hardPlace, times: s.timesGone(s.hardPlace) },
   },
+  /** Mid-story, nobody has touched the iPad for about a minute: the world freezes, "Still watching? Tap to keep going." (scope decision 90). */
+  "idle-pause": { families: FROM_OTHERS, policies: ["active", "passive"], at: midStory },
+  /** Mid-story on an iPad, the generation panel folded to its slim bar with a tap (scope decision 92). */
+  "folded-panel": { families: FROM_OTHERS, policies: ["active", "passive"], at: midStory },
+  /**
+   * A tiny line that isn't growing, with no baby glowing (scope decision 91): "Your … line is very small." "Let's skip
+   * ahead until something happens." and the fast-forward with the line's counter.
+   */
+  stall: { families: FROM_OTHERS, policies: ["active", "wise", "unwise", "passive"], at: (s, ev, b, what) => what === "stall" && { size: s.stall.size } },
+  /**
+   * The third stall in a row gives the line up (scope decision 91): "Your … line isn't growing.", for a trait that
+   * doesn't matter there "Thicker fur doesn't matter much here.", and back to the line before. Rare (2 of 5,760 stories
+   * in the search for it): the moments page opens it in seed 58, a child that followed thicker fur at the water's edge,
+   * then stopped choosing.
+   */
+  "branch-leaving": {
+    families: FROM_OTHERS, policies: ["onefree", "active", "unwise", "wise", "passive"],
+    at: (s, ev, b, what) => what === "back" && !!s.stuck && { trait: s.stuck.v?.trait ?? null, back: s.choices.length },
+  },
   /**
    * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
    * just became marked "New!", on a new iPad: "You've evolved 1 of 12."; under them "You've found 1 of 12. Find
@@ -367,7 +380,7 @@ const MOMENT = {
     families: FROM_OTHERS,
     policies: ["unwise", "active"],
     at: (s, ev, b, what) => {
-      if (what !== "day" || !s.followOpen || s.inDanger) return null;
+      if (what !== "day" || !s.followOpen) return null;
       const g = s.glowing.find((x) => s.followable(x) && s.goesBack(x) && x.since === s.watchT);
       return g ? { id: g.id } : null;
     },
@@ -466,12 +479,6 @@ async function findStory(game, moment, relaxed = false) {
       story.begin(bridge.families.founding[family].ids[0]);
       let placeFrom = story.startGeneration; // when the sheet opened: at the start, or again after the place's line died out
       for (let n = 1; story.phase !== "ended"; n++) {
-        if (story.phase === "choice") {
-          const o = story.options[0];
-          actions.push({ generation: bridge.generation, day: null, kind: "push", trait: o.v.trait, dir: o.v.dir });
-          story.follow(o, false);
-          continue;
-        }
         const ev = step();
         if (!ev) break;
         const what = story.afterGeneration(ev), found = (hit, day) => ({ family, place, actions, generation: ev.generation, day, follows: story.choices.length, hit });
@@ -487,7 +494,6 @@ async function findStory(game, moment, relaxed = false) {
           } else if (ev.generation - placeFrom >= PLACE_WAIT) break;
           continue;
         }
-        if (what === "choice") continue;
         // A tap-to-guess question, as the game asks it after a generation (the child answers it; nothing changes), or
         // a follow's result told as lines instead (scope decision 69).
         const q = story.phase === "watch" ? story.guessNow(ev) : null;
@@ -507,7 +513,7 @@ async function findStory(game, moment, relaxed = false) {
           const act = policy(story);
           if (act) {
             actions.push({ generation: ev.generation, day, ...act });
-            story.follow(story.glowFor(act.id), false);
+            story.follow(story.glowFor(act.id));
           }
         }
         if (n % 4 === 0) await frame(); // keep the page alive
@@ -541,21 +547,12 @@ function answer(game) {
   game.closeJournal();
 }
 
-/** Do what the child did in the search, the way a child does it on the page. */
+/** Do what the child did in the search, the way a child does it on the page: "Follow animals with …" on the glowing newborn's card. */
 function act(game, a) {
-  const G = game, s = G.story;
-  if (a.kind === "push") {
-    const o = s.options?.find((x) => x.v.trait === a.trait && x.v.dir === a.dir) ?? s.options?.[0];
-    if (!o) return;
-    G.pick(o, false, performance.now());
-    G.followChoice(o, false);
-  } else {
-    // "Follow animals with …" on the glowing newborn's card.
-    const g = s.glowFor(a.id);
-    if (!g) return;
-    G.followFromMap(g);
-    if (G.since) G.closeSince();
-  }
+  const G = game, g = G.story.glowFor(a.id);
+  if (!g) return;
+  G.followFromMap(g);
+  if (G.since) G.closeSince();
   if (G.journal) answer(G);
 }
 
@@ -570,7 +567,7 @@ async function playTo(game, plan) {
   const due = (a) => a.generation === G.bridge.generation;
   G.begin(G.herd.animals.get(G.bridge.families.founding[plan.family].ids[0]));
   // The child names the family (Step 5): the first of the three names, at once.
-  if (G.naming) { G.pickName(G.naming.names[0], false, performance.now()); G.closeNaming(); }
+  if (G.naming) { G.pickName(G.naming.names[0], performance.now()); G.closeNaming(); }
   G.clock = hold;
   while (G.bridge.generation < plan.generation && G.story.phase !== "ended") {
     wander(G);
@@ -584,14 +581,8 @@ async function playTo(game, plan) {
     // the place's line died out, once the sheet is back.
     const place = plan.actions.find((a) => a.kind === "place" && due(a));
     if (place && G.placing) {
-      G.pickPlace(place.zone, false, performance.now());
+      G.pickPlace(place.zone, performance.now());
       G.placeChosen(place.zone);
-      G.clock = hold;
-      continue;
-    }
-    if (G.story.phase === "choice") {
-      await frame(); // the backup panel opens, then the child takes the option
-      for (const a of plan.actions) if (a.kind === "push" && due(a)) act(G, a);
       G.clock = hold;
       continue;
     }
@@ -600,7 +591,7 @@ async function playTo(game, plan) {
       G.dayGoesOn(DAY_STEP, last ? t0 - (plan.day - day) * 1000 : t0 - 60000 + day * 1000);
       G.pumpLog(DAY_STEP * 1000); // the narration keeps the day's time too, so its line is the one a child would see
       if (last && day === plan.day) return;
-      const todo = plan.actions.filter((a) => a.kind !== "push" && due(a) && a.day === day);
+      const todo = plan.actions.filter((a) => a.kind === "follow" && due(a) && a.day === day);
       if (todo.length) {
         await frame(); // the card and its buttons, as the child sees them, then the tap
         for (const a of todo) act(G, a);
@@ -618,6 +609,23 @@ function lookAt(game, x, y, fx = 0.5, fy = 0.5) {
 function lookAtGroup(game, high = 0) {
   const p = game.herd.largestCluster(game.herd.followed);
   if (p) lookAt(game, p.x, p.y, 0.5, 0.5 - high);
+}
+/** A zoom or a camera move under way ends now, where it was going. */
+function settle(game) {
+  const tw = game.camTween, zw = game.zoomTween;
+  if (zw) { game.zoomBase = zw.to; game.zoomTween = null; }
+  if (tw) { game.cam.x = tw.x; game.cam.y = tw.y; game.camTween = null; }
+}
+/**
+ * The camera as the game keeps it while the child watches (main.js keepLine, scope decision 92), at once: the whole
+ * line clear of the panels and the buttons, zoomed out a little when it has spread. The day's deaths aren't followed.
+ */
+async function keepLineNow(game) {
+  game.deathCam = [];
+  lookAtGroup(game);
+  await frame(); // the view drawn from there
+  game.keepLine();
+  settle(game);
 }
 /** A small label while the moment is being reached; it also keeps taps out until then. */
 function badge(doc, text) {
@@ -642,6 +650,7 @@ function badge(doc, text) {
 export async function goToMoment(game, moment) {
   const doc = game.doc;
   if (!MOMENTS.includes(moment)) { console.warn(`[lineage] unknown moment "${moment}"; try one of ${MOMENTS.join(", ")}`); return; }
+  game.idleOff = true; // no idle pause while the moment is reached and looked at (scope decision 90)
   if (moment === "arrival") { globalThis.lineageMoment = { moment }; return; } // the opening itself, with its mist
   if (moment === "naming" || moment === "type-name" || moment === "my-name") { // right after the first tap on the first founding family: time waits for a name
     const G = game;
@@ -657,8 +666,8 @@ export async function goToMoment(game, moment) {
     return;
   }
   if (moment in INTRO_AT) { // the opening, after the mist and before the first tap
-    const G = game;
-    if (moment === "intro-found") {
+    const G = game, at = INTRO_AT[moment];
+    if (at.found) {
       try { localStorage.setItem("lineage.collection", JSON.stringify(INTRO_FOUND.map((id) => ({ id, when: new Date().toISOString(), name: null })))); } catch { /* storage blocked */ }
     }
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
@@ -667,8 +676,10 @@ export async function goToMoment(game, moment) {
     G.hideHint();
     G.say([]);
     G.showLine("");
-    G.playOpening({ seek: INTRO_AT[moment] });
-    globalThis.lineageMoment = { moment, seed: G.seed, generation: G.bridge.generation, at: INTRO_AT[moment] };
+    G.playOpening({ seek: at.seek, puff: at.puff });
+    // A card tapped: big, its name read aloud (scope decision 93).
+    if (at.big) { const card = G.openingGridEl.querySelector(`.ccard[data-id="${at.big}"]`); if (card) G.showBigCard(card); }
+    globalThis.lineageMoment = { moment, seed: G.seed, generation: G.bridge.generation, ...at };
     return;
   }
   const note = badge(doc, `Moment: ${moment} · getting there…`);
@@ -683,7 +694,7 @@ export async function goToMoment(game, moment) {
     return;
   }
   await playTo(game, plan);
-  const G = game, genMs = 20000;
+  const G = game, genMs = GENERATION_SECONDS * 1000;
   // A moment at a generation shows the day's babies at once; one during a day keeps the day's hour.
   if (plan.day === null) G.revealAll(performance.now());
   G.clock = (plan.day ?? 0) * 1000;
@@ -695,7 +706,7 @@ export async function goToMoment(game, moment) {
   if (G.guess && !moment.startsWith("why") && moment !== "same") G.closeGuess();
   if (moment === "generation") {
     G.clock = genMs - 3000; // the next generation passes three seconds from now, at the night's end
-    lookAtGroup(G);
+    await keepLineNow(G);
   } else if (moment === "variation") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y);
@@ -731,7 +742,7 @@ export async function goToMoment(game, moment) {
   } else if (moment === "stay") {
     // The child taps the open ground's card: staying, with its own two lines (scope decision 71).
     const now = performance.now();
-    G.pickPlace(1, false, now);
+    G.pickPlace(1, now);
     G.placeChosen(1);
     const tw = G.camTween, zw = G.zoomTween;
     if (zw) { G.zoomBase = zw.to; G.zoomTween = null; }
@@ -767,8 +778,8 @@ export async function goToMoment(game, moment) {
     if (moment === "back-line" || moment === "died-told") lookAtGroup(G);
   } else if (moment === "compare") {
     // The line and "Your relatives here": on a phone the slim bar opens to show them.
-    lookAtGroup(G);
     if (G.compact.matches) G.setHud(true);
+    await keepLineNow(G);
   } else if (moment === "growing" || moment === "dying") {
     // The line growing, or dying off one by one with the camera on each: its verdict and reason in the narration.
     if (moment === "growing") lookAtGroup(G);
@@ -780,8 +791,6 @@ export async function goToMoment(game, moment) {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
-  } else if (moment === "choice") {
-    lookAtGroup(G, 0.3); // as the panel itself frames it
   } else if (moment === "prediction" || moment === "prediction-result") {
     // The child follows the glowing newborn: the first question, or the line since the last choice beside the prediction.
     const g = glowOf(plan.hit.id);
@@ -815,7 +824,7 @@ export async function goToMoment(game, moment) {
     G.answerIdea();
     G.showStep("collection");
     if (moment === "find-another") {
-      // The child taps it: a new world, its arrival, then the quick flip, held as the cards settle.
+      // The child taps it: a new world, its arrival, then the quick flip, held as the cards wait for "Let's go!" (scope decision 93).
       G.findAnother();
       for (let k = 0; k < 900 && !(G.story.phase === "waiting" && G.arrival); k++) await frame();
       if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
@@ -824,7 +833,7 @@ export async function goToMoment(game, moment) {
       G.say([]);
       G.showLine("");
       G.quickOpening = true;
-      G.playOpening({ seek: 1.3 });
+      G.playOpening({ seek: 2.2 });
     }
   } else if (moment === "hard-place") {
     // The line in the place fades, then "Back to your family" and the hard place's line, and the sheet again.
@@ -868,6 +877,26 @@ export async function goToMoment(game, moment) {
   } else if (moment === "guide") {
     lookAtGroup(G);
     G.openGuide();
+  } else if (moment === "idle-pause") {
+    // Nobody has touched the iPad for a minute: the world freezes under "Still watching? Tap to keep going."
+    await keepLineNow(G);
+    G.pauseIdle();
+  } else if (moment === "folded-panel") {
+    // The child tapped the generation panel: on an iPad too it folds to its slim bar (scope decision 92), and the camera
+    // keeps the line in the room it leaves.
+    G.setHud(false);
+    await keepLineNow(G);
+  } else if (moment === "stall") {
+    // The fast-forward holds the whole line in view; its second line, "Let's skip ahead until something happens.", shows.
+    settle(G);
+    G.logQueue = G.logQueue.slice(1);
+    G.logTimer = 0;
+    G.pumpLog(0);
+  } else if (moment === "branch-leaving") {
+    // "Your … line isn't growing." and, for a trait that doesn't matter there, why; then back to the line before.
+    await keepLineNow(G);
+    G.logTimer = 0;
+    G.pumpLog(0);
   } else if (moment === "average") {
     lookAtGroup(G);
     G.openAverage();
@@ -885,7 +914,7 @@ export async function goToMoment(game, moment) {
     G.showEnding();
     await new Promise((resolve) => { G.anotherFamily(); setTimeout(resolve, 120); });
     if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
-  } else if (moment === "card" || moment === "blocked" || moment === "back" || moment === "go-back") {
+  } else if (moment === "card" || moment === "back" || moment === "go-back") {
     const a = G.herd.animals.get(plan.hit.id);
     if (a) lookAt(G, a.x, a.y, 0.3, 0.45);
     G.showCard(plan.hit.id);
@@ -898,11 +927,10 @@ export async function goToMoment(game, moment) {
 
 /**
  * @typedef {Object} Action what the child did
- * @property {number} generation the generation whose day it was (or, for a push, the one the panel opened after)
- * @property {null|number} day seconds into that watched day (null for a push)
- * @property {"follow"|"push"|"place"} kind "follow" on a glowing newborn's card, the option taken on the backup panel, or
- *   the place's card on "Where will your family live?" (scope decision 70)
+ * @property {number} generation the generation whose day it was
+ * @property {null|number} day seconds into that watched day (null for the place's card)
+ * @property {"follow"|"place"} kind "follow" on a glowing newborn's card, or the place's card on "Where will your family
+ *   live?" (scope decision 70)
  * @property {number} [id] the glowing newborn tapped
- * @property {string} [trait] @property {number} [dir] the option taken on the backup panel
  * @property {number} [zone] the place chosen
  */

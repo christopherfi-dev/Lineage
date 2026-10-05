@@ -65,11 +65,6 @@ export function groupLines(f, noun, glowing = [], name = null) {
   return lines;
 }
 
-/* ================= the story (scope decision 6) ================= */
-
-export const TIMES_UP = "Time's up! This one was picked at random.";
-export const optionLine = (words) => `This one has ${words}.`;
-
 /* ================= following a new variation (scope decisions 32–34, 42, 67 and 68) ================= */
 
 /** The first time a newborn glows in a story. */
@@ -129,6 +124,28 @@ export const lineWithLabel = (group, name = null) => `${capital(your("line", nam
 export const OTHER_TRAITS = "Other traits decided who made it.";
 /** The in-the-moment reflection's last line (scope decision 68): "They didn't make it. Back to your line." */
 export const backToLine = (noun = "line", name = null) => `They didn't make it. Back to ${your(noun, name)}.`;
+
+/* ================= small and stalled lines (scope decision 91) ================= */
+
+/** A tiny line that isn't growing, with no baby glowing: the world fast-forwards until something happens. */
+export const stallLines = (name = null) => [`${capital(your("line", name))} is very small.`, "Let's skip ahead until something happens."];
+/** The stall's live counter, changed in place each generation: "Your Mossfoot line: 2… 2… 3!" */
+export function stallCounter(counts, stopped = null, name = null) {
+  const shown = counts.slice(-RISE_COUNTS), last = shown.length - 1;
+  const end = !stopped ? "…" : stopped === "grew" ? "!" : ".";
+  return `${capital(your("line", name))}: ${shown.map((k, i) => (i < last ? `${k}…` : `${k}${end}`)).join(" ")}`;
+}
+/** The third stall in a row (story.js STALLS_BACK): the line is given up, "Your Mossfoot line isn't growing." */
+export const notGrowingLine = (name = null) => `${capital(your("line", name))} isn't growing.`;
+/** And, when the trait it followed doesn't matter there: "Thicker fur doesn't matter much here." "Bigger eyes don't matter much here." */
+export const doesntMatterLine = (group) => `${capital(shortGroup(group))} ${isAre(shortGroup(group)) === "are" ? "don't" : "doesn't"} matter much here.`;
+/** Then back to the line before: "Back to your Mossfoot line." */
+export const backAgainLine = (noun = "line", name = null) => `Back to ${your(noun, name)}.`;
+
+/* ================= the idle pause (scope decision 90) ================= */
+
+/** After about a minute with no touch, the world freezes. */
+export const IDLE_LINE = "Still watching? Tap to keep going.";
 /** The comparison beside the line (scope decisions 67 and 68): its relatives in the line's place. */
 export const RELATIVES_HERE = "Your relatives here";
 
@@ -184,9 +201,6 @@ export const WATCH_LINE = "Watch your line.";
 /** From the second time a move to the same place dies out (scope decision 83): the place sheet comes again. */
 export const hardPlaceLine = (name = null) => `That place is hard for ${your("family", name)}. Try another?`;
 export const homeGoneLine = (zone, n, name = null) => `The last of ${your("animals", name)} ${PLACE_AT[zone]} ${n === 1 ? "is" : "are"} dying.`;
-
-/** On every glowing baby's card while the child's line is very small: no follow starts (scope decision 44, playtest's "no jumping ship"). */
-export const needsYou = (noun, name = null) => `${capital(your(noun, name))} needs you. Stay with them?`;
 
 /* ================= the family's place (scope decision 59) ================= */
 

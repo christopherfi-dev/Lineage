@@ -4,19 +4,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+/** A watched day, in the tests' steps of 0.5 s (story.js GENERATION_SECONDS). */
+const { GENERATION_SECONDS } = await import("../src/story.js");
+const DAY = GENERATION_SECONDS / 0.5;
+
 test("a follow narrows the line to its carriers in its place, the rest there become relatives, and only babies that inherit its traits join", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story, RISE_TO, FAST_FROM } = await import("../src/story.js");
   const { carries } = await import("../src/variations.js");
+  const { variationEffect } = await import("../src/why.js");
   let checked = 0, born = 0, kinBorn = 0, kinJoined = 0;
   const follow = (story, bridge, g) => {
     assert.ok(bridge.isFollowed(g.id), "only babies in the line are followed");
     const was = new Set(bridge.followedIds()), relatives = bridge.relativeIds(), zone = story.testZone();
-    story.follow(g, false);
+    story.follow(g);
     checked++;
     assert.equal(story.noun, "line");
-    // The world fast-forwards while the count rises; not at all when it is RISE_TO already, or under FAST_FROM.
-    assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM ? "watch" : "rise");
+    // The world fast-forwards while the count rises; not at all when it is RISE_TO already, under FAST_FROM, or on a
+    // trait that hurts there (scope decision 91).
+    assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM || variationEffect(g.v.t, g.v.dir, zone) < 0 ? "watch" : "rise");
     // The line is now the old line's animals with the variation, in its place.
     const now = bridge.followedIds();
     assert.equal(story.family.then, now.length);
@@ -37,7 +43,6 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
     story.begin(bridge.families.founding[f].ids[0]);
     assert.equal(story.noun, "family");
     while (story.phase !== "ended" && bridge.generation < 40) {
-      if (story.phase === "choice") { follow(story, bridge, story.options[0]); continue; }
       const line = new Set(bridge.followedIds()), kin = new Map(bridge.relatives), f = bridge.follow, v = f.v;
       const ev = bridge.step();
       for (const b of ev.births) {
@@ -62,11 +67,11 @@ test("a follow narrows the line to its carriers in its place, the rest there bec
         if (kin.has(b.parentAId) || kin.has(b.parentBId)) { assert.ok(bridge.isFollowed(b.childId) || bridge.isRelative(b.childId)); kinBorn++; }
       }
       story.afterGeneration(ev);
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         assert.ok(story.glowing.every((x) => bridge.isFollowed(x.id)), "only babies in the line glow");
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && !story.inDanger && story.quiet >= 40) follow(story, bridge, g);
+        if (g && story.quiet >= 40) follow(story, bridge, g);
       }
     }
   }
@@ -86,14 +91,13 @@ test("the family tree strip is the chain of followed babies, the ancestors in be
   const before = story.familyTree();
   assert.equal(before.line, false);
   assert.equal(before.nodes[before.nodes.length - 1].id, story.firstId);
-  // Two follows: of a glowing baby, or on the backup panel (which opens only with an option that helps: scope decision 73).
+  // Two follows of glowing babies.
   while (story.phase !== "ended" && story.choices.length < 2) {
-    if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
     story.afterGeneration(bridge.step());
-    for (let k = 0; k < 40 && story.phase === "watch" && story.choices.length < 2; k++) {
+    for (let k = 0; k < DAY && story.phase === "watch" && story.choices.length < 2; k++) {
       story.advance(0.5);
       const g = story.glowing.find((x) => story.followable(x));
-      if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+      if (g && story.quiet >= 40) story.follow(g);
     }
   }
   assert.equal(story.choices.length, 2);
@@ -148,7 +152,6 @@ test("a story is 50 generations, or the teacher's ?length= up to 76; with fewer 
     const bridge = Bridge.fromAncestor(seed), story = new Story(bridge, { length });
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
-      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       story.afterGeneration(bridge.step());
     }
     if (story.outcome === "survived") { lasted++; assert.equal(bridge.generation, length); } else {
@@ -169,17 +172,16 @@ test("any trait in the line's place can be followed, and a neutral trait's guess
   story.begin(bridge.families.founding[1].ids[0]);
   const kinds = new Set();
   while (story.phase !== "ended" && bridge.generation < 30) {
-    if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
     story.afterGeneration(bridge.step());
-    for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+    for (let k = 0; k < DAY && story.phase === "watch"; k++) {
       story.advance(0.5);
       // A glowing baby whose trait doesn't matter there is offered like any other: no note on its card.
       for (const x of story.glowing) {
         if (story.followable(x) && !story.whyNot(x) && (x.v.neutral || effectIn(x.v.t, story.testZone()) === 0)) kinds.add(x.v.neutral ? "neutral" : "~");
       }
       const g = story.glowing.find((x) => story.followable(x));
-      if (!g || story.inDanger || story.quiet < 40) continue;
-      story.follow(g, false);
+      if (!g || story.quiet < 40) continue;
+      story.follow(g);
     }
   }
   assert.ok(kinds.has("neutral") || kinds.has("~"), "a trait that doesn't matter there could be followed");
@@ -189,7 +191,7 @@ test("any trait in the line's place can be followed, and a neutral trait's guess
   assert.equal(explainGuess(g, g.options[2]), "Yes! Ear tip shape doesn't help or hurt anywhere.");
 });
 
-test("the fast-forward runs while the count rises, not for a follow of fewer than 3, and every line that dies out goes back to the line before, with its Why?", async () => {
+test("the fast-forward runs while the count rises, not for a follow of fewer than 3 or that hurts, and every line that dies out goes back to the line before, with its Why?", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story, RISE_TO, RISE_MAX, FAST_FROM } = await import("../src/story.js");
   const { variationEffect, whyLine } = await import("../src/why.js");
@@ -202,7 +204,6 @@ test("the fast-forward runs while the count rises, not for a follow of fewer tha
     const ask = (q) => { const k = key(q.discovery.t, q.discovery.zone); assert.ok(!asked.has(k), k); asked.add(k); };
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
-      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       const made = story.choices.length, tried = story.tries.length, kin = new Map(bridge.relatives);
       const ev = bridge.step();
       const what = story.afterGeneration(ev);
@@ -214,11 +215,13 @@ test("the fast-forward runs while the count rises, not for a follow of fewer tha
         assert.ok(c[n] >= RISE_TO || c[n] <= c[n - 1] || n >= RISE_MAX, JSON.stringify(c));
       }
       if (what === "back") {
-        // "They didn't make it. Back to your line.": whatever its peak, not counted as a follow (scope decision 68).
+        // "They didn't make it. Back to your line.": whatever its peak, not counted as a follow (scope decision 68). Or the
+        // line wasn't growing and the child gave it up (scope decision 91): no "Why?" then.
         backs++;
         const gone = story.tries.length - tried;
         assert.ok(gone >= 1 && story.tries.includes(story.backFrom));
         assert.equal(story.choices.length, made - gone);
+        if (story.backFrom.stuck) { assert.ok(story.stuck && story.backFrom.sizeAtEnd > 0 && story.diedWhy === null); continue; }
         assert.equal(story.backFrom.sizeAtEnd, 0);
         assert.ok(bridge.followedIds().length > 0);
         // The line now is the relatives the follow made: the rest of the line before, and their babies.
@@ -258,14 +261,16 @@ test("the fast-forward runs while the count rises, not for a follow of fewer tha
           told++;
         }
       }
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (!g || story.inDanger || story.quiet < 40) continue;
-        story.follow(g, false);
+        if (!g || story.quiet < 40) continue;
+        story.follow(g);
         follows++;
-        // No fast-forward at RISE_TO or more, nor under FAST_FROM: that line is watched from the start (scope decision 69).
-        assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM ? "watch" : "rise");
+        // No fast-forward at RISE_TO or more, nor under FAST_FROM, nor on a trait that hurts there: that line is watched
+        // from the start (scope decisions 69 and 91).
+        const hurts = variationEffect(g.v.t, g.v.dir, story.testZone()) < 0;
+        assert.equal(story.phase, story.lineStart >= RISE_TO || story.lineStart < FAST_FROM || hurts ? "watch" : "rise");
         if (story.lineStart < FAST_FROM) { small++; assert.equal(story.lastRise.outcome, "small"); }
       }
     }
@@ -282,16 +287,15 @@ test("on an iPad whose Field Guide has every entry, no Why? is a guess: each is 
     const bridge = Bridge.fromAncestor(1), story = new Story(bridge, { known: () => true });
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
-      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       const ev = bridge.step(), what = story.afterGeneration(ev);
       if (story.phase === "watch") {
         assert.equal(story.guessNow(ev), null);
         if (story.told || (what === "back" && story.diedSay.length)) told++;
       }
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+        if (g && story.quiet >= 40) story.follow(g);
       }
     }
   }
@@ -310,9 +314,8 @@ test("glow balance: while a helpful or harmful trait glows or can, at most one g
     const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
-      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       story.afterGeneration(bridge.step());
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         const started = story.advance(0.5), t = story.watchT, zone = story.testZone();
         const matters = (x) => variationEffect(x.v.t, x.v.dir, zone) !== 0;
         const open = (x) => story.glowing.includes(x) || x.bornT + story.glowGenerations * story.generationSeconds - t >= GLOW_MIN_SECONDS;
@@ -332,7 +335,7 @@ test("glow balance: while a helpful or harmful trait glows or can, at most one g
             !story.glowing.includes(y) && !story.glowing.some((z) => sameVariation(z.v, y.v)))) early++;
         }
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+        if (g && story.quiet >= 40) story.follow(g);
       }
     }
   }
@@ -348,7 +351,6 @@ test("'Your line so far' keeps every trait the child chose: each animal of the l
     const bridge = Bridge.fromAncestor(seed), story = new Story(bridge);
     story.begin(bridge.families.founding[f].ids[0]);
     while (story.phase !== "ended") {
-      if (story.phase === "choice") { story.follow(story.options[0], false); continue; }
       if (story.afterGeneration(bridge.step()) === "back") backs++;
       if (story.phase === "ended") break;
       // Scope decision 72: a baby joins the line only with every chosen trait, and a line that died out gives back
@@ -360,10 +362,10 @@ test("'Your line so far' keeps every trait the child chose: each animal of the l
         assert.equal(chip.faded, null);
         checked++;
       }
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+        if (g && story.quiet >= 40) story.follow(g);
       }
     }
   }
@@ -434,11 +436,11 @@ test("the first choice is where the family will live: a card fills in once a bab
         assert.equal(bridge.follow.place, zone);
         if (!story.choices.length) assert.equal(bridge.follow.v, null);
       }
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && story.quiet >= 40 && !story.inDanger) {
-          story.follow(g, false);
+        if (g && story.quiet >= 40) {
+          story.follow(g);
           follows++;
           // A follow is in the chosen place, and its mark counts on from the place choice's.
           const c = story.choices[story.choices.length - 1];
@@ -543,10 +545,10 @@ test("a new home with plenty of room says so; once some living there are crowded
         assert.equal(story.gotHereFirst(id), key !== story.ownFounding && at !== null && at <= home.generation);
         if (story.gotHereFirst(id)) first++;
       }
-      for (let k = 0; k < 40 && story.phase === "watch"; k++) {
+      for (let k = 0; k < DAY && story.phase === "watch"; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && story.quiet >= 40 && !story.inDanger) story.follow(g, false);
+        if (g && story.quiet >= 40) story.follow(g);
       }
     }
     assert.ok(story.full, "the water's edge fills up within 16 generations");
@@ -609,7 +611,6 @@ test("a place where the line dies out twice is hard for the family: the game say
   const seen = [];
   while (story.phase !== "ended" && seen.length < 3) {
     if (story.phase === "place" && story.placeCards()[2]) { story.choosePlace(2); continue; }
-    if (story.phase === "choice") { story.follow(story.options.find((o) => story.helps(o.v)), false); continue; }
     if (story.afterGeneration(bridge.step()) === "back" && story.homeGone) seen.push({ times: story.timesGone(2), hard: story.hardPlace, phase: story.phase });
   }
   // The first time, back to the place choice; from the second, the water is hard for the family (scope decision 83).

@@ -14,9 +14,8 @@
 import { TRAITS } from "./engine.js";
 import { mulberry } from "./world.js";
 
-/** The question, and the line when the time runs out and a name is picked. */
+/** The question. No name is ever picked for the child (scope decision 89). */
 export const NAME_QUESTION = "What will you call your family?";
-export const NAME_PICKED = "We picked a name for you.";
 /** The two ways to type a name, their prompts, and the line when a typed name can't be used. */
 export const TYPE_OWN = "Type your own";
 export const USE_MY_NAME = "Use my name";
@@ -25,8 +24,6 @@ export const MY_NAME_PROMPT = "Type your first name.";
 export const TRY_ANOTHER_NAME = "Let's try a different name.";
 /** A typed name: letters only, at most this many. */
 export const NAME_MAX = 12;
-/** Time to pick a name; like the other panels, it waits while a line is read aloud. */
-export const NAMING_SECONDS = 20;
 
 /** A name on its button: "The Mossfoot family". */
 export const nameButton = (name) => `The ${name} family`;

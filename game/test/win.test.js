@@ -1,20 +1,20 @@
 // The win (scope decision 73): a story with a place chosen ends the first generation its line fits its home, with a
-// celebration; the backup panel opens only with an option that helps there; at the story's last generation short of the
-// win, the line is still changing, and looks most like an animal of its place.
+// celebration; at the story's last generation short of the win, the line is still changing, and looks most like an
+// animal of its place. Nothing chooses for the child (scope decision 89).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 /** Every story of seed 13 in each place, with a child who follows the first glowing baby it may after 40 s of watching. */
 async function stories({ length = 50, follow = true } = {}) {
   const { Bridge } = await import("../src/bridge.js");
-  const { Story } = await import("../src/story.js");
+  const { Story, GENERATION_SECONDS } = await import("../src/story.js");
   const { formOf, APART } = await import("../src/variations.js");
-  const { effectIn, variationEffect } = await import("../src/why.js");
+  const { effectIn } = await import("../src/why.js");
   const out = [];
   for (const zone of [0, 1, 2]) for (const f of [0, 1, 2]) {
     const bridge = Bridge.fromAncestor(13), story = new Story(bridge, { places: true, length });
     story.begin(bridge.families.founding[f].ids[0]);
-    let panels = 0, fitsBefore = 0;
+    let fitsBefore = 0;
     // The line fits its home: every required trait's median within APART of its helpful end, in its place.
     const fits = () => {
       const here = bridge.followedAnimals().filter((a) => a.zone === story.home.zone);
@@ -26,24 +26,18 @@ async function stories({ length = 50, follow = true } = {}) {
     while (story.phase !== "ended") {
       if (story.phase === "place") {
         if (story.placeCards()[zone]) { story.choosePlace(zone); continue; }
-      } else if (story.phase === "choice") {
-        panels++;
-        // No more forced bad choices: the panel is open only with an option that helps there.
-        assert.ok(story.options.some((o) => variationEffect(o.v.t, o.v.dir, story.testZone()) > 0));
-        story.follow(story.options.find((o) => story.helps(o.v)), false);
-        continue;
       }
       const what = story.afterGeneration(bridge.step());
       // Not won yet: the line doesn't fit. Except just back from a line that died out: "Back to your line" is told,
       // and the win comes the next generation.
-      if (what !== "ended" && what !== "back" && story.home && (story.phase === "watch" || story.phase === "rise") && fits()) fitsBefore++;
-      for (let k = 0; k < 40 && story.phase === "watch" && follow; k++) {
+      if (what !== "ended" && what !== "back" && story.home && (story.phase === "watch" || story.phase === "rise" || story.phase === "stall") && fits()) fitsBefore++;
+      for (let k = 0; k < GENERATION_SECONDS / 0.5 && story.phase === "watch" && follow; k++) {
         story.advance(0.5);
         const g = story.glowing.find((x) => story.followable(x));
-        if (g && !story.inDanger && story.quiet >= 40) story.follow(g, false);
+        if (g && story.quiet >= 40) story.follow(g);
       }
     }
-    out.push({ story, bridge, zone, panels, fitsBefore, fitsAtEnd: story.home ? fits() : false });
+    out.push({ story, bridge, zone, fitsBefore, fitsAtEnd: story.home ? fits() : false });
   }
   return out;
 }
@@ -79,9 +73,8 @@ test("a story ends with the win the first generation its line fits its home, and
 test("at the story's last generation short of the win, the line is still changing and looks most like an animal of its place", async () => {
   const { resultFor } = await import("../src/win.js");
   const N = await import("../src/narration.js");
-  // A child who follows only on the backup panel, in a short story: no line fits its home by generation 12.
+  // A child who never follows, in a short story: no line fits its home by generation 12.
   const all = await stories({ length: 12, follow: false });
-  assert.ok(all.reduce((n, x) => n + x.panels, 0) > 0, "the backup panel opened, each time with an option that helps");
   let checked = 0;
   for (const { story, zone } of all) {
     if (story.outcome !== "survived" || story.won) continue;
@@ -150,7 +143,6 @@ test("following never touches the biology: the same seed run again, with no one 
   story.begin(played.families.founding[1].ids[0]);
   while (story.phase !== "ended") {
     if (story.phase === "place") { if (story.placeCards()[2]) { story.choosePlace(2); continue; } }
-    else if (story.phase === "choice") { story.follow(story.options.find((o) => story.helps(o.v)), false); continue; }
     story.afterGeneration(played.step());
   }
   const again = Bridge.fromAncestor(13);
