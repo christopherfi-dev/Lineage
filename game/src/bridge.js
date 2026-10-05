@@ -58,27 +58,31 @@ import { APART, carries, formOf, isNeutral } from "./variations.js";
  * it, or past it the ways the child chose. Built and measured, and off: with chosen ways improving by themselves, the
  * child who follows every helpful glow won 74, 88 and 69 of 90 stories (high leaves, open ground, water's edge); a
  * follow that takes every helpful difference, or slightly fewer crowded out, or both, never more than 73 at the water's
- * edge, short of the target of 85% in each place (scope decision 97).
+ * edge, short of the target of 85% in each place (scope decision 97). With one-parent inheritance and all ten traits
+ * checked (likeTraits "every"), 3, 3 and 0: one family takes each place, and the line is crowded out (decisions 100-104).
  */
 export const LIKE_RULE = false;
 
 /** The seven meaningful traits: every trait but the three neutral ones (scope decision 20). */
 export const MEANINGFUL = TRAITS.map((_, t) => t).filter((t) => !isNeutral(t));
+/** All ten traits, the neutral ones too: what the like rule checks with likeTraits "every" (scope decision 101). */
+export const EVERY_TRAIT = TRAITS.map((_, t) => t);
 
 /**
  * A line's profile (scope decision 87): for each meaningful trait, the values a baby may have and still be like the
  * line, [lo, hi]. Every value these animals have is in it, and everything nearer their usual (median) than APART: a
  * baby a whole variation away (rule B's threshold, cohorts.js) is outside. `traits` are worked out again from these
- * animals; the rest are kept from `band`. Neutral traits have no band.
+ * animals; the rest are kept from `band`. Neutral traits have no band, unless `neutral` (likeTraits "every").
  * @param {ArrayLike<number>[]} genomes @param {number[]} [traits] @param {Array<null|number[]>} [band]
+ * @param {boolean} [neutral] neutral traits get a band too
  * @returns {Array<null|number[]>} by trait
  */
-export function profileOf(genomes, traits = MEANINGFUL, band = []) {
+export function profileOf(genomes, traits = MEANINGFUL, band = [], neutral = false) {
   const out = TRAITS.map((_, t) => band[t] ?? null);
   if (!genomes.length) return out;
   const form = formOf(genomes);
   for (const t of traits) {
-    if (isNeutral(t)) continue;
+    if (isNeutral(t) && !neutral) continue;
     let lo = Infinity, hi = -Infinity;
     for (const g of genomes) { lo = Math.min(lo, g[t]); hi = Math.max(hi, g[t]); }
     const m = form[t].median;
@@ -142,7 +146,8 @@ export class Bridge {
     this.like = LIKE_RULE;
     /**
      * which traits a line in a chosen place is checked on: "place", the traits that help or hurt there (and any the
-     * child followed); "all", the seven meaningful traits (measured for scope decision 87)
+     * child followed); "all", the seven meaningful traits (measured for scope decision 87); "every", all ten, the
+     * neutral ones too: any new difference makes a branch (scope decision 101)
      */
     this.likeTraits = "place";
     /**
@@ -156,6 +161,13 @@ export class Bridge {
 
   /** The ways the child chose, from the variations the line keeps, for the like rule (scope decision 97); null without it. */
   waysFor(kept) { return this.keepImproving ? waysOf(kept) : null; }
+
+  /** The traits a profile is worked out on at the tap (likeTraits), and whether the neutral ones get a band. */
+  get bandTraits() { return this.likeTraits === "every" ? EVERY_TRAIT : MEANINGFUL; }
+  get bandNeutral() { return this.likeTraits === "every"; }
+
+  /** Each baby comes from one parent and copies it (Classroom inheritance "one-parent", scope decision 100). */
+  get oneParent() { return this.config.inheritance === "one-parent"; }
 
   /**
    * The teacher demo (?demo=webbed): M1's defining fixture with its webbing
@@ -219,7 +231,7 @@ export class Bridge {
   followLinesOf(roots) {
     const living = this.livingIds(), members = new Set();
     for (const root of roots) for (const id of this.families.members(root, living)) members.add(id);
-    const band = this.like ? profileOf([...members].map((id) => this.byId.get(id).bodyGenome)) : null;
+    const band = this.like ? profileOf([...members].map((id) => this.byId.get(id).bodyGenome), this.bandTraits, [], this.bandNeutral) : null;
     this.follow = { roots: [...roots], members, v: null, band, ways: null };
     this.relatives = new Map();
     return this.follow;
@@ -256,7 +268,7 @@ export class Bridge {
     const keep = new Set(ids);
     for (const id of this.follow.members) if (!keep.has(id) && this.zoneOf(id) === zone) this.relatives.set(id, mark);
     for (const id of keep) this.relatives.delete(id);
-    const band = this.follow.band && profileOf(ids.map((id) => this.byId.get(id).bodyGenome), [v.t, ...also.map((u) => u.t)], this.follow.band);
+    const band = this.follow.band && profileOf(ids.map((id) => this.byId.get(id).bodyGenome), [v.t, ...also.map((u) => u.t)], this.follow.band, this.bandNeutral);
     this.follow = { roots: [...keep], members: keep, v, kept, mark, free, place: this.follow.place ?? null, band, ways: band && this.waysFor(kept) };
     return this.follow;
   }
@@ -273,7 +285,8 @@ export class Bridge {
     const keep = new Set(ids);
     for (const id of this.follow.members) if (!keep.has(id)) this.relatives.set(id, mark);
     for (const id of keep) this.relatives.delete(id);
-    // In a chosen place, the line is checked on the traits that help or hurt there (scope decision 87).
+    // In a chosen place, the line is checked on the traits that help or hurt there (scope decision 87); with "all" or
+    // "every", on all of them still.
     const was = this.follow.band ?? null;
     const band = was && this.likeTraits === "place" ? was.map((b, t) => (this.config.placeEffects[t][zone] !== 0 ? b : null)) : was;
     this.follow = { roots: [...keep], members: keep, v: null, kept: [], mark, free: false, place: zone, band, ways: null };

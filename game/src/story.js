@@ -433,6 +433,12 @@ export class Story {
   testZone() { return this.place; }
 
   /**
+   * A follow that helps there climbs (scope decision 102): with one-parent inheritance its babies are like it, so its
+   * fast-forward starts however few it has and goes on while the line holds its size.
+   */
+  get climbs() { return this.bridge.oneParent; }
+
+  /**
    * Why a glowing baby's variation can't be followed, or null when it can:
    * "away", the baby lives away from the line's place (scope decision 59);
    * "back", the way back from a direction the line already took (scope
@@ -796,6 +802,9 @@ export class Story {
     for (const id of babies) {
       let nv = newbornVariation(b, id, this.lastForm);
       if (nv && ways?.[nv.t] === nv.dir) nv = null;
+      // A branch glows for its difference from the line (scope decision 101): its new variation when that is it, else
+      // the one trait it is past the line's range on.
+      if (nv && b.like && !b.isFollowed(id) && !b.branchOf(id, nv.t)) nv = null;
       nv ??= this.glowAny && !b.isFollowed(id) ? this.inheritedVariation(id) : null;
       // With TAKE_ALL (measured), a branch may differ on other traits too, each one that helps there.
       const also = nv && this.takeAll && !b.isFollowed(id) ? this.helpfulOthers(id, nv.t) : [];
@@ -824,12 +833,19 @@ export class Story {
     return ts.length === 1 ? this.variationOn(id, ts[0]) : null;
   }
 
-  /** This animal's variation on trait t, against the line's usual form: null when it has none there. */
+  /**
+   * This animal's variation on trait t, against the line's usual form: null when it has none there. With the like rule,
+   * an animal past the line's range on t has it that way, past the range, even when that is not a whole variation past
+   * the line's usual (scope decision 101): so every branch has its difference to glow for.
+   */
   variationOn(id, t) {
     const ind = this.bridge.get(id);
     if (!ind || !this.lastForm) return null;
-    const value = ind.bodyGenome[t], usual = this.lastForm[t], dir = value > usual.median ? 1 : -1;
-    const v = variationFor(TRAITS[t], dir, usual, value);
+    const value = ind.bodyGenome[t], usual = this.lastForm[t], band = this.bridge.like ? this.bridge.follow?.band?.[t] : null;
+    const past = band && (value > band[1] + 1e-12 || value < band[0] - 1e-12);
+    const dir = past ? (value > band[1] ? 1 : -1) : value > usual.median ? 1 : -1;
+    let v = variationFor(TRAITS[t], dir, usual, value);
+    if (past && !carries(ind.bodyGenome, v)) v = { ...v, thr: dir > 0 ? band[1] + 1e-9 : band[0] - 1e-9 };
     return carries(ind.bodyGenome, v) ? v : null;
   }
 
@@ -1252,8 +1268,11 @@ export class Story {
     // time from the start, so a harmful decline is seen (scope decision 69); a variation that hurts there is watched
     // too (scope decision 91). Measured only (scope decision 68): with the look-ahead, no fast-forward either when
     // some would be crowded out next.
+    // With one-parent inheritance (scope decision 102) a follow that helps there fast-forwards however few it starts from:
+    // its babies are like it, so it climbs.
+    const helps = variationEffect(x.v.t, x.v.dir, zone) > 0;
     if (ids.length >= RISE_TO) this.stopRise("reached");
-    else if (ids.length < FAST_FROM) this.stopRise("small");
+    else if (ids.length < FAST_FROM && !(this.climbs && helps)) this.stopRise("small");
     else if (variationEffect(x.v.t, x.v.dir, zone) < 0) this.stopRise("harmful");
     else if (this.lookahead && this.crowdedNext()) this.stopRise("crowded");
     this.quiet = 0;
@@ -1279,7 +1298,9 @@ export class Story {
     r.counts.push(n);
     if (n >= RISE_TO) return this.stopRise("reached");
     if (n < before) return this.stopRise("fell");
-    if (n === before) return this.stopRise("flat");
+    // With one-parent inheritance a helpful line that holds its size keeps going (scope decision 102): a line of one has
+    // one baby a generation, and when that one is born different, the count waits a generation.
+    if (n === before && !(this.climbs && variationEffect(r.v.t, r.v.dir, r.zone) > 0)) return this.stopRise("flat");
     if (r.counts.length - 1 >= RISE_MAX) return this.stopRise("cap");
     if (this.lookahead && this.crowdedNext()) return this.stopRise("crowded");
     return "rising";
