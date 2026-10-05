@@ -6,6 +6,8 @@ Principle: each "why" line only credits what the engine actually rewards in that
 
 *2026-10-02, Round 5, Part 1 (scope decision 72): the collection. Classroom biology drives every line in a place to the same body, so every water story ended as a river otter and every tree story as a koala. Now each place has required traits (they help or hurt there, so every line that lasts gets them) and free ones (they don't decide who lives there). The free traits, which the child's follows decide, decide which animal the line becomes. Twelve animals, four per place, each reached in at least 80% of tries by a child who follows its signature. This replaces the 17-animal table of scope decisions 45 and 46, kept below for the record.*
 
+*2026-10-05, Round 6 (scope decisions 80, 81 and 85): the lynx takes the arctic fox's place. Long back legs are required on the open ground, so every line that wins there has them, and real arctic foxes have short legs. The mink was tested and is not added: in the game's traits it looks exactly like the beaver. Each animal is still reached in at least 80% of tries, now measured with reading time.*
+
 ## The collection: 12 animals (a 4 × 3 grid)
 
 What every line in a place gets (the required traits) and what tells its animals apart (the free and neutral traits). An animal's **signature** is one or two free traits: a line with either becomes it. Its **profile** is every free or neutral trait that sets it apart, true of the real animal; it settles a tie. Each animal's picture is `game/animals/<id>.jpg` (scope decision 74), cropped from Marc's originals in `design/animals/`.
@@ -23,7 +25,7 @@ What every line in a place gets (the required traits) and what tells its animals
 | | **Koala** (`koala`) | round ear tips; small eyes | round ear tips, small eyes, thick fur, weak tail, light coat | — |
 | | **Slow loris** (`slow-loris`) | thick fur; big eyes | thick fur, big eyes, weak tail, short back legs | curved claws: it grips with strong hands and nails |
 | Open ground | **Hare** (`hare`), the ground's own | a weak tail; thick fur | weak tail, thick fur | — |
-| | **Arctic fox** (`arctic-fox`) | a light coat; round ear tips | light coat, round ear tips, thick fur, strong tail | long back legs: it has short legs |
+| | **Lynx** (`lynx`), new in Round 6 | pointy ear tips; curved claws | pointy ear tips, curved claws, thick fur, weak tail, bright tail tip | — |
 | | **Cheetah** (`cheetah`), new | thin fur; a sleek body | thin fur, sleek body, strong tail, bright tail tip, straighter claws | — |
 | | **Jerboa** (`jerboa`), new | a strong tail; a bright tail tip | strong tail, bright tail tip, light coat | — |
 | Water's edge | **River otter** (`river-otter`), the water's own | thick fur | thick fur, small eyes, round ear tips, dark coat | — |
@@ -79,11 +81,11 @@ The reveal line, the "why" lines (the first ones that the line has), up to two "
 - Looks like: Hares have short tails too. Hares have thick fur too.
 - Did you know? Baby hares are born furry, with open eyes.
 
-**Arctic fox** · open ground
-- Your animals became open-ground explorers, a lot like an arctic fox. (It was "cold-weather experts": thick fur doesn't matter on the open ground now, and the game has no cold.)
-- Big eyes spot things across open ground. (No legs line: arctic foxes have short legs.)
-- Looks like: Arctic foxes have light coats too, white in winter. Arctic foxes have small, round ears too. Arctic foxes have very thick fur too. Arctic foxes have big bushy tails too.
-- Did you know? Most arctic foxes turn white in winter.
+**Lynx** · open ground · new in Round 6, in place of the arctic fox
+- Your animals became pouncers, a lot like a lynx.
+- Long back legs help them run fast. Big eyes spot things across open ground.
+- Looks like: Lynx have pointy ears with tufts too. Lynx have sharp, curved claws too. Lynx have very thick fur too. Lynx have short tails too. Lynx have a black tip on their tails too.
+- Did you know? A lynx's big furry paws work like snowshoes. **For Marc to check** (11 words).
 
 **Cheetah** · open ground · new
 - Your animals became sprinters, a lot like a cheetah.
@@ -123,28 +125,52 @@ The reveal line, the "why" lines (the first ones that the line has), up to two "
 
 **Not in the collection:** the first mammals (tree shrew), for a line that lasted but didn't change ("Your animals stayed like the very first mammals, like a tree shrew."), and "Your animals didn't have time to change." for one that died out first. Both as before.
 
-Every line is 13 words or fewer (the longest: "Your animals became open-ground explorers, a lot like an arctic fox.", 11 words).
+Every line is 13 words or fewer (the longest, 11 words: "Your animals became slow, careful climbers, a lot like a sloth.").
 
 ## The seventeen before, the six candidates, and why each is in or out
 
 | Animal | Now | Why |
 |---|---|---|
 | Squirrel, sloth, koala, slow loris | in, high leaves | Each has a free-trait look of its own: a big tail or pointy ears; a tiny tail or short legs; round ears or small eyes; thick fur or big eyes. |
-| Hare, arctic fox | in, open ground | A short tail or thick fur; a light coat or round ears. |
+| Hare | in, open ground | A short tail or thick fur. |
+| Arctic fox | **out** (Round 6) | Long back legs are required on the open ground, so every line that wins there has them, and real arctic foxes have short legs. |
 | River otter, seal, beaver, platypus | in, water's edge | Thick fur; thin fur or big eyes; a dark coat or a plain tail tip; round ears or small eyes. |
 | Cheetah | **added**, open ground | Long legs and big eyes, as the ground requires; short fur and a sleek body set it apart. 84% reached. |
 | Jerboa | **added**, open ground | Long back legs and big eyes; a long tail with a bright tuft sets it apart. 94% reached. |
-| Lynx | out | Reached in 81% of tries in the experiment (13 animals made 80%), but the grid is 4 × 3, four per place, and the arctic fox was reached more often (89%). It would fit the ground with no mismatch: a question for the architect. |
-| Meerkat | out | 79% in the experiment (curved claws or a light coat, free on the ground): under 80%. |
+| Lynx | **in** (Round 6), open ground | Long back legs and big eyes, as the ground requires; pointy, tufted ears or curved claws set it apart. 84 of 90 reached (with pointy ears alone, 68). |
+| Meerkat | out | 79% in the experiment (curved claws or a light coat, free on the ground): under 80%. Round 6, beside the lynx: 64 of 90 (71%). |
 | Bushbaby, tarsier | out | Their look in the leaves is big eyes and long back legs, which are the slow loris's signature and the squirrel's profile: a line can't be told apart as one. |
 | Bear | out | On open ground long back legs and big eyes are required; a bear has neither. |
 | Capybara | out | At the water's edge long legs hurt and a strong tail helps; a capybara has long legs and almost no tail. |
 | Fishing cat | out | At the water's edge claws hurt; a fishing cat has curved claws. |
-| Lemur, red panda | out | 77% and 73% in the experiment: under 80%. |
+| Lemur, red panda | out | 77% and 73% in the experiment: under 80%. Round 6: 68 and 37 of 90 (76% and 41%), and they pull the squirrel down to 61. |
 | Muskrat | out | The beaver's look (thick, dark fur, a plain flat tail): a line can't be told apart as one. |
-| Mink | out | The river otter's look (thick, dark fur, small eyes), and no picture. |
+| Mink | out (tested in Round 6) | In the game's traits, the beaver's look exactly: thick fur, small eyes, a dark coat, round ears, a plain tail tip. Listed after the beaver it is reached in 0 of 90; listed first, in 58 of 90, and the beaver falls to 36. Not distinct, so it fails the gate. |
 
 *"In the experiment": the scratch copy of the game with a 16-animal grid (the 12 above with the lynx, meerkat, lemur and red panda), 30 seeds, a 10-minute limit. The 12-animal numbers are from the game's own code (below).*
+
+## Check results (Claude Code, 2026-10-05, Round 6, scope decision 85)
+
+*The game's own code, seeds 1–30, every founding family, 90 stories per animal, each on a new iPad. The child taps the family, chooses the animal's place as soon as a baby of its family lives there, then follows a glowing baby whose variation is one of the animal's signatures, once; on the backup panel a signature option, else a helpful one. Each story runs to the win. Minutes include reading time (100 words a minute, 5 s to choose), since the questions no longer count down (scope decision 84).*
+
+| Animal | Reached at the win (of 90) | Within 8 minutes of the first tap | Otherwise |
+|---|---|---|---|
+| Squirrel | 88 (98%) | 85 | sloth 2 |
+| Sloth | 79 (88%) | 72 | squirrel 9, slow loris 2 |
+| Koala | 73 (81%) | 71 | squirrel 17 |
+| Slow loris | 74 (82%) | 70 | squirrel 14, koala 2 |
+| Hare | 90 (100%) | 60 | — |
+| Lynx | 84 (93%) | 54 | hare 6 |
+| Cheetah | 79 (88%) | 57 | hare 10, jerboa 1 |
+| Jerboa | 85 (94%) | 61 | hare 5 |
+| River otter | 74 (82%) | 1 | seal 6, platypus 5, beaver 4, koala 1 |
+| Seal | 78 (87%) | 5 | platypus 6, river otter 5, squirrel 1 |
+| Beaver | 75 (83%) | 5 | river otter 10, platypus 2, seal 2, koala 1 |
+| Platypus | 81 (90%) | 2 | beaver 4, river otter 3, seal 1, koala 1 |
+
+(The one water story ending in the leaves is seed 1's, where the water is hard for the family: the child chose the high leaves.)
+
+- **A child following random glows**, 90 stories in each place: **all 12 animals**, the most common 15% of wins. By place: high leaves squirrel 40, koala 21, sloth 17, slow loris 12; open ground hare 35, cheetah 21, jerboa 18, lynx 16; water's edge seal 30, platypus 25, river otter 18, beaver 16 (and one sloth, seed 1's story above).
 
 ## Check results (Claude Code, 2026-10-02, scope decision 72)
 

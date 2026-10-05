@@ -598,3 +598,26 @@ test("while nobody touches the iPad, a newborn's chime comes at most once in IDL
   assert.deepEqual(idles, [true, false]);
   assert.ok(IDLE_LEVEL > 0 && IDLE_LEVEL < 1);
 });
+
+test("a place where the line dies out twice is hard for the family: the game says so, and the place choice comes again", async () => {
+  const { Bridge } = await import("../src/bridge.js");
+  const { Story, HARD_AFTER } = await import("../src/story.js");
+  const N = await import("../src/narration.js");
+  // Seed 1's second founding family can't settle at the water's edge: every move there dies out (scope decision 78).
+  const bridge = Bridge.fromAncestor(1), story = new Story(bridge, { places: true });
+  story.begin(bridge.families.founding[1].ids[0]);
+  const seen = [];
+  while (story.phase !== "ended" && seen.length < 3) {
+    if (story.phase === "place" && story.placeCards()[2]) { story.choosePlace(2); continue; }
+    if (story.phase === "choice") { story.follow(story.options.find((o) => story.helps(o.v)), false); continue; }
+    if (story.afterGeneration(bridge.step()) === "back" && story.homeGone) seen.push({ times: story.timesGone(2), hard: story.hardPlace, phase: story.phase });
+  }
+  // The first time, back to the place choice; from the second, the water is hard for the family (scope decision 83).
+  assert.equal(HARD_AFTER, 2);
+  assert.deepEqual(seen.map((x) => [x.times, x.hard]), [[1, null], [2, 2], [3, 2]]);
+  assert.ok(seen.every((x) => x.phase === "place"), "the place choice comes again each time");
+  story.choosePlace(story.placeCards().findIndex((c, z) => c && z !== 2));
+  assert.equal(story.hardPlace, null, "a new choice clears it");
+  assert.equal(N.hardPlaceLine(null), "That place is hard for your family. Try another?");
+  assert.ok(N.hardPlaceLine("Thistlepaddle").split(/\s+/).length <= 13);
+});

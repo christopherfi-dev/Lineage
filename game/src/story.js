@@ -134,6 +134,11 @@ export const FAST_FROM = 3;
  */
 export const PLACE_TO = 20;
 export const PLACE_MAX = 4;
+/**
+ * From the second time in a story that a move to the same place dies out, that place is hard for the family: the
+ * game says so, and the child chooses again (scope decision 83).
+ */
+export const HARD_AFTER = 2;
 /** The relatives the place choice makes carry this mark; a follow after it counts from the next one (bridge.js). */
 export const HOME_MARK = 1;
 /**
@@ -218,6 +223,8 @@ export class Story {
     this.homeTries = [];
     /** @type {null|Home} the place choice whose line just died out, for the page to say so */
     this.homeGone = null;
+    /** @type {null|number} the place whose line just died out for the HARD_AFTER-th time or more (scope decision 83) */
+    this.hardPlace = null;
     /** the line's place is full: some living there were crowded out since the child chose it (scope decision 70) */
     this.full = false;
     /** @type {null|number} the generation it first was */
@@ -1154,6 +1161,7 @@ export class Story {
     const ids = this.bridge.followedAnimals().filter((a) => a.zone === zone).map((a) => a.id);
     const baby = shown !== undefined && this.isPlaceBaby(shown, zone) ? shown : card.id;
     this.bridge.narrowToPlace(ids, zone, HOME_MARK);
+    this.hardPlace = null;
     const generation = this.bridge.generation;
     this.home = { zone, id: baby, generation, mark: HOME_MARK, sizeAtChoice: ids.length, counts: [ids.length], outcome: null, until: null,
       roomy: this.bridge.roomyIn(zone) };
@@ -1259,6 +1267,7 @@ export class Story {
       home.goneAt = generation;
       this.homeTries.push(home);
       this.homeGone = home;
+      this.hardPlace = this.timesGone(home.zone) >= HARD_AFTER ? home.zone : null;
       this.home = null;
     }
     // The line before is the child's again: it counts from now, and "Your line so far" is its own again.
@@ -1277,6 +1286,9 @@ export class Story {
     if (generation >= this.length) return this.end("survived", generation);
     return "back";
   }
+
+  /** How many times in this story a move to this place died out (scope decision 83). */
+  timesGone(zone) { return this.homeTries.filter((h) => h.zone === zone).length; }
 
   /** The latest follow is about to be replaced, or the story ends: note its line's and its relatives' sizes. */
   closeChoice() {

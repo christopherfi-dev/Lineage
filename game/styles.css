@@ -356,15 +356,21 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #place-cards .option.waiting { box-shadow: 0 0 0 2px #E6DAC0; background: #F4EEDD; }
 #place-cards .option.waiting canvas { opacity: .55; filter: saturate(.6); }
 #place-cards .option.waiting .words { font-style: italic; color: #7D745C; }
+/* A place where the line died out twice (scope decision 83): still a choice, but marked, and named on the sheet. */
+#place-cards .option.hard:not(.waiting) { box-shadow: 0 0 0 3px #D9A441; }
+#place-cards .option.hard canvas { opacity: .7; filter: saturate(.55); }
 #place-cards .option.filled-in { animation: placeFill .7s cubic-bezier(.2, .9, .28, 1); }
 @keyframes placeFill { from { transform: scale(.96); box-shadow: 0 0 0 3px #EFC27E, 0 0 30px rgba(217, 164, 65, .45); } to { transform: none; } }
 #place .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
 #place .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #place-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
+#place-hard { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 22px; font-style: italic; font-weight: 600; color: #8A5A14; }
+#place-hard[hidden] { display: none; }
 /* A short screen (a phone held sideways): smaller pictures, so the three cards and their words fit above the fold. */
 @media (max-height: 599px) {
   #place { max-height: 82%; padding-top: 8px; }
   #place h2 { font-size: 26px; }
+  #place-hard { margin-top: 2px; font-size: 17px; }
   #place-cards { gap: 10px; margin-top: 10px; }
   #place-cards .option canvas { height: 118px; }
   #place-cards .option .pick { gap: 6px; padding: 8px 8px 12px; font-size: 18px; }
@@ -898,6 +904,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #idea-check.right p:first-child { color: #2F7A4B; }
 #ending .buttons [hidden] { display: none; }
 #ending .buttons #ending-next { flex: 0 1 260px; margin-left: auto; }
+/* After the ending, one way on (scope decision 82): this iPad's count beside "Find another animal!", in one row, and the
+   collection's grid a little smaller, so all three rows and the button fit an iPad's screen together. */
+#find-another { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; animation: rise .5s ease both; }
+#find-another-line { flex: 1 1 260px; display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1.25; color: #2A2B22; }
+#ending .buttons #find-another-button { flex: 0 1 320px; }
+@media (min-height: 600px) { #ending-collection-grid { max-width: 640px; margin: 0 auto; } }
 /* "This world is nearly over. Start a new world?" (scope decision 64): New world, and a small "Keep going anyway". */
 #nearly-over { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; animation: rise .5s ease both; }
 #nearly-over-line { flex: 1 1 100%; display: flex; align-items: center; margin: 0; font-family: Petrona, Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1.25; color: #2A2B22; }
@@ -1041,6 +1053,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #collection-count { margin: 0 0 6px; font-size: 15px; }
   .credits { margin-top: 6px; font-size: 11px; }
   #ending-collection-count { font-size: 22px; }
+  #find-another-line { font-size: 18px; }
 }
 @media (max-width: 599px) { .cgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 

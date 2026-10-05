@@ -41,11 +41,11 @@ import {
   startLine, familyLabel, YOU_CHOSE, ZONE_AT,
   placeLine, ITS_FAMILY, doingLine, DIFFERENT_TITLE, MUCH_LIKE_YOURS, thanYours, misfitLine,
   awayLine, backLine, goBackLine, movingLine, movedLine, IN_TROUBLE, NEARLY_OVER_LINE, soFarTitle, chipWords, fadedLine,
-  placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, LOTS_OF_ROOM, fillingLine,
+  placeQuestion, PLACE_CARDS, WAIT_GENERATION, PLACE_LABELS, homeLine, homeCounter, WATCH_LINE, homeGoneLine, hardPlaceLine, LOTS_OF_ROOM, fillingLine,
   firstHereLine, staysLine, CROWDED_GROUND, fitsHome, RESULT_STEP, chosenChip, placeChoosing, winningHere,
 } from "./narration.js";
 import { resultFor } from "./win.js";
-import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf, preloadPictures } from "./collection.js";
+import { COLLECTION_TITLE, evolvedLine, IMAGE_CREDITS, GRID, collection, collect, cardEl, pictureOf, preloadPictures, FIND_ANOTHER, PLAY_AGAIN, foundLine } from "./collection.js";
 import { Opening, OPENING_LINES } from "./opening.js";
 import { speakerButton, isSpeaking, speak } from "./speech.js";
 import { explainGuess } from "./why.js";
@@ -61,7 +61,7 @@ import {
 } from "./names.js";
 import { Sound, habitatWeights, SOUND_ON_SVG, SOUND_OFF_SVG, IDLE_MS } from "./sound.js";
 import {
-  PREDICT_AFTER, JOURNAL_SECONDS, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
+  PREDICT_AFTER, JOURNAL_NOTE, PREDICTION_TITLE, SIMULATION_STORY, questionFor, resultOf,
 } from "./journal.js";
 
 const LOG_MS = 3800;
@@ -83,10 +83,6 @@ const LOG_ROOM = 120;
 const PICKED_MS = 1200;
 /** How long an answered prediction stays up, to read "Let's see…", before the fast-forward. */
 const ANSWERED_MS = 2000;
-/** Seconds to tap a guess (scope decision 60); like the other panels, the countdown waits while a line is read aloud. */
-const GUESS_SECONDS = 20;
-/** After a guess, why stays up this long (or until Next); it waits while a line is read aloud. */
-const EXPLAIN_SECONDS = 9;
 /** How long "Since your last choice" stays up, at most, before the new follow goes ahead. */
 const SINCE_SECONDS = 15;
 /** Seconds to choose where the family will live, once every place's card has its baby (scope decision 70). */
@@ -237,20 +233,20 @@ export class Game {
     this.guideGridEl = $("guide-grid");
     this.journalEl = $("journal");
     this.journalOptionsEl = $("journal-options");
-    this.journalBarEl = $("journal-bar");
     this.journalNoteEl = $("journal-note");
     this.placeEl = $("place");
     this.placeCardsEl = $("place-cards");
     this.placeBarEl = $("place-bar");
     this.placeNoteEl = $("place-note");
     this.placeQuestionLine = this.speakable($("place-question"));
+    this.placeHardEl = $("place-hard");
+    this.placeHardLine = this.speakable(this.placeHardEl);
     /** @type {Array<HTMLElement & {zone:number, button:HTMLButtonElement, words:HTMLElement, baby:null|number}>} the place cards, each with its baby */
     this.placeCardEls = [];
     this.guessEl = $("guess");
     this.guessOptionsEl = $("guess-options");
     this.guessNoteEl = $("guess-note");
     this.guessNextEl = /** @type {HTMLButtonElement} */ ($("guess-next"));
-    this.guessBarEl = $("guess-bar");
     this.whyHereEl = $("why-here");
     this.namingEl = $("naming");
     this.namingOptionsEl = $("naming-options");
@@ -352,8 +348,11 @@ export class Game {
     this.logShownAt = 0;
     this.bloomLine = this.speakable($("bloom-line"));
     this.againEl = /** @type {HTMLButtonElement} */ ($("again"));
-    this.anotherPlaceEl = /** @type {HTMLButtonElement} */ ($("another-place"));
     this.newWorldEl = /** @type {HTMLButtonElement} */ ($("new-world"));
+    // The ending's one way on (scope decision 82).
+    this.findAnotherEl = $("find-another");
+    this.findAnotherLine = this.speakable($("find-another-line"));
+    this.findAnotherButtonEl = /** @type {HTMLButtonElement} */ ($("find-another-button"));
     // "This world is nearly over. Start a new world?" (scope decision 64)
     this.nearlyEl = $("nearly-over");
     this.nearlyNewEl = /** @type {HTMLButtonElement} */ ($("nearly-new"));
@@ -906,9 +905,12 @@ export class Game {
     const s = this.story, doc = this.doc;
     this.placeQuestionLine.set(placeQuestion(s.name));
     this.placeNoteEl.replaceChildren();
+    // A place where the line died out twice: said on the sheet too, under the question, and its card marked (scope decision 83).
+    this.placeHardEl.hidden = s.hardPlace === null;
+    if (s.hardPlace !== null) this.placeHardLine.set(hardPlaceLine(s.name));
     this.placeBarEl.style.width = "100%";
     this.placeCardEls = [0, 1, 2].map((zone) => {
-      const el = Object.assign(doc.createElement("div"), { className: "option waiting" });
+      const el = Object.assign(doc.createElement("div"), { className: `option waiting${zone === s.hardPlace ? " hard" : ""}` });
       const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", disabled: true });
       const words = Object.assign(doc.createElement("span"), { className: "words", textContent: WAIT_GENERATION });
       button.append(doc.createElement("canvas"), words);
@@ -1005,7 +1007,9 @@ export class Game {
     }
     this.placeBarEl.style.width = `${(100 * p.left / (PLACE_SECONDS * 1000)).toFixed(1)}%`;
     if (p.left === 0) {
-      const open = this.placeCardEls.filter((el) => el.baby !== null && !el.hidden);
+      // Time's up: a place at random, never the one that is hard for the family while another is open (scope decision 83).
+      const all = this.placeCardEls.filter((el) => el.baby !== null && !el.hidden), easy = all.filter((el) => el.zone !== this.story.hardPlace);
+      const open = easy.length ? easy : all;
       if (open.length) this.pickPlace(open[Math.floor(Math.random() * open.length)].zone, true, now);
     }
   }
@@ -1441,7 +1445,9 @@ export class Game {
    */
   comeBack(old = false, why = []) {
     const s = this.story;
-    this.say([...(old ? ["Some were old and died."] : why), backToLine(s.noun, s.name)]);
+    // From the second time a move to the same place dies out: "That place is hard for your family. Try another?" (scope decision 83).
+    const hard = s.phase === "place" && s.hardPlace !== null ? [hardPlaceLine(s.name)] : [];
+    this.say([...(old ? ["Some were old and died."] : why), backToLine(s.noun, s.name), ...hard]);
     // Back with the family, whose line in the chosen place died out: it chooses where to live again (scope decision 70).
     if (s.phase === "place") this.openPlace();
     this.setHomeLabel(); // "Back to my family" again, when the child is back with the family
@@ -1512,8 +1518,9 @@ export class Game {
   /* ================= see, guess, explain (scope decision 60) ================= */
   /**
    * A question with three answers from the table, the same trait in each
-   * place: the world waits for a guess, then says why. With no guess within
-   * GUESS_SECONDS it says why anyway. Nothing is ever marked wrong.
+   * place: the world waits for a guess, then says why, and waits again for
+   * Next. No countdown: it never answers or moves on by itself (scope
+   * decision 84). Nothing is ever marked wrong.
    * @param {import("./why.js").Guess} q
    */
   openGuess(q) {
@@ -1522,7 +1529,6 @@ export class Game {
     this.guessNoteEl.replaceChildren();
     this.guessNoteEl.className = "";
     this.guessNextEl.hidden = true;
-    this.guessBarEl.style.width = "100%";
     this.guessAnswerEls = q.options.map((o) => {
       const el = Object.assign(doc.createElement("div"), { className: "answer" });
       const button = Object.assign(doc.createElement("button"), { type: "button", className: "pick", textContent: o.text });
@@ -1534,18 +1540,18 @@ export class Game {
     clearTimeout(this.guessHideT);
     this.guessEl.hidden = false;
     requestAnimationFrame(() => this.guessEl.classList.add("open"));
-    this.guess = { question: q, left: GUESS_SECONDS * 1000, paused: 0, answered: false };
+    this.guess = { question: q, answered: false };
     this.updateCard(); // no follow buttons while it is up
     this.placeCard();
     this.centerOnGroup(0.3);
   }
 
-  /** A guess, or none (time ran out): then why, with its speaker, and Next. */
+  /** A guess: then why, with its speaker, and Next. */
   answerGuess(option) {
     const g = this.guess;
     if (!g || g.answered) return;
     const line = explainGuess(g.question, option);
-    Object.assign(g, { answered: true, option, left: EXPLAIN_SECONDS * 1000, paused: 0 });
+    Object.assign(g, { answered: true, option });
     this.guesses.push({ question: g.question.text, answer: option?.text ?? null, right: !!option?.right });
     for (const el of this.guessAnswerEls) {
       el.button.disabled = true;
@@ -1555,18 +1561,6 @@ export class Game {
     const said = [line, ...(g.question.extra ? [g.question.extra] : [])].join(" ");
     this.guessNoteEl.replaceChildren(Object.assign(this.doc.createElement("span"), { className: "text", textContent: said }), speakerButton(this.doc, () => said));
     this.guessNextEl.hidden = false;
-    this.guessBarEl.style.width = "100%";
-  }
-
-  /** Like the other panels' countdowns: it waits while a line is read aloud or a card is open. */
-  tickGuess(now, dt) {
-    const g = this.guess;
-    if (!this.card) {
-      if (isSpeaking() && g.paused < MAX_READING_PAUSE_MS) g.paused += dt;
-      else g.left = Math.max(0, g.left - dt);
-    }
-    this.guessBarEl.style.width = `${(100 * g.left / ((g.answered ? EXPLAIN_SECONDS : GUESS_SECONDS) * 1000)).toFixed(1)}%`;
-    if (g.left === 0) { if (g.answered) this.closeGuess(); else this.answerGuess(null); }
   }
 
   closeGuess() {
@@ -1595,8 +1589,8 @@ export class Game {
   /* ================= the prediction journal (Step 6, scope decisions 28-31, 35) ================= */
   /**
    * One question with three or four answers, right after the follow and before
-   * the fast-forward. The world waits. With no answer within JOURNAL_SECONDS the
-   * story goes on without a prediction; nothing is picked at random.
+   * the fast-forward. The world waits until the child answers: no countdown, and
+   * nothing is ever picked for the child (scope decision 84).
    * @param {import("./journal.js").Question} q
    * @param {{v:import("./cohorts.js").Variation}} option the follow it comes after
    */
@@ -1604,7 +1598,6 @@ export class Game {
     const doc = this.doc;
     this.journalQuestion.set(q.text);
     this.journalNoteEl.replaceChildren();
-    this.journalBarEl.style.width = "100%";
     // Shown in a random order, so the reasonable answer isn't always in the same place.
     const shown = q.options.map((a) => ({ a, k: Math.random() })).sort((x, y) => x.k - y.k).map(({ a }) => a);
     this.journalAnswerEls = shown.map((a) => {
@@ -1618,7 +1611,7 @@ export class Game {
     clearTimeout(this.journalHideT);
     this.journalEl.hidden = false;
     requestAnimationFrame(() => this.journalEl.classList.add("open"));
-    this.journal = { question: q, option, left: JOURNAL_SECONDS * 1000, paused: 0, answer: null, goAt: 0 };
+    this.journal = { question: q, option, answer: null, goAt: 0 };
   }
 
   /** The child's prediction is kept, to be shown beside what happens. */
@@ -1634,19 +1627,10 @@ export class Game {
     this.journalNoteEl.replaceChildren(JOURNAL_NOTE, speakerButton(this.doc, () => JOURNAL_NOTE));
   }
 
-  /** The countdown waits while a line is read aloud or a card is open, as the choice's does. */
-  tickJournal(now, dt) {
+  /** Once answered, "Let's see…" stays up a moment, then the fast-forward. Until then the world waits. */
+  tickJournal(now) {
     const j = this.journal;
-    if (j.answer) {
-      if (now >= j.goAt) this.closeJournal();
-      return;
-    }
-    if (!this.card) {
-      if (isSpeaking() && j.paused < MAX_READING_PAUSE_MS) j.paused += dt;
-      else j.left = Math.max(0, j.left - dt);
-    }
-    this.journalBarEl.style.width = `${(100 * j.left / (JOURNAL_SECONDS * 1000)).toFixed(1)}%`;
-    if (j.left === 0) this.closeJournal(); // no answer: no prediction this time
+    if (j.answer && now >= j.goAt) this.closeJournal();
   }
 
   closeJournal() {
@@ -1859,12 +1843,17 @@ export class Game {
     this.stepNameEl.textContent = { result: RESULT_STEP, happened: HAPPENED_TITLE, idea: IDEA_TITLE, check: CHECK_TITLE, reveal: REVEAL_TITLE,
       collection: COLLECTION_TITLE }[name];
     this.stepCountEl.textContent = `${k + 1} of ${this.endingSteps.length}`;
-    this.endingNextEl.hidden = name === "idea" || k === this.endingSteps.length - 1;
-    // After a story with a place chosen, "Try another place" (scope decision 76); in the teacher demo, "Try another family".
-    const placed = !!(this.story.home ?? this.story.homeTries.length);
-    this.anotherPlaceEl.hidden = !this.ideaAnswered || !placed;
-    this.againEl.hidden = !this.ideaAnswered || placed;
-    this.newWorldEl.hidden = !this.ideaAnswered;
+    const last = k === this.endingSteps.length - 1;
+    this.endingNextEl.hidden = name === "idea" || last;
+    // After the ending, one way on: "Find another animal!", with how many this iPad has found (scope decision 82). The
+    // teacher demo, which has no collection, keeps "Try another family" and "New world".
+    this.findAnotherEl.hidden = this.demo || !this.ideaAnswered || !last;
+    if (!this.findAnotherEl.hidden) {
+      const n = collection().size;
+      this.findAnotherLine.set(foundLine(n));
+      this.findAnotherButtonEl.textContent = n >= GRID.length ? PLAY_AGAIN : FIND_ANOTHER;
+    }
+    this.againEl.hidden = this.newWorldEl.hidden = !this.demo || !this.ideaAnswered;
     this.nearlyEl.hidden = true;
     this.endingEl.querySelector(".card").scrollTop = 0;
     if ((name === "reveal" && this.story.reveal) || (name === "result" && this.story.won)) this.sound.revealChord(0.4);
@@ -2012,7 +2001,9 @@ export class Game {
    */
   playOpening({ seek } = {}) {
     this.stopOpening();
-    const quick = this.openings > 0;
+    // The quick flip after the first story of a session, and after "Find another animal!" (scope decision 82).
+    const quick = this.openings > 0 || !!this.quickOpening;
+    this.quickOpening = false;
     this.openings++;
     for (const el of this.openingLineEls) { el.replaceChildren(); el.classList.remove("on"); }
     this.openingEl.classList.remove("gone");
@@ -2158,39 +2149,24 @@ export class Game {
   }
 
   /**
-   * "Try another place" (scope decision 76): a new story in the same world, from the same family, with its name, and
-   * "Where will your … family live?" again, so the child can compare places (or try the same place another way). The
-   * world starts again where this story began: the same seed, run on to the same generation, which the engine makes
-   * the same world, since following never touches the biology.
+   * "Find another animal!" (scope decision 82): a fresh game in a new world, whose card flip, the quick one, shows
+   * which animals are still to find. It replaces "Try another place" and "New world" after the ending.
    */
-  anotherPlace(btn = this.anotherPlaceEl) {
-    const s = this.story, from = s.startGeneration, first = s.firstId, name = s.name;
-    this.busy(btn, "Going back…", () => {
-      this.endingEl.hidden = true;
-      const bridge = this.makeWorld(this.seed), herd = new Herd(this.world, 7919);
-      herd.placeFounders(bridge);
-      while (bridge.generation < from) {
-        const ev = bridge.step();
-        if (!ev) break;
-        herd.applyGeneration(ev, bridge, 0);
-      }
-      this.start(bridge, herd);
-      const animal = this.herd.animals.get(first);
-      if (animal) this.begin(animal, name);
-      // No arrival and no opening: the family is chosen already, and the sheet comes at once.
-      if (this.arrival) { this.arrival.t0 = performance.now() - this.arrival.dur; this.endArrival(); }
-    });
+  findAnother(btn = this.findAnotherButtonEl) {
+    this.openingOff = false; // from a moment's page too, the new world opens with the cards
+    this.quickOpening = true;
+    this.newWorld(btn);
   }
 
   /** "This world is nearly over. Start a new world?", with "New world" and a small "Keep going anyway", in place of the ending's buttons. */
   askNearlyOver() {
-    this.againEl.hidden = this.anotherPlaceEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = true;
+    this.againEl.hidden = this.newWorldEl.hidden = this.endingNextEl.hidden = this.findAnotherEl.hidden = true;
     this.nearlyEl.hidden = false;
   }
 
   /** The tapped button says what is happening, and the ending's buttons wait, while the page repaints; then it happens. */
   busy(btn, text, then) {
-    const label = btn.textContent, all = [this.againEl, this.anotherPlaceEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
+    const label = btn.textContent, all = [this.againEl, this.findAnotherButtonEl, this.newWorldEl, this.nearlyNewEl, this.nearlyKeepEl];
     btn.textContent = text;
     for (const b of all) b.disabled = true;
     setTimeout(() => {
@@ -2903,8 +2879,8 @@ export class Game {
     this.fastK = fastNow ? Math.min(1, this.fastK + dt / 300) : Math.max(0, this.fastK - dt / SLOW_MS);
     this.herd.pace = lerp(1, FAST_PACE, ease(this.fastK));
     // On the backup choice panel, and while a prediction or "Since your last choice" is up, the world pauses.
-    if (this.journal) this.tickJournal(now, Math.min(250, raw));
-    else if (this.guess) this.tickGuess(now, Math.min(250, raw));
+    if (this.journal) this.tickJournal(now);
+    else if (this.guess) { /* the world waits for a guess, then for Next (scope decision 84) */ }
     else if (this.since) this.tickSince(now, Math.min(250, raw));
     else if (s.phase === "choice") this.tickChoice(now, Math.min(250, raw));
     else {
@@ -3187,7 +3163,7 @@ export class Game {
     this.doc.getElementById("average-close").addEventListener("click", () => this.closeAverage());
     this.doc.addEventListener("keydown", (e) => { if (e.key === "Escape") { this.closeCard(); this.closeAverage(); this.closeGuide(); this.closeCollection(); } });
     this.againEl.addEventListener("click", () => this.anotherFamily());
-    this.anotherPlaceEl.addEventListener("click", () => this.anotherPlace());
+    this.findAnotherButtonEl.addEventListener("click", () => this.findAnother());
     // Sound starts with the first tap anywhere (iPads allow it only then), and rests while the page is hidden.
     const unlock = () => this.sound.unlock();
     for (const type of ["pointerdown", "touchend", "click", "keydown"]) this.doc.addEventListener(type, unlock, { capture: true, passive: true });

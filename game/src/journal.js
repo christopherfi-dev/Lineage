@@ -16,8 +16,6 @@ import { better } from "./groups.js";
 
 /** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
 export const PREDICT_AFTER = [1, 4, 7, 10, 13];
-/** Seconds to answer before the story goes on without a prediction (no random pick). */
-export const JOURNAL_SECONDS = 15;
 
 /**
  * The question types, taking turns by prediction (scope decisions 35 and

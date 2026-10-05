@@ -108,6 +108,8 @@
     <div class="grab"></div>
     <div class="eyebrow">Choice 1</div>
     <h2 id="place-question"></h2>
+    <!-- A place where the line died out twice (scope decision 83): said under the question, so it is seen at every size. -->
+    <p id="place-hard" hidden></p>
     <div id="place-cards"></div>
     <div class="timer"><i id="place-bar"></i></div>
     <div id="place-note"></div>
@@ -128,7 +130,6 @@
     <div class="eyebrow">A prediction</div>
     <h2 id="journal-question"></h2>
     <div id="journal-options"></div>
-    <div class="timer"><i id="journal-bar"></i></div>
     <div id="journal-note"></div>
   </div>
 
@@ -140,7 +141,6 @@
     <div id="guess-options"></div>
     <div id="guess-note"></div>
     <button id="guess-next" type="button" hidden>Next</button>
-    <div class="timer"><i id="guess-bar"></i></div>
   </div>
 
   <!-- Naming the family (Step 5): right after the first tap, before generation 1. Time waits. -->
@@ -276,8 +276,13 @@
       </section>
       <div class="buttons">
         <button id="ending-next" type="button">Next</button>
-        <!-- After a story with a place chosen: the same family again, in the same world, choosing its place again (scope decision 76). -->
-        <button id="another-place" type="button" hidden>Try another place</button>
+        <!-- After the ending, one way on (scope decision 82): how many animals this iPad has found, and a fresh game in a new
+             world, whose quick card flip shows which are still to find. -->
+        <div id="find-another" hidden>
+          <p id="find-another-line"></p>
+          <button id="find-another-button" type="button">Find another animal!</button>
+        </div>
+        <!-- The teacher demo, which has no collection, keeps these two. -->
         <button id="again" type="button" hidden>Try another family in this world</button>
         <button id="new-world" type="button" hidden>New world</button>
         <!-- "Try another family" with fewer than 25 generations of the story left in this world (scope decision 64). -->
