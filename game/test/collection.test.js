@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
 
 test("the collection is the twelve animals, a row of four for each place, each with its own small picture", async () => {
-  const { GRID, pictureOf, evolvedLine, IMAGE_CREDITS, COLLECTION_TITLE, NEW_CARD, mysteryLabel } = await import("../src/collection.js");
+  const { GRID, pictureOf, evolvedLine, IMAGE_CREDITS, COLLECTION_TITLE, NEW_CARD, mysteryLabel, foundLine, FIND_ANOTHER, PLAY_AGAIN } = await import("../src/collection.js");
   const { ANIMALS } = await import("../src/reveal.js");
   assert.equal(GRID.length, 12);
   assert.deepEqual(GRID.map((a) => a.zone), [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]);
@@ -18,11 +18,18 @@ test("the collection is the twelve animals, a row of four for each place, each w
     const width = jpegWidth(bytes);
     assert.ok(width >= 380 && width <= 420, `${a.id} is ${width} px wide`);
   }
-  for (const line of [evolvedLine(5), IMAGE_CREDITS, COLLECTION_TITLE, NEW_CARD, ...[0, 1, 2].map(mysteryLabel)]) {
+  for (const line of [evolvedLine(5), IMAGE_CREDITS, COLLECTION_TITLE, NEW_CARD, ...[0, 1, 2].map(mysteryLabel), FIND_ANOTHER, PLAY_AGAIN, ...[0, 3, 12].map(foundLine)]) {
     assert.ok(line.split(/\s+/).length <= 13, line);
     assert.doesNotMatch(line, /%|percent/i);
   }
   assert.equal(evolvedLine(5), "You've evolved 5 of 12.");
+  // The ending's one way on (scope decision 82), with this iPad's count.
+  assert.equal(foundLine(3), "You've found 3 of 12. Find another!");
+  assert.equal(foundLine(12), "You've found all 12! Play again?");
+  assert.equal(FIND_ANOTHER, "Find another animal!");
+  // The lynx in place of the arctic fox (scope decision 80): open ground's four are the hare, lynx, cheetah and jerboa.
+  assert.deepEqual(GRID.filter((a) => a.zone === 1).map((a) => a.id), ["hare", "lynx", "cheetah", "jerboa"]);
+  for (const fact of GRID.find((a) => a.id === "lynx").facts) assert.ok(fact.split(/\s+/).length < 12, fact);
   // The teacher's journal page lists the same twelve, in the same order.
   const page = readFileSync(new URL("../journal.html", import.meta.url), "utf8");
   const listed = [...page.matchAll(/\["([a-z-]+)", "([^"]+)"\]/g)].map((m) => [m[1], m[2]]);

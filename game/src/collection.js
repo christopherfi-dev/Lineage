@@ -23,6 +23,13 @@ export const COLLECTION_TITLE = "Your collection";
 export const evolvedLine = (n) => `You've evolved ${n} of ${ANIMALS.length}.`;
 /** On the card of the animal just evolved. */
 export const NEW_CARD = "New!";
+/** The ending's one way on (scope decision 82): the button, and the line above it with this iPad's count. */
+export const FIND_ANOTHER = "Find another animal!";
+/** The button once every animal of the collection is found. */
+export const PLAY_AGAIN = "Play again!";
+/** "You've found 3 of 12. Find another!" (the grid's real size); none yet, or all of them, said plainly. */
+export const foundLine = (n) => (n === 0 ? "No animals found yet. Find one!"
+  : n >= ANIMALS.length ? `You've found all ${ANIMALS.length}! Play again?` : `You've found ${n} of ${ANIMALS.length}. Find another!`);
 /** design/animals/CREDITS.txt: the pictures' origin, on the collection. */
 export const IMAGE_CREDITS = "Image credits: animal pictures made with Google Gemini.";
 /** Each place's mark, for its cards, and what it says when read aloud. */

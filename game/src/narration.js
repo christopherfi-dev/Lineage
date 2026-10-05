@@ -181,6 +181,8 @@ export const firstHereLine = (zone) => `They got here first. Now ${KEY_TRAITS[zo
 /** No fast-forward to the new home: the line has 20 or more there already. */
 export const WATCH_LINE = "Watch your line.";
 /** The last of a line in the chosen place, fading: "The last of your animals near the water are dying." */
+/** From the second time a move to the same place dies out (scope decision 83): the place sheet comes again. */
+export const hardPlaceLine = (name = null) => `That place is hard for ${your("family", name)}. Try another?`;
 export const homeGoneLine = (zone, n, name = null) => `The last of ${your("animals", name)} ${PLACE_AT[zone]} ${n === 1 ? "is" : "are"} dying.`;
 
 /** On every glowing baby's card while the child's line is very small: no follow starts (scope decision 44, playtest's "no jumping ship"). */

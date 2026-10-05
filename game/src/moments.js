@@ -41,8 +41,8 @@ export const MOMENTS = [
   "same", "back", "go-back", "so-far", "another-family", "nearly-over",
   "reason", "why", "why-answer", "told", "type-name", "my-name", "average",
   "ending-idea", "ending-check", "ending-reveal", "story-card", "discovery", "guide", "leaves", "map",
-  "win", "still-changing", "collection", "chosen-by-place", "try-another-place",
-  "intro-flip", "intro-found", "intro-puff",
+  "win", "still-changing", "collection", "chosen-by-place",
+  "intro-flip", "intro-found", "intro-puff", "find-another", "hard-place",
 ];
 
 /**
@@ -312,10 +312,19 @@ const MOMENT = {
     at: (s, ev, b, what) => what === null && s.phase === "watch" && s.placeChoseNow.length > 0 && { chosen: s.placeChoseNow.map((p) => p.t) },
   },
   /**
-   * "Try another place" (scope decision 76): after the win, the same family again in the same world, its name kept,
-   * and "Where will your … family live?" again, once every card has a baby of the family.
+   * "Find another animal!" (scope decision 82): after the win, the child taps it; a new world, and its quick card flip,
+   * held as the cards settle: the animal just evolved shows, the rest are mystery cards.
    */
-  "try-another-place": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
+  "find-another": { families: FROM_OTHERS, policies: ["wise", "active", "passive"], at: (s, ev, b, what) => what === "ended" && s.won },
+  /**
+   * A place where the line died out a second time (scope decision 83): "That place is hard for your … family. Try
+   * another?", and the place sheet again, that place's card marked. The moments page opens it in seed 1, whose second
+   * founding family can't settle at the water's edge.
+   */
+  "hard-place": {
+    families: FROM_OTHERS, policies: ["passive", "active"], places: [2, 1, 0],
+    at: (s, ev, b, what) => what === "back" && s.phase === "place" && s.hardPlace !== null && { zone: s.hardPlace, times: s.timesGone(s.hardPlace) },
+  },
   /**
    * The collection after the win (scope decision 74): the ending's last step, the twelve cards with the animal the line
    * just became marked "New!", on a new iPad: "You've evolved 1 of 12."
@@ -454,6 +463,7 @@ async function findStory(game, moment, relaxed = false) {
     for (const name of policies) {
       const { bridge, story, step } = copyOf(game), policy = POLICIES[name], actions = [];
       story.begin(bridge.families.founding[family].ids[0]);
+      let placeFrom = story.startGeneration; // when the sheet opened: at the start, or again after the place's line died out
       for (let n = 1; story.phase !== "ended"; n++) {
         if (story.phase === "choice") {
           const o = story.options[0];
@@ -466,12 +476,14 @@ async function findStory(game, moment, relaxed = false) {
         const what = story.afterGeneration(ev), found = (hit, day) => ({ family, place, actions, generation: ev.generation, day, follows: story.choices.length, hit });
         const hit = at(story, ev, bridge, what);
         if (hit) return found(hit, null);
-        // The first choice (scope decision 70): the moment's place, as soon as a baby of the family lives there.
+        if (what === "back" && story.phase === "place") placeFrom = ev.generation;
+        // The first choice (scope decision 70): the moment's place, as soon as a baby of the family lives there; and the
+        // same place again after its line died out.
         if (story.phase === "place") {
           if (story.placeCards()[place]) {
             actions.push({ generation: ev.generation, day: null, kind: "place", zone: place });
             story.choosePlace(place);
-          } else if (ev.generation - story.startGeneration >= PLACE_WAIT) break;
+          } else if (ev.generation - placeFrom >= PLACE_WAIT) break;
           continue;
         }
         if (what === "choice") continue;
@@ -565,7 +577,10 @@ async function playTo(game, plan) {
     G.generation(last ? t0 - (plan.day ?? 0) * 1000 : t0 - 60000);
     G.clock = hold;
     if (last && plan.day === null) break;
-    // The first choice: the place's card, the generation it had its baby in the search (scope decision 70).
+    if (G.backing) G.backNow(); // a line that died out: its last animals have faded long ago, and its "Why?" comes
+    if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); } // the child guesses, and reads why
+    // The first choice: the place's card, the generation it had its baby in the search (scope decision 70); again after
+    // the place's line died out, once the sheet is back.
     const place = plan.actions.find((a) => a.kind === "place" && due(a));
     if (place && G.placing) {
       G.pickPlace(place.zone, false, performance.now());
@@ -573,8 +588,6 @@ async function playTo(game, plan) {
       G.clock = hold;
       continue;
     }
-    if (G.backing) G.backNow(); // a line that died out: its last animals have faded long ago, and its "Why?" comes
-    if (G.guess) { G.answerGuess(G.guess.question.options.find((o) => o.right)); G.closeGuess(); } // the child guesses, and reads why
     if (G.story.phase === "choice") {
       await frame(); // the backup panel opens, then the child takes the option
       for (const a of plan.actions) if (a.kind === "push" && due(a)) act(G, a);
@@ -788,8 +801,9 @@ export async function goToMoment(game, moment) {
     // The ending opens on its first step, the line's home (scope decision 73).
     G.endingAt = null;
     G.showEnding();
-  } else if (moment === "try-another-place") {
-    // The child gives an idea, then taps "Try another place": the sheet comes back once every card has its baby.
+  } else if (moment === "collection" || moment === "find-another") {
+    // The story ended with the win as the game has it (its animal joined the collection). The child gives an idea; the
+    // ending's last step: the collection, and "Find another animal!" with this iPad's count (scope decision 82).
     G.endingAt = null;
     G.showEnding();
     G.showStep("idea");
@@ -799,13 +813,23 @@ export async function goToMoment(game, moment) {
     G.ideaChanged();
     G.answerIdea();
     G.showStep("collection");
-    G.anotherPlace();
+    if (moment === "find-another") {
+      // The child taps it: a new world, its arrival, then the quick flip, held as the cards settle.
+      G.findAnother();
+      for (let k = 0; k < 900 && !(G.story.phase === "waiting" && G.arrival); k++) await frame();
+      if (G.arrival) { G.arrival.t0 = performance.now() - G.arrival.dur; G.endArrival(); }
+      G.hintEl.style.transition = "none";
+      G.hideHint();
+      G.say([]);
+      G.showLine("");
+      G.quickOpening = true;
+      G.playOpening({ seek: 1.3 });
+    }
+  } else if (moment === "hard-place") {
+    // The line in the place fades, then "Back to your family" and the hard place's line, and the sheet again.
+    if (G.backing) G.backNow();
     for (let k = 0; k < 600 && !(G.placing && G.placeCardEls.every((el) => el.baby !== null || el.hidden)); k++) await frame();
-  } else if (moment === "collection") {
-    // The story ended with the win as the game has it (its animal joined the collection): the ending's last step.
-    G.endingAt = null;
-    G.showEnding();
-    G.showStep("collection");
+    lookAtGroup(G, 0.3);
   } else if (moment === "ending" || moment === "extinct" || moment.startsWith("ending-") || moment === "story-card" || moment === "nearly-over") {
     G.endingAt = null;
     G.showEnding();

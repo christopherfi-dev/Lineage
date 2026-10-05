@@ -142,7 +142,7 @@ test("chosen by the place: a trait that helps there, risen in the line without a
     "The trees chose curved claws, toes without webbing and a round body too.");
 });
 
-test("try another place: the same seed run on to a story's start is the same world, so the same family can choose again", async () => {
+test("following never touches the biology: the same seed run again, with no one following, is the same world", async () => {
   const { Bridge } = await import("../src/bridge.js");
   const { Story } = await import("../src/story.js");
   // A story played to its end, and the world run again with no one following, to the story's last generation.
@@ -155,15 +155,6 @@ test("try another place: the same seed run on to a story's start is the same wor
   }
   const again = Bridge.fromAncestor(13);
   while (again.generation < played.generation) again.step();
-  // Following never touches the biology: the same animals, with the same bodies, live in both.
   const body = (b) => b.livingAnimals().map((a) => `${a.id}:${Array.from(a.genome).map((x) => x.toFixed(6)).join(",")}`).sort();
   assert.deepEqual(body(again), body(played));
-  // The story's first animal is there at its start, so "Try another place" begins the same family again.
-  const atStart = Bridge.fromAncestor(13);
-  while (atStart.generation < story.startGeneration) atStart.step();
-  assert.ok(atStart.get(story.firstId));
-  const replay = new Story(atStart, { places: true });
-  replay.begin(story.firstId);
-  assert.equal(replay.phase, "place");
-  assert.equal(replay.ownFounding, story.ownFounding);
 });

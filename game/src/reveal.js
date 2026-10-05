@@ -139,7 +139,7 @@ export const ANIMALS = [
     facts: ["Did you know? Baby hares are born furry, with open eyes."],
   },
   {
-    // In place of the arctic fox (scope decision 79): every line that wins on open ground has long back legs, and real
+    // In place of the arctic fox (scope decision 80): every line that wins on open ground has long back legs, and real
     // arctic foxes have short ones. A lynx has long legs and sharp eyes, so both of the ground's "why" lines are true.
     id: "lynx", name: "Lynx", zone: GROUND,
     signs: [["ear_tip_shape", "high"], ["curved_claws", "high"]],
