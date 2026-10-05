@@ -269,8 +269,12 @@ const MOMENT = {
   },
   /** The line clearly bigger than last generation, after a follow (so it is not the families' first burst). */
   grow: { families: FROM_OTHERS, policies: ["active", "passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && s.choices.length > 0 && ev.group.count - ev.group.before >= 4 && ev.group.count >= 1.2 * ev.group.before },
-  /** The family clearly smaller than last generation, but not gone. */
-  shrink: { families: FROM_WEBBED, policies: ["passive"], at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
+  /**
+   * The line clearly smaller than last generation, but not gone. A child that never follows keeps its whole family in its
+   * place, which no longer drops like that with nothing choosing for it (scope decision 89), so the search tries a child
+   * that follows too.
+   */
+  shrink: { families: FROM_WEBBED, policies: ["passive", "active", "unwise"], at: (s, ev, b, what) => what === null && s.phase === "watch" && ev.group.before - ev.group.count >= 3 && ev.group.count <= 0.75 * ev.group.before && ev.group.count >= 2 },
   /** The first follow: once the child follows, the prediction journal asks its first question. */
   prediction: { families: FROM_OTHERS, policies: ["active"], at: (s, ev, b, what) => { if (what !== "day" || s.choices.length !== 0) return null; const g = followable(s); return g ? { id: g.id } : null; } },
   /** The second follow: "Since your last choice" shows the line and its relatives, and the first prediction beside what happened. */
@@ -330,9 +334,9 @@ const MOMENT = {
   stall: { families: FROM_OTHERS, policies: ["active", "wise", "unwise", "passive"], at: (s, ev, b, what) => what === "stall" && { size: s.stall.size } },
   /**
    * The third stall in a row gives the line up (scope decision 91): "Your … line isn't growing.", for a trait that
-   * doesn't matter there "Thicker fur doesn't matter much here.", and back to the line before. Rare (2 of 5,760 stories
-   * in the search for it): the moments page opens it in seed 58, a child that followed thicker fur at the water's edge,
-   * then stopped choosing.
+   * doesn't matter there "Brighter tail tips don't matter much here.", and back to the line before. Rare (4 of 5,760
+   * stories in the search for it): the moments page opens it in seed 104, a child that followed brighter tail tips at
+   * the water's edge, then stopped choosing.
    */
   "branch-leaving": {
     families: FROM_OTHERS, policies: ["onefree", "active", "unwise", "wise", "passive"],
