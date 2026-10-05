@@ -59,7 +59,7 @@ The rules are in `src/story.js`, with every number at the top of the file:
 | `FULL_STORY_GENERATIONS` | 76 | the teacher's full-length story, `?length=76`; the longest `?length=` taken |
 | `NEARLY_OVER` | 25 | with fewer generations of the story left, "Try another family" first asks "This world is nearly over. Start a new world?"; the shortest `?length=` taken |
 
-A story ends with the win, when the line fits its home: a median 4.9 minutes after the first tap in the high leaves, 5.6 on the open ground and 8.0 at the water's edge, reading time included (a Grade 3 pace), with a median of 2, 3 and 4 follows; 270 of 270 stories win before the story's last generation, measured with a simulated child following random glows (scope decision 94). The line takes in every baby born to it in its place, as before: the rule that it never gets an adaptation the child didn't choose is built in `src/bridge.js` (`LIKE_RULE`) and switched off, since an active child won too few stories with it (scope decision 87).
+A story ends with the win, when the line fits its home: a median 4.9 minutes after the first tap in the high leaves, 5.6 on the open ground and 8.0 at the water's edge, reading time included (a Grade 3 pace), with a median of 2, 3 and 4 follows; 270 of 270 stories win before the story's last generation, measured with a simulated child following random glows (scope decision 94). A child who follows nothing gets no win: the place did all the choosing (scope decision 96). The line takes in every baby born to it in its place, as before: the rule that it never gets an adaptation the child didn't choose is built in `src/bridge.js` (`LIKE_RULE`), now with a chosen way improving by itself, and switched off, since an active child still won too few stories with it at the water's edge (scope decisions 87 and 97).
 
 1. **Time waits for the child.** After the arrival mist, the opening (scope decision 77,
    `src/opening.js`, scope decision 93): the collection's twelve cards face down, "These are the
@@ -122,7 +122,10 @@ A story ends with the win, when the line fits its home: a median 4.9 minutes aft
    start: those traits decide which animal the line becomes. A trait that helps in the line's
    place and rose in it without a follow gets its own outlined chip, "Strong tail: chosen by the
    water", said once: "The water is choosing too." "Strong tails are winning here." (scope decision
-   75). "Your line" replaces "your family" from the
+   75). A trait the child chose that keeps going its way, one that helps there, says so on its own
+   chip once the line is a whole variation further: "↑ More webbing: still improving", said once:
+   "Your line keeps getting more webbing." "You chose it, so it keeps going." (scope decision 97).
+   "Your line" replaces "your family" from the
    place choice on, and the tree strip becomes "Your line, baby by baby" (`TREE_BETWEEN`), the
    baby on the chosen place's card its first step. Once a place is chosen, a baby of the line born
    in another place is a relative: the line always lives in one place (scope decision 70).
@@ -199,7 +202,10 @@ A story ends with the win, when the line fits its home: a median 4.9 minutes aft
     child followed and why it helped, the animal's "Did you know?", and "Your Mossfoot line fits the
     water's edge now." "Almost any new change would make things worse." At the story's length short
     of it: "Your Mossfoot line is still changing." "Keep going next time?" and the animal it looks
-    most like so far. Then four steps with Next: what happened
+    most like so far. A line that fits its home though the child followed nothing in the story is
+    no win (scope decision 96): no celebration and no collection card, but "Your Mossfoot line
+    looks like a river otter.", "The water did all the choosing." and "Can you choose yourself next
+    time?", read aloud. Then four steps with Next: what happened
     (the start and the end drawn, the line baby by baby, the line and its relatives here, the
     traits chosen); your idea (a sentence to build, or your own words); check my idea (against the
     table, with a clue, the same trait in two places, and "Your last choice": its line beside its
@@ -342,7 +348,7 @@ number is as it was.
 
 ## Design shortcuts (preparing Step 4)
 
-`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `same`, `back` and `told` in seed 2 and `go-back` in seed 16 (since Round 7's 12-second days) and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 13 too, with a 30-generation story. Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals), Round 6 `find-another` (decision 82) and `hard-place` (83, in seed 1), and Round 7 `opening-waiting` and `opening-card` (93), `idle-pause` (90), `stall` (91, in seed 1), `branch-leaving` (91, in seed 104) and `folded-panel` (92); `try-another-place`, `choice` and `blocked` are retired. The moments turn the idle pause off while they reach their moment. A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
+`?moment=NAME` opens the game straight into one moment, in a real game state (scope decisions 27, 31, 34, 42, 44, 68 and 69). The moments are listed on `moments.html` (which the game does not link to), among them `rising`, `slowdown`, `growing`, `dying`, `line-dies`, `died-why`, `back-line` and `compare` for scope decision 68, and `watch-small`, `died-told` and `told` for scope decision 69. Each works with `?seed=` (and `?sound=off`) too. All are found in the default world, seed 13, but `same`, `back` and `told` in seed 2 and `go-back` in seed 16 (since Round 7's 12-second days) and the early endings in the teacher demo (`?demo=webbed`): `extinct` and `another-family` in its seed 13, `nearly-over` in its seed 13 too, with a 30-generation story. Round 4 added `choose-place`, `moving`, `arrived` and `filling` (scope decision 70), and Round 5 `stay` (choosing the open ground, scope decision 71), `win` and `still-changing` (decision 73; `still-changing` with `&length=25`), `collection` (74), `chosen-by-place` (75), the opening's `intro-flip`, `intro-found` and `intro-puff` (77; `intro-found` on an iPad that has evolved three animals), Round 6 `find-another` (decision 82) and `hard-place` (83, in seed 1), Round 7 `opening-waiting` and `opening-card` (93), `idle-pause` (90), `stall` (91, in seed 1), `branch-leaving` (91, in seed 104) and `folded-panel` (92), and Round 8 `did-all-choosing` (96) and `still-improving` (97, in seed 2); `try-another-place`, `choice` and `blocked` are retired. The moments turn the idle pause off while they reach their moment. A moment is played on a new iPad, with an empty Field Guide, unless it asks for a full one (`told`).
 
 `src/moments.js` finds a story that reaches the moment, using observer runs on throwaway copies of the world. It then plays the game forward to it: tap, watch, the same choices, each watched day passed in half-second steps so the child acts at the same second. It changes nothing in the game or the biology. Screenshots of every moment are in `design/current/` (before Step 5) and `design/after/` (after it, with a phone held sideways too); `design/compare.html` shows them side by side.
 
