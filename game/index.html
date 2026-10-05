@@ -92,18 +92,8 @@
 
   <div id="logbar"><span class="ring"></span><span id="log"></span></div>
 
-  <!-- The backup choice panel: after a while with no follow, the world pauses (scope decision 34). -->
-  <div id="choice" hidden>
-    <div class="grab"></div>
-    <div class="eyebrow" id="choice-count"></div>
-    <h2>Which one will you follow?</h2>
-    <div id="choice-since"></div>
-    <div id="options"></div>
-    <div class="timer"><i id="choice-bar"></i></div>
-    <div id="choice-note"></div>
-  </div>
-
-  <!-- The first choice (scope decision 70): where the family will live, with a real baby of the family on each place's card. -->
+  <!-- The first choice (scope decision 70): where the family will live, with a real baby of the family on each place's card.
+       No countdown and no pick at random: the world waits for the child (scope decision 89). -->
   <div id="place" hidden>
     <div class="grab"></div>
     <div class="eyebrow">Choice 1</div>
@@ -111,20 +101,19 @@
     <!-- A place where the line died out twice (scope decision 83): said under the question, so it is seen at every size. -->
     <p id="place-hard" hidden></p>
     <div id="place-cards"></div>
-    <div class="timer"><i id="place-bar"></i></div>
     <div id="place-note"></div>
   </div>
 
-  <!-- Since your last choice: at the next follow, your line and your relatives here since the last one (scope decisions 34 and 67). -->
+  <!-- Since your last choice: at the next follow, your line and your relatives here since the last one (scope decisions 34 and 67).
+       It waits for Next (scope decision 89). -->
   <div id="since" hidden>
     <div class="grab"></div>
     <div class="eyebrow" id="since-count"></div>
     <div id="since-body"></div>
     <button id="since-next" type="button">Next</button>
-    <div class="timer"><i id="since-bar"></i></div>
   </div>
 
-  <!-- The prediction journal (Step 6): one question after every third follow, before the fast-forward. -->
+  <!-- The prediction journal (Step 6): one question after the first follow, before the fast-forward (scope decision 88). -->
   <div id="journal" hidden>
     <div class="grab"></div>
     <div class="eyebrow">A prediction</div>
@@ -143,7 +132,7 @@
     <button id="guess-next" type="button" hidden>Next</button>
   </div>
 
-  <!-- Naming the family (Step 5): right after the first tap, before generation 1. Time waits. -->
+  <!-- Naming the family (Step 5): right after the first tap, before generation 1. Time waits, for as long as the child needs (scope decision 89). -->
   <div id="naming" hidden>
     <div class="grab"></div>
     <h2 id="naming-question"></h2>
@@ -158,8 +147,12 @@
       </div>
       <button id="naming-back" type="button">Back</button>
     </div>
-    <div class="timer"><i id="naming-bar"></i></div>
     <div id="naming-note"></div>
+  </div>
+
+  <!-- The idle pause (scope decision 90): after about a minute with no touch, the world freezes; a tap keeps it going. -->
+  <div id="idle" hidden>
+    <div id="idle-go" role="button" tabindex="0"><span class="sun" aria-hidden="true"></span><p id="idle-line"></p></div>
   </div>
 
   <!-- The Field Guide (scope decision 62): 21 discoveries, each trait in each place. -->
@@ -171,11 +164,14 @@
     <div id="guide-grid"></div>
   </div>
 
-  <!-- The opening (scope decision 77): before the first tap, the twelve cards face down, then flipping one after another;
-       "How many can you discover?"; then they puff away. A tap skips to the end. -->
+  <!-- The opening (scope decisions 77 and 93): before the first tap, the twelve cards face down, then flipping about half a
+       second apart; "How many can you discover?"; then they wait. A tap on a card shows it big, its name read aloud.
+       "Let's go!" puffs them away and starts the game; nothing goes before. -->
   <div id="opening" hidden>
     <div class="lines"><p id="opening-line-1"></p><p id="opening-line-2"></p></div>
     <div id="opening-grid" class="cgrid"></div>
+    <button id="opening-go" type="button" hidden>Let's go!</button>
+    <div id="opening-big" hidden></div>
   </div>
 
   <!-- The collection (scope decision 74): the twelve animals a line can become, evolved ones with their picture, the rest

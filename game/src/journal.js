@@ -1,6 +1,6 @@
 /**
- * The prediction journal (Step 6; scope decisions 25, 28–31 and 35). After
- * every third follow, one question about what happens next, made from the story's
+ * The prediction journal (Step 6; scope decisions 25, 28–31, 35 and 88). After
+ * the first follow, one question about what happens next, made from the story's
  * real state through the written table in docs/LINEAGE_PREDICTION_QUESTIONS.md
  * (this file must match it). Each question has one reasonable answer and two
  * or three common Grade 3 misconceptions. The child's answer is shown later
@@ -14,8 +14,15 @@ import { ZONE_AT, shortGroup, lineWithLabel, RELATIVES_HERE } from "./narration.
 import { whyLine } from "./why.js";
 import { better } from "./groups.js";
 
-/** A prediction comes right after these follows: the child's 1st, 4th, 7th, 10th and 13th. */
-export const PREDICT_AFTER = [1, 4, 7, 10, 13];
+/** A prediction comes right after these follows: the child's first only (scope decision 88; it was 1st, 4th, 7th, 10th and 13th). */
+export const PREDICT_AFTER = [1];
+/** At most this many predictions a story (scope decision 88): after a line dies out, the next follow is a first one again. */
+export const MAX_PREDICTIONS = 1;
+/**
+ * A prediction comes now: right after this follow (the line's count of follows), with `asked` predictions in the story so far.
+ * @param {number} follows @param {number} asked
+ */
+export const predictsNow = (follows, asked) => asked < MAX_PREDICTIONS && PREDICT_AFTER.includes(follows);
 
 /**
  * The question types, taking turns by prediction (scope decisions 35 and

@@ -25,7 +25,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #air { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 
 /* The paper every panel is made of: a warm sheet with a faint tooth. */
-#hud, #hint, #card, #choice, #place, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here, #portrait, #average, #guide, #guide-button {
+#hud, #hint, #card, #place, #journal, #naming, #guess, #since, #ending .card, #home, #bloom, #mute, #zoom, #why-here, #portrait, #average, #guide, #guide-button {
   background-color: #F7F0DF;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -251,7 +251,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #card-group .same { font-style: italic; color: #585A4A; }
 /* Another group that lived in your line's place before your line came, once it is full (scope decision 70). */
 #card-group .first { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.25; color: #3E4436; }
-/* While the choice panel is up, the card sits in the room above it, wide (scope decision 23). */
+/* While a panel is up, the card sits in the room above it, wide (scope decision 23). */
 #card.above {
   left: calc(14px + env(safe-area-inset-left)); width: auto; max-width: 860px; margin-left: auto;
   max-height: var(--room); transform-origin: top center;
@@ -296,26 +296,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #9A8E70; }
 
-/* A choice point: a sheet of three painted plates. */
-#choice {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
-  padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
-  border-radius: 30px 30px 0 0; box-shadow: 0 -16px 54px rgba(50, 36, 16, .36), inset 0 1px 0 rgba(255, 255, 255, .8);
-  transform: translateY(104%); transition: transform .6s cubic-bezier(.2, .9, .28, 1);
-  max-height: 74%; overflow-y: auto;
-}
-#choice.open { transform: none; }
-#choice[hidden] { display: none; }
-#choice .grab { width: 48px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: #DED1B2; }
-#choice h2 { display: flex; align-items: center; margin: 4px 0 0; font-family: Petrona, Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -.4px; line-height: 1.1; color: #2A2B22; }
-#choice-since {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 10px 0 0; padding: 10px 14px; border-radius: 16px;
-  background: #EFE5CE; font-family: Petrona, Georgia, serif; font-size: 18px; line-height: 1.3; color: #3E4436;
-}
-#choice-since:empty { display: none; }
-#choice-since .since-title { display: flex; align-items: center; gap: 4px; width: 100%; font-size: 16px; color: #585A4A; }
-#choice-since .note { width: 100%; margin: 2px 0 0; font-style: italic; color: #585A4A; }
-#options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+/* A painted plate: the place sheet's cards (scope decision 70). */
 .option {
   position: relative; border-radius: 22px; background: #FBF7EC; color: #2A2B22;
   box-shadow: 0 0 0 2px #E6DAC0, 0 6px 16px rgba(60, 44, 20, .1);
@@ -333,13 +314,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 .option.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
 .option.picked .swatch { background: #14657F; }
 .option.not-picked { opacity: .38; }
-/* The time to choose, as a warm band that slowly shortens. */
-#choice .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#choice .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
-#choice-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
 
-/* The first choice (scope decision 70): where the family will live, the choice panel's sheet with a painted card for
-   each place, a real baby of the family in it. A card with no baby there yet waits a generation, its place painted empty. */
+/* The first choice (scope decision 70): where the family will live, a sheet with a painted card for each place, a real
+   baby of the family in it. A card with no baby there yet waits a generation, its place painted empty. No countdown
+   (scope decision 89). */
 #place {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
@@ -361,8 +339,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #place-cards .option.hard canvas { opacity: .7; filter: saturate(.55); }
 #place-cards .option.filled-in { animation: placeFill .7s cubic-bezier(.2, .9, .28, 1); }
 @keyframes placeFill { from { transform: scale(.96); box-shadow: 0 0 0 3px #EFC27E, 0 0 30px rgba(217, 164, 65, .45); } to { transform: none; } }
-#place .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#place .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #place-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #8A5A14; }
 #place-hard { display: flex; align-items: center; margin: 6px 0 0; font-family: Petrona, Georgia, serif; font-size: 22px; font-style: italic; font-weight: 600; color: #8A5A14; }
 #place-hard[hidden] { display: none; }
@@ -376,7 +352,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   #place-cards .option .pick { gap: 6px; padding: 8px 8px 12px; font-size: 18px; }
 }
 
-/* ---- The prediction journal: the choice panel's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
+/* ---- The prediction journal: the place sheet's paper, a quieter page of written answers. Naming the family uses the same page. ---- */
 #journal, #naming, #guess {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
@@ -402,13 +378,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #journal .answer:active, #naming .answer:active, #guess .answer:active { transform: scale(.98); }
 #journal .answer.picked, #naming .answer.picked, #guess .answer.picked { background: #E3EFF1; box-shadow: 0 0 0 3px #14657F, 0 0 26px rgba(20, 101, 127, .28); }
 #journal .answer.not-picked, #naming .answer.not-picked, #guess .answer.not-picked { opacity: .38; }
-#journal .timer, #naming .timer, #guess .timer { height: 8px; margin-top: 18px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#journal .timer i, #naming .timer i, #guess .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #journal-note, #naming-note, #guess-note { display: flex; align-items: center; min-height: 1.4em; margin-top: 10px; font-family: Petrona, Georgia, serif; font-size: 20px; font-style: italic; color: #14657F; }
 /* The three names: bigger, like name plates. */
 #naming-options { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 #naming .answer .pick { min-height: 72px; font-size: 23px; font-weight: 600; text-align: center; letter-spacing: -.2px; }
-/* A prediction beside what really happened: a small written note on the page, in the next choice panel and the ending. */
+/* A prediction beside what really happened: a small written note on the page, in "Since your last choice" and the ending. */
 .prediction {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; width: 100%; margin-top: 8px; padding: 10px 14px 12px;
   border-radius: 14px; background: #F8F2E3; box-shadow: inset 0 0 0 1px #E3D6B8;
@@ -596,18 +570,18 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 }
 /* ---- Your line and your relatives here (scope decision 67), side by side, as counts with bars. ---- */
 .fair-board, #ending-fair-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-#since-body .count, #choice-since .count, #ending-fair-rows .count {
+#since-body .count, #ending-fair-rows .count {
   display: flex; align-items: flex-end; gap: 14px; min-width: 0; padding: 12px 16px 14px; border-radius: 18px; white-space: normal;
   background: #FBF7EC; box-shadow: inset 0 0 0 1.5px var(--mark); /* older iPads: the group's own colour */
   box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mark) 45%, #E6DAC0);
   font-family: Petrona, Georgia, serif; font-size: 21px; font-weight: 500; line-height: 1.2; color: #2A2B22;
 }
-#since-body .count .bars, #choice-since .count .bars, #ending-fair-rows .count .bars { height: 52px; gap: 5px; padding-bottom: 2px; border-bottom: 2px solid #E3D6B8; }
-#since-body .count .bars i, #choice-since .count .bars i, #ending-fair-rows .count .bars i { width: 16px; border-radius: 5px 5px 1px 1px; transition: height .9s cubic-bezier(.2, .9, .28, 1); }
+#since-body .count .bars, #ending-fair-rows .count .bars { height: 52px; gap: 5px; padding-bottom: 2px; border-bottom: 2px solid #E3D6B8; }
+#since-body .count .bars i, #ending-fair-rows .count .bars i { width: 16px; border-radius: 5px 5px 1px 1px; transition: height .9s cubic-bezier(.2, .9, .28, 1); }
 #since-body .count .bars i.now, #ending-fair-rows .count .bars i.now { box-shadow: 0 0 6px var(--mark); box-shadow: 0 0 10px color-mix(in oklab, var(--mark) 40%, transparent); }
 #hud #others .count { white-space: normal; }
 
-/* "Since your last choice", before a new follow: the choice panel's paper. */
+/* "Since your last choice", before a new follow: the place sheet's paper. It waits for Next (scope decision 89). */
 #since {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
   padding: 12px 28px calc(22px + env(safe-area-inset-bottom));
@@ -631,8 +605,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
   background: linear-gradient(170deg, #1C7894, #14657F 55%, #10566C); color: #F6FCFD;
   font-family: Karla, system-ui, sans-serif; font-size: 18px; font-weight: 700; box-shadow: 0 8px 20px rgba(20, 80, 100, .25);
 }
-#since .timer { height: 8px; margin-top: 16px; border-radius: 99px; background: #E9DEC5; overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 44, 20, .15); }
-#since .timer i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #EFC27E, #D9A441); transition: width .25s linear; }
 #since.open #since-body > * { animation: rise .6s ease both; }
 #since.open #since-body > .count { animation-delay: .25s; }
 #since.open #since-body > .count ~ .count { animation-delay: .45s; }
@@ -683,34 +655,58 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 #logbar #log.danger.tick { animation: dangerIn .9s ease both; }
 @keyframes dangerIn { 0% { opacity: 0; transform: translateY(8px); } 60% { opacity: 1; transform: translateY(-2px); } 100% { transform: none; } }
 
-/* ---- Touch: two fingers zoom the map (main.js), never the page, so the panels keep their size. ---- */
-#card, #choice, #place, #since, #journal, #naming, #guess, #average, #guide, #ending .card { touch-action: pan-y; }
+/* ---- The idle pause (scope decision 90): the world freezes under a soft veil, and a tap anywhere keeps it going. ---- */
+#idle {
+  position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center;
+  padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+  background: rgba(34, 30, 20, .32); backdrop-filter: saturate(.7); -webkit-backdrop-filter: saturate(.7);
+  animation: idleIn .7s ease both; cursor: pointer;
+}
+#idle[hidden] { display: none; }
+@keyframes idleIn { from { opacity: 0; } to { opacity: 1; } }
+#idle-go {
+  display: flex; align-items: center; gap: 14px; min-height: 64px; max-width: 520px; padding: 16px 16px 16px 22px; border: 0; border-radius: 26px;
+  background-color: #F7F0DF; box-shadow: 0 16px 54px rgba(50, 36, 16, .4), inset 0 0 0 1px rgba(255, 255, 255, .7);
+  font-family: Petrona, Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.2; color: #2A2B22; text-align: left; cursor: pointer;
+}
+#idle-go .sun {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 38%, #FFFBEA, #FFE6A6 60%, #F2C46E); box-shadow: 0 0 0 4px rgba(255, 240, 200, .6), 0 0 16px rgba(255, 200, 110, .9);
+  animation: idleSun 2.4s ease-in-out infinite alternate;
+}
+@keyframes idleSun { from { transform: scale(.92); } to { transform: scale(1.06); } }
+#idle-line { display: flex; align-items: center; margin: 0; }
+@media (max-height: 599px), (max-width: 599px) { #idle-go { font-size: 21px; min-height: 56px; } }
 
-/* ---- A short or narrow screen (a phone): the generation panel is a slim bar, and a tap opens it whole. ---- */
+/* ---- Touch: two fingers zoom the map (main.js), never the page, so the panels keep their size. ---- */
+#card, #place, #since, #journal, #naming, #guess, #average, #guide, #ending .card { touch-action: pan-y; }
+
+/* ---- The generation panel folds to a slim bar: the number, the sun on its bar, your group's count. On a phone it is the
+   slim bar until a tap opens it whole; on an iPad it is whole until a tap folds it (scope decision 92). main.js sets
+   "slim". ---- */
 #hud .mini { display: none; }
+#hud { z-index: 22; pointer-events: auto; cursor: pointer; }
+#stage.arriving #hud { pointer-events: none; }
+#hud.slim {
+  display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 44px; padding: 5px 14px 5px 16px; border-radius: 999px;
+}
+#hud.slim .gen { display: flex; align-items: center; }
+#hud.slim .gen .label { display: none; }
+#hud.slim .gen b { margin: 0; font-size: 22px; line-height: 1; }
+#hud.slim #fast { position: absolute; left: 8px; top: calc(100% + 6px); margin: 0; vertical-align: 0; }
+#hud.slim .bar { flex: 0 0 72px; margin: 0; }
+#hud.slim .mini:not([hidden]) { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; color: #14657F; }
+#hud .mini .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 3px rgba(20, 101, 127, .15); }
+#hud.slim .line, #hud.slim #others, #hud.slim #so-far { display: none; }
+/* a small fold: down on the bar (there is more), up on the whole panel */
+#hud::after {
+  content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: -4px 0 0 -2px;
+  border: solid #9A8E70; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+#hud:not(.slim)::after { position: absolute; top: 18px; right: 16px; margin: 0; transform: rotate(-135deg); }
+#hud:not(.slim) { padding-right: 34px; }
 @media (max-height: 599px), (max-width: 599px) {
-  #hud {
-    z-index: 22; pointer-events: auto; cursor: pointer;
-    max-width: calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
-  }
-  #stage.arriving #hud { pointer-events: none; }
-  #hud:not(.open) {
-    display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 44px; padding: 5px 14px 5px 16px; border-radius: 999px;
-  }
-  #hud:not(.open) .gen { display: flex; align-items: center; }
-  #hud:not(.open) .gen .label { display: none; }
-  #hud:not(.open) .gen b { margin: 0; font-size: 22px; line-height: 1; }
-  #hud:not(.open) #fast { position: absolute; left: 8px; top: calc(100% + 6px); margin: 0; vertical-align: 0; }
-  #hud:not(.open) .bar { flex: 0 0 72px; margin: 0; }
-  #hud:not(.open) .mini:not([hidden]) { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; color: #14657F; }
-  #hud .mini .dot { width: 10px; height: 10px; border-radius: 50%; background: #14657F; box-shadow: 0 0 0 3px rgba(20, 101, 127, .15); }
-  #hud:not(.open) .line, #hud:not(.open) #others, #hud:not(.open) #so-far { display: none; }
-  /* a small fold: down on the bar (there is more), up on the open panel */
-  #hud::after {
-    content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: -4px 0 0 -2px;
-    border: solid #9A8E70; border-width: 0 2px 2px 0; transform: rotate(45deg);
-  }
-  #hud.open::after { position: absolute; top: 18px; right: 16px; margin: 0; transform: rotate(-135deg); }
+  #hud { max-width: calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)); }
 }
 
 /* The hint: beside the slim bar on a phone held sideways, under it (and wrapped) on a phone held upright. */
@@ -1093,10 +1089,35 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* a phone turn
 @keyframes puff { 0% { transform: none; opacity: 1; filter: none; } 60% { opacity: .5; } 100% { transform: scale(.55) translateY(-10px); opacity: 0; filter: blur(4px); } }
 @keyframes dust { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.35); opacity: 0; } }
 .cgrid.puffing.instant .ccard, .cgrid.puffing.instant .ccard::after { animation-delay: calc(-1s * var(--seek, 0)); animation-play-state: paused; }
+/* The cards wait for the child (scope decision 93): "Let's go!" puffs them away; a card tapped shows big, with its name. */
+#opening-go {
+  flex: 0 0 auto; min-height: 56px; min-width: 200px; padding: 12px 34px; border: 0; border-radius: 999px; cursor: pointer;
+  background: #14657F; color: #EFFAFD; font: 700 23px/1.1 Karla, system-ui, sans-serif; letter-spacing: .2px;
+  box-shadow: 0 8px 26px rgba(10, 40, 50, .45), inset 0 0 0 2px rgba(255, 255, 255, .25); animation: goIn .5s cubic-bezier(.2, .9, .28, 1) both;
+}
+#opening-go[hidden] { display: none; }
+@keyframes goIn { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+.ccard .ribbon.got { background: #4F7A45; box-shadow: 0 2px 8px rgba(30, 60, 20, .35); }
+#opening-big {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+  background: rgba(30, 24, 12, .55); animation: idleIn .3s ease both;
+}
+#opening-big[hidden] { display: none; }
+#opening-big .ccard.big { width: min(80vw, 520px, calc((100vh - 170px) * 1.066)); animation: cardIn .45s cubic-bezier(.2, .9, .28, 1) both; }
+#opening-big .ccard.big .label { padding: 10px 14px; font-size: 22px; gap: 10px; }
+#opening-big .ccard.big .mark { width: 30px; height: 30px; }
+#opening-big .big-name {
+  display: flex; align-items: center; margin: 0; padding: 4px 6px 4px 18px; border-radius: 99px; background: rgba(247, 240, 223, .95);
+  font-family: Petrona, Georgia, serif; font-size: 30px; font-weight: 600; color: #2A2B22; box-shadow: 0 6px 20px rgba(40, 28, 12, .25);
+}
 @media (max-height: 599px) {
   #opening { gap: 8px; }
   #opening .lines { min-height: 64px; }
   #opening .lines p { font-size: 18px; padding: 2px 4px 2px 12px; }
   #opening-grid { max-width: 380px; }
+  #opening-go { min-height: 48px; font-size: 19px; padding: 8px 26px; }
+  #opening-big { gap: 8px; }
+  #opening-big .big-name { font-size: 22px; }
 }
 @media (max-width: 599px) { #opening .lines p { font-size: 19px; } }
